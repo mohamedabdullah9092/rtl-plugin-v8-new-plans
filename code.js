@@ -1862,6 +1862,123 @@ const LANGUAGES = [
 
 // Global state for the asynchronous variant creation flow
 let pendingVariantCreation = null;
+// Set this to your deployed backend URL to sync licenses across devices.
+const ACTIVATION_SERVER_BASE_URL = 'https://rtl-master-activation.mohamedabdullah9092.workers.dev';
+const GUMROAD_NEW_PRODUCT_ID = 'xjW3twDEIx4LJQrkpgz4fQ==';
+const GUMROAD_OLD_PRODUCT_ID = 'dK0Er2rZ-4VFBT6KD-VTYw==';
+
+function getCurrentFigmaUser() {
+    return figma.currentUser && figma.currentUser.id ? figma.currentUser : null;
+}
+
+function getActivationServerEndpoint(path) {
+    if (!ACTIVATION_SERVER_BASE_URL) return null;
+    return `${ACTIVATION_SERVER_BASE_URL.replace(/\/+$/, '')}${path}`;
+}
+
+async function postJson(url, payload) {
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    return response.json();
+}
+
+async function pingActivationServer() {
+    const endpoint = getActivationServerEndpoint('/api/license-status');
+    if (!endpoint) return { ok: false, reason: 'Activation server URL is not configured.' };
+
+    try {
+        const result = await postJson(endpoint, { figmaUserId: 'healthcheck-user' });
+        return { ok: !!(result && result.success) };
+    } catch (error) {
+        return {
+            ok: false,
+            reason: error instanceof Error ? error.message : 'Unknown activation server error.'
+        };
+    }
+}
+
+async function verifyLicenseWithGumroad(licenseKey, shouldIncrement) {
+    let response = await fetch('https://api.gumroad.com/v2/licenses/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            product_id: GUMROAD_NEW_PRODUCT_ID,
+            license_key: licenseKey.trim(),
+            increment_uses_count: shouldIncrement
+        })
+    });
+
+    let data = await response.json();
+
+    if (!data.success) {
+        response = await fetch('https://api.gumroad.com/v2/licenses/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_id: GUMROAD_OLD_PRODUCT_ID,
+                license_key: licenseKey.trim(),
+                increment_uses_count: shouldIncrement
+            })
+        });
+        data = await response.json();
+    }
+
+    return data;
+}
+
+function isGumroadPurchaseActive(data) {
+    return !!(
+        data &&
+        data.success &&
+        data.purchase &&
+        !data.purchase.chargebacked &&
+        !data.purchase.refunded &&
+        !data.purchase.subscription_failed_at &&
+        !data.purchase.subscription_ended_at
+    );
+}
+
+async function fetchServerLicenseStatus(figmaUserId) {
+    const endpoint = getActivationServerEndpoint('/api/license-status');
+    if (!endpoint) return null;
+    return postJson(endpoint, { figmaUserId });
+}
+
+async function activateLicenseOnServer(licenseKey, figmaUser) {
+    const endpoint = getActivationServerEndpoint('/api/activate-license');
+    if (!endpoint) return null;
+    return postJson(endpoint, {
+        figmaUserId: figmaUser.id,
+        figmaUserName: figmaUser.name || '',
+        licenseKey: licenseKey.trim()
+    });
+}
+
+async function unlinkLicenseOnServer(figmaUserId) {
+    const endpoint = getActivationServerEndpoint('/api/unlink-license');
+    if (!endpoint) return null;
+    return postJson(endpoint, { figmaUserId });
+}
+
+function formatUserFacingPluginError(error) {
+    const fallbackMessage = 'Something went wrong while processing the selection. Please try again.';
+    if (!(error instanceof Error)) return fallbackMessage;
+
+    const rawMessage = error.message || '';
+    const normalizedMessage = rawMessage.toLowerCase();
+
+    if (
+        normalizedMessage.includes('component set for node has existing errors') ||
+        normalizedMessage.includes('variant set with invalid properties')
+    ) {
+        return 'This component set has broken or invalid variants in Figma. Please fix or recreate the variant set, then try again.';
+    }
+
+    return `Plugin Error: ${rawMessage}`;
+}
 
 figma.showUI(__html__, { width: 400, height: 650, title: "RTL Master" });
 
@@ -1872,7 +1989,8 @@ figma.ui.onmessage = async (msg) => {
                 {
                     let isPro = await figma.clientStorage.getAsync('isPro');
                     let trialCount = await figma.clientStorage.getAsync('trialCount');
-                    const currentFigmaUserId = (figma.currentUser && figma.currentUser.id) ? figma.currentUser.id : null;
+                    const currentFigmaUser = getCurrentFigmaUser();
+                    const currentFigmaUserId = currentFigmaUser ? currentFigmaUser.id : null;
 
                     if (isPro === undefined && trialCount === undefined) {
                         isPro = false;
@@ -1896,31 +2014,33 @@ figma.ui.onmessage = async (msg) => {
                     figma.ui.postMessage({ type: 'user-status', payload: { isPro: !!isPro, trialCount } });
 
                     // --- Background Re-verification (fire and forget) ---
-                    // If not Pro but a stored key exists for this Figma user, try to silently re-activate
+                    // If a backend is configured, trust it as the source of truth across devices.
                     (async function backgroundVerify() {
                         try {
+                            if (currentFigmaUserId && ACTIVATION_SERVER_BASE_URL) {
+                                const serverStatus = await fetchServerLicenseStatus(currentFigmaUserId);
+                                const serverIsPro = !!(serverStatus && serverStatus.success && serverStatus.isPro);
+
+                                await figma.clientStorage.setAsync('isPro', serverIsPro);
+
+                                if (serverIsPro) {
+                                    await figma.clientStorage.setAsync('activatedFigmaUserId', currentFigmaUserId);
+                                    figma.ui.postMessage({ type: 'user-status', payload: { isPro: true, trialCount } });
+                                } else {
+                                    await figma.clientStorage.deleteAsync('licenseKey');
+                                    await figma.clientStorage.deleteAsync('activatedFigmaUserId');
+                                    figma.ui.postMessage({ type: 'user-status', payload: { isPro: false, trialCount } });
+                                }
+                                return;
+                            }
+
+                            // Fallback to local-only behavior when no backend is configured.
                             const storedKey = await figma.clientStorage.getAsync('licenseKey');
                             const storedUserId = await figma.clientStorage.getAsync('activatedFigmaUserId');
                             const keyBelongsToCurrentUser = storedKey && (!storedUserId || storedUserId === currentFigmaUserId);
                             if (!isPro && keyBelongsToCurrentUser) {
-                                const NEW_PRODUCT_ID = 'xjW3twDEIx4LJQrkpgz4fQ==';
-                                const OLD_PRODUCT_ID = 'dK0Er2rZ-4VFBT6KD-VTYw==';
-                                let response = await fetch('https://api.gumroad.com/v2/licenses/verify', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ product_id: NEW_PRODUCT_ID, license_key: storedKey, increment_uses_count: false })
-                                });
-                                let data = await response.json();
-                                if (!data.success) {
-                                    response = await fetch('https://api.gumroad.com/v2/licenses/verify', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ product_id: OLD_PRODUCT_ID, license_key: storedKey, increment_uses_count: false })
-                                    });
-                                    data = await response.json();
-                                }
-                                if (data.success && !data.purchase.chargebacked && !data.purchase.refunded &&
-                                    !data.purchase.subscription_failed_at && !data.purchase.subscription_ended_at) {
+                                const data = await verifyLicenseWithGumroad(storedKey, false);
+                                if (isGumroadPurchaseActive(data)) {
                                     await figma.clientStorage.setAsync('isPro', true);
                                     if (!storedUserId && currentFigmaUserId) {
                                         await figma.clientStorage.setAsync('activatedFigmaUserId', currentFigmaUserId);
@@ -1954,41 +2074,44 @@ figma.ui.onmessage = async (msg) => {
             case 'verify-license':
                 {
                     const { licenseKey } = msg.payload;
-                    const NEW_PRODUCT_ID = 'xjW3twDEIx4LJQrkpgz4fQ==';
-                    const OLD_PRODUCT_ID = 'dK0Er2rZ-4VFBT6KD-VTYw==';
 
                     try {
+                        const currentFigmaUser = getCurrentFigmaUser();
+                        const currentFigmaUserId = currentFigmaUser ? currentFigmaUser.id : null;
+
+                        if (ACTIVATION_SERVER_BASE_URL && !currentFigmaUser) {
+                            figma.ui.postMessage({
+                                type: 'license-invalid',
+                                payload: { message: 'Figma user account is unavailable inside the plugin. Please close and reopen Figma, then try again.' }
+                            });
+                            break;
+                        }
+
+                        if (ACTIVATION_SERVER_BASE_URL && currentFigmaUser) {
+                            const serverResult = await activateLicenseOnServer(licenseKey, currentFigmaUser);
+
+                            if (serverResult && serverResult.success && serverResult.isPro) {
+                                const currentTrialCount = await figma.clientStorage.getAsync('trialCount');
+                                if (typeof currentTrialCount === 'number') {
+                                    await figma.clientStorage.setAsync('trialCountBeforePro', currentTrialCount);
+                                }
+                                await figma.clientStorage.setAsync('isPro', true);
+                                await figma.clientStorage.setAsync('activatedFigmaUserId', currentFigmaUserId);
+                                figma.ui.postMessage({ type: 'license-verified' });
+                            } else {
+                                const reason = (serverResult && serverResult.message) ? serverResult.message : 'Activation failed.';
+                                figma.ui.postMessage({ type: 'license-invalid', payload: { message: reason } });
+                            }
+                            break;
+                        }
+
                         // Check if this key was already activated on another device by the same user
                         // If so, re-verify without incrementing (device transfer scenario)
                         const storedKey = await figma.clientStorage.getAsync('licenseKey');
                         const isReVerification = (storedKey === licenseKey.trim());
                         const shouldIncrement = !isReVerification;
 
-                        let response = await fetch('https://api.gumroad.com/v2/licenses/verify', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                product_id: NEW_PRODUCT_ID,
-                                license_key: licenseKey.trim(),
-                                increment_uses_count: shouldIncrement
-                            })
-                        });
-
-                        let data = await response.json();
-
-                        // Fallback to the old lifetime product if the new subscription product fails
-                        if (!data.success) {
-                            response = await fetch('https://api.gumroad.com/v2/licenses/verify', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    product_id: OLD_PRODUCT_ID,
-                                    license_key: licenseKey.trim(),
-                                    increment_uses_count: shouldIncrement
-                                })
-                            });
-                            data = await response.json();
-                        }
+                        const data = await verifyLicenseWithGumroad(licenseKey, shouldIncrement);
 
                         if (data.success && !data.purchase.chargebacked && !data.purchase.refunded) {
                             let isActive = true;
@@ -2005,7 +2128,7 @@ figma.ui.onmessage = async (msg) => {
                                 await figma.clientStorage.setAsync('isPro', true);
                                 // Store the key AND the Figma user ID to bind license to this account
                                 await figma.clientStorage.setAsync('licenseKey', licenseKey.trim());
-                                const figmaUserId = (figma.currentUser && figma.currentUser.id) ? figma.currentUser.id : null;
+                                const figmaUserId = currentFigmaUserId;
                                 if (figmaUserId) {
                                     await figma.clientStorage.setAsync('activatedFigmaUserId', figmaUserId);
                                 }
@@ -2019,7 +2142,15 @@ figma.ui.onmessage = async (msg) => {
                         }
                     } catch (error) {
                         console.error('Gumroad API verification error:', error);
-                        figma.ui.postMessage({ type: 'license-invalid', payload: { message: 'Could not connect to the activation server. Please try again.' } });
+                        if (ACTIVATION_SERVER_BASE_URL) {
+                            const healthcheck = await pingActivationServer();
+                            const diagnostic = healthcheck.ok
+                                ? (error instanceof Error ? error.message : 'Activation request failed.')
+                                : (healthcheck.reason || 'Activation server is unreachable from the plugin.');
+                            figma.ui.postMessage({ type: 'license-invalid', payload: { message: `Activation server error: ${diagnostic}` } });
+                        } else {
+                            figma.ui.postMessage({ type: 'license-invalid', payload: { message: 'Could not connect to the activation server. Please try again.' } });
+                        }
                     }
                     break;
                 }
@@ -2029,6 +2160,14 @@ figma.ui.onmessage = async (msg) => {
                     // Clear license binding data
                     await figma.clientStorage.deleteAsync('licenseKey');
                     await figma.clientStorage.deleteAsync('activatedFigmaUserId');
+                    const currentFigmaUser = getCurrentFigmaUser();
+                    if (ACTIVATION_SERVER_BASE_URL && currentFigmaUser) {
+                        try {
+                            await unlinkLicenseOnServer(currentFigmaUser.id);
+                        } catch (e) {
+                            console.warn('Failed to unlink license on activation server', e);
+                        }
+                    }
                     let trialCountToRestore = await figma.clientStorage.getAsync('trialCountBeforePro');
                     if (typeof trialCountToRestore !== 'number') {
                         trialCountToRestore = 20;
@@ -2137,12 +2276,10 @@ figma.ui.onmessage = async (msg) => {
                 }
         }
     } catch (error) {
-        let errorMessage = 'An unexpected error occurred in the plugin.';
-        if (error instanceof Error) {
-            errorMessage = `Plugin Error: ${error.message}`;
-        }
-        console.error(errorMessage, error);
-        figma.ui.postMessage({ type: 'plugin-error', payload: { message: errorMessage } });
+        const technicalMessage = error instanceof Error ? `Plugin Error: ${error.message}` : 'An unexpected error occurred in the plugin.';
+        const userFacingMessage = formatUserFacingPluginError(error);
+        console.error(technicalMessage, error);
+        figma.ui.postMessage({ type: 'plugin-error', payload: { message: userFacingMessage } });
         pendingVariantCreation = null; // Reset state on error
     }
 };
@@ -2849,7 +2986,12 @@ async function mirrorNode(node, isInsideInstance = false, mirroredMainComponents
             if (rtlVariant) {
                 try {
                     // 2. SWITCH: Swap this instance properties to match the RTL variant
-                    node.setProperties(rtlVariant.variantProperties);
+                    const rtlProps = safeGetVariantProperties(rtlVariant);
+                    if (!rtlProps) {
+                        console.warn(`RTL variant "${rtlVariant.name}" has unreadable variant properties. Skipping instance swap.`);
+                        return;
+                    }
+                    node.setProperties(rtlProps);
                     return; // Early return because the variant definition handles the internal mirroring
                 } catch (e) {
                     console.warn(`Failed to swap variant properties for "${node.name}": ${e.message}`);
@@ -3198,13 +3340,44 @@ function findVariantByProps(componentSet, targetProps) {
     if (!componentSet || componentSet.type !== 'COMPONENT_SET') return null;
 
     return componentSet.children.find(variant => {
-        const props = variant.variantProperties;
+        const props = safeGetVariantProperties(variant);
         if (!props) return false;
 
         return Object.entries(targetProps).every(([key, value]) => {
             return props[key] === value;
         });
     }) || null;
+}
+
+function parseVariantNameToProps(name) {
+    const props = {};
+    if (!name || typeof name !== 'string') return props;
+
+    name.split(',').forEach(part => {
+        const [key, value] = part.split('=').map(s => s.trim());
+        if (key && value) {
+            props[key] = value;
+        }
+    });
+
+    return props;
+}
+
+function safeGetVariantProperties(node) {
+    if (!node || (node.type !== 'COMPONENT' && node.type !== 'INSTANCE')) return null;
+
+    try {
+        return node.variantProperties || parseVariantNameToProps(node.name);
+    } catch (error) {
+        const fallbackProps = parseVariantNameToProps(node.name);
+        if (Object.keys(fallbackProps).length > 0) {
+            console.warn(`Falling back to parsing variant name for "${node.name}" because Figma could not read variantProperties: ${error.message}`);
+            return fallbackProps;
+        }
+
+        console.warn(`Skipping invalid variant node "${node.name}": ${error.message}`);
+        return null;
+    }
 }
 
 /**
@@ -3243,7 +3416,10 @@ async function ensureRtlVariant(mainComponent, options = {}) {
         componentSet.name = mainComponent.name.split(',')[0]; // Cleanup name
     } else {
         // Add to existing set
-        const currentProps = mainComponent.variantProperties;
+        const currentProps = safeGetVariantProperties(mainComponent);
+        if (!currentProps) {
+            throw new Error('Selected component belongs to a variant set with invalid properties. In Figma, try renaming or recreating the broken variant set before mirroring.');
+        }
         const newProps = Object.assign({}, currentProps, targetProps);
 
         // Construct the name string for the new variant (Figma variant naming convention)

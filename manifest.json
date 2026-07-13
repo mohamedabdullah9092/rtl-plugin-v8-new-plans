@@ -19,7 +19,8 @@
       "https://api.openai.com",
       "https://translate.googleapis.com",
       "https://generativelanguage.googleapis.com",
-      "https://api.gumroad.com"
+      "https://api.gumroad.com",
+      "https://rtl-master-activation.mohamedabdullah9092.workers.dev"
     ]
   },
   "permissions": ["currentuser"]

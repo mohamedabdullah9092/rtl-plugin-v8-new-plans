@@ -1,0 +1,15 @@
+{
+  "name": "activation-backend",
+  "version": "1.0.0",
+  "description": "This backend links a Gumroad license to a Figma user ID so the same user can use the plugin across multiple devices.",
+  "main": "worker.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "wrangler": "^4.110.0"
+  }
+}

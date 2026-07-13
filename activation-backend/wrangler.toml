@@ -1,0 +1,8 @@
+name = "rtl-master-activation"
+main = "worker.js"
+compatibility_date = "2026-07-13"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "rtl-master-activation-db"
+database_id = "ac396dfa-5cbc-403d-a059-0e7583626a6f"
