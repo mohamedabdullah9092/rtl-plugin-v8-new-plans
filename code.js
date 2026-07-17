@@ -2482,6 +2482,8 @@ async function handleCreateVariant(payload) {
         const baseLang = getPropsMapTemp(selectedNode.name).get('Language');
         if (baseLang) {
             originalVariants = originalVariants.filter(v => getPropsMapTemp(v.name).get('Language') === baseLang);
+        } else {
+            originalVariants = [selectedNode];
         }
     } else if (isExistingSet) {
         // If they selected the ComponentSet, use the first variant's language as the base
@@ -2492,7 +2494,6 @@ async function handleCreateVariant(payload) {
     }
 
     let newVariants = [];
-    let reusedVariants = [];
 
     const langNames = {
         'auto': 'Auto Detect', 'en': 'English', 'ar': 'Arabic', 'es': 'Spanish', 'fr': 'French',
@@ -2502,7 +2503,10 @@ async function handleCreateVariant(payload) {
 
     let sourceIsRtl = false;
     if (fromLanguage === 'auto') {
-        const textNodes = findTextNodes(Array.from(originalVariants));
+        const sourceLanguageProbeNode = selectedNode.type === 'COMPONENT_SET'
+            ? (originalVariants[0] || sourceComponentOrSet)
+            : sourceComponentOrSet;
+        const textNodes = findTextNodes([sourceLanguageProbeNode]);
         const allText = textNodes.map(n => n.characters).join(' ');
         const rtlRegex = /[\u0600-\u06FF]/;
         if (rtlRegex.test(allText)) sourceIsRtl = true;
@@ -2560,11 +2564,7 @@ async function handleCreateVariant(payload) {
             sourcePropsObject.RTL === targetPropsObject.RTL &&
             sourcePropsObject.Language === targetPropsObject.Language
         ) {
-            figma.notify(`Variant for ${toLangName} already exists.`, { error: false });
-            figma.currentPage.selection = [sourceComponentOrSet];
-            figma.viewport.scrollAndZoomIntoView([sourceComponentOrSet]);
-            figma.ui.postMessage({ type: 'action-complete' });
-            return;
+            targetPropsObject.Language = `${toLangName} 2`;
         }
 
         figma.notify('Creating new variants...');
@@ -2606,22 +2606,12 @@ async function handleCreateVariant(payload) {
             maxSetX = Math.max(maxSetX, child.x + child.width);
         }
         const shiftStartX = maxSetX + 150; // extra padding to ensure no overlaps
-        const reusedVariantIds = new Set();
-
         for (const originalVariant of originalVariants) {
             const propsMap = getPropsMapTemp(originalVariant.name);
             propsMap.set('RTL', targetDirectionText === 'RTL' ? 'True' : 'False');
             propsMap.set('Language', toLangName);
             const targetPropsObject = Object.fromEntries(propsMap);
-            const existingTarget = findVariantByProps(componentSet, targetPropsObject);
-
-            if (existingTarget) {
-                if (!reusedVariantIds.has(existingTarget.id)) {
-                    reusedVariantIds.add(existingTarget.id);
-                    reusedVariants.push(existingTarget);
-                }
-                continue;
-            }
+            targetPropsObject.Language = getUniqueVariantLanguageValue(componentSet, targetPropsObject, toLangName);
 
             if (!hasShownCreationNotification) {
                 figma.notify('Creating new variants...');
@@ -2638,10 +2628,6 @@ async function handleCreateVariant(payload) {
             newVariant.x = shiftStartX + (origMaxX - (originalVariant.x + originalVariant.width));
             newVariant.y = originalVariant.y;
         }
-    }
-
-    if (newVariants.length === 0 && reusedVariants.length > 0) {
-        figma.notify(`Variant for ${toLangName} already exists. Reusing existing variant.`, { error: false });
     }
 
     if (!isExistingSet) {
@@ -3518,6 +3504,22 @@ function inferSourceIsRtl(component, fromLanguage) {
 
 function variantPropsToName(props) {
     return Object.entries(props).map(([key, value]) => `${key}=${value}`).join(', ');
+}
+
+function getUniqueVariantLanguageValue(componentSet, targetProps, baseLanguage) {
+    if (!componentSet || componentSet.type !== 'COMPONENT_SET') {
+        return baseLanguage;
+    }
+
+    let candidateLanguage = baseLanguage;
+    let suffix = 2;
+
+    while (findVariantByProps(componentSet, Object.assign({}, targetProps, { Language: candidateLanguage }))) {
+        candidateLanguage = `${baseLanguage} ${suffix}`;
+        suffix++;
+    }
+
+    return candidateLanguage;
 }
 
 function inferVariantLanguageName(component, fallbackLanguageName = 'English') {
