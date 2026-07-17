@@ -2452,11 +2452,10 @@ async function handleCreateVariant(payload) {
         return;
     }
 
-    figma.notify('Creating new variants...');
-
     let originalVariants = [];
     let isExistingSet = false;
     let componentSet = null;
+    let hasShownCreationNotification = false;
 
     if (sourceComponentOrSet.type === 'COMPONENT_SET') {
         originalVariants = Array.from(sourceComponentOrSet.children);
@@ -2493,6 +2492,7 @@ async function handleCreateVariant(payload) {
     }
 
     let newVariants = [];
+    let reusedVariants = [];
 
     const langNames = {
         'auto': 'Auto Detect', 'en': 'English', 'ar': 'Arabic', 'es': 'Spanish', 'fr': 'French',
@@ -2533,6 +2533,10 @@ async function handleCreateVariant(payload) {
         return Array.from(propsMap.entries()).map(([k, v]) => `${k}=${v}`).join(', ');
     };
 
+    if (componentSet) {
+        normalizeComponentSetVariantProps(componentSet, fromLangName, sourceIsRtl);
+    }
+
     if (!isExistingSet) {
         const originalNodeName = sourceComponentOrSet.name;
         const hasVariantsAlready = originalNodeName.includes('=');
@@ -2546,11 +2550,28 @@ async function handleCreateVariant(payload) {
         if (!originalPropsMap.has('Language')) originalPropsMap.set('Language', fromLangName);
         sourceComponentOrSet.name = setPropsString(originalPropsMap);
 
+        const sourcePropsObject = Object.fromEntries(originalPropsMap);
+        const targetPropsObject = Object.assign({}, sourcePropsObject, {
+            RTL: targetDirectionText === 'RTL' ? 'True' : 'False',
+            Language: toLangName
+        });
+
+        if (
+            sourcePropsObject.RTL === targetPropsObject.RTL &&
+            sourcePropsObject.Language === targetPropsObject.Language
+        ) {
+            figma.notify(`Variant for ${toLangName} already exists.`, { error: false });
+            figma.currentPage.selection = [sourceComponentOrSet];
+            figma.viewport.scrollAndZoomIntoView([sourceComponentOrSet]);
+            figma.ui.postMessage({ type: 'action-complete' });
+            return;
+        }
+
+        figma.notify('Creating new variants...');
+        hasShownCreationNotification = true;
         const newVariant = sourceComponentOrSet.clone();
         resetMirrorMarker(newVariant);
-        originalPropsMap.set('RTL', targetDirectionText === 'RTL' ? 'True' : 'False');
-        originalPropsMap.set('Language', toLangName);
-        newVariant.name = setPropsString(originalPropsMap);
+        newVariant.name = variantPropsToName(targetPropsObject);
 
         componentSet = figma.combineAsVariants([sourceComponentOrSet, newVariant], sourceParent);
         componentSet.layoutMode = 'NONE';
@@ -2585,15 +2606,30 @@ async function handleCreateVariant(payload) {
             maxSetX = Math.max(maxSetX, child.x + child.width);
         }
         const shiftStartX = maxSetX + 150; // extra padding to ensure no overlaps
+        const reusedVariantIds = new Set();
 
         for (const originalVariant of originalVariants) {
-            const newVariant = originalVariant.clone();
-            resetMirrorMarker(newVariant);
-
             const propsMap = getPropsMapTemp(originalVariant.name);
             propsMap.set('RTL', targetDirectionText === 'RTL' ? 'True' : 'False');
             propsMap.set('Language', toLangName);
-            newVariant.name = setPropsString(propsMap);
+            const targetPropsObject = Object.fromEntries(propsMap);
+            const existingTarget = findVariantByProps(componentSet, targetPropsObject);
+
+            if (existingTarget) {
+                if (!reusedVariantIds.has(existingTarget.id)) {
+                    reusedVariantIds.add(existingTarget.id);
+                    reusedVariants.push(existingTarget);
+                }
+                continue;
+            }
+
+            if (!hasShownCreationNotification) {
+                figma.notify('Creating new variants...');
+                hasShownCreationNotification = true;
+            }
+            const newVariant = originalVariant.clone();
+            resetMirrorMarker(newVariant);
+            newVariant.name = variantPropsToName(targetPropsObject);
 
             componentSet.appendChild(newVariant);
             newVariants.push(newVariant);
@@ -2602,6 +2638,10 @@ async function handleCreateVariant(payload) {
             newVariant.x = shiftStartX + (origMaxX - (originalVariant.x + originalVariant.width));
             newVariant.y = originalVariant.y;
         }
+    }
+
+    if (newVariants.length === 0 && reusedVariants.length > 0) {
+        figma.notify(`Variant for ${toLangName} already exists. Reusing existing variant.`, { error: false });
     }
 
     if (!isExistingSet) {
@@ -2732,8 +2772,49 @@ async function completeVariantCreation() {
 
 // A cache for available fonts to avoid calling the async function repeatedly during a single action.
 let availableFontsCache = null;
+const fontLoadStatusCache = new Map();
+const fallbackFontCache = new Map();
+const fontsByFamilyCache = new Map();
+
+function getFontCacheKey(fontName) {
+    if (!fontName || fontName === figma.mixed) return null;
+    return `${fontName.family}::${fontName.style}`;
+}
+
+async function ensureFontLoaded(fontName) {
+    const cacheKey = getFontCacheKey(fontName);
+    if (!cacheKey) return false;
+
+    if (fontLoadStatusCache.has(cacheKey)) {
+        return fontLoadStatusCache.get(cacheKey);
+    }
+
+    try {
+        await figma.loadFontAsync(fontName);
+        fontLoadStatusCache.set(cacheKey, true);
+        return true;
+    } catch (error) {
+        fontLoadStatusCache.set(cacheKey, false);
+        return false;
+    }
+}
+
+function getFontsInFamily(family) {
+    if (fontsByFamilyCache.has(family)) {
+        return fontsByFamilyCache.get(family);
+    }
+
+    const fontsInFamily = availableFontsCache.filter(f => f.fontName.family === family);
+    fontsByFamilyCache.set(family, fontsInFamily);
+    return fontsInFamily;
+}
 
 async function findBestFallbackFont(missingFont) {
+    const cacheKey = getFontCacheKey(missingFont);
+    if (cacheKey && fallbackFontCache.has(cacheKey)) {
+        return fallbackFontCache.get(cacheKey);
+    }
+
     if (!availableFontsCache) {
         try {
             availableFontsCache = await figma.listAvailableFontsAsync();
@@ -2745,7 +2826,7 @@ async function findBestFallbackFont(missingFont) {
     }
 
     // Strategy: Find another style in the same family.
-    const fontsInFamily = availableFontsCache.filter(f => f.fontName.family === missingFont.family);
+    const fontsInFamily = getFontsInFamily(missingFont.family);
 
     if (fontsInFamily.length > 0) {
         // Prefer common styles if available.
@@ -2756,12 +2837,17 @@ async function findBestFallbackFont(missingFont) {
         ];
         for (const style of stylePreferences) {
             const found = fontsInFamily.find(f => f.fontName.style.toLowerCase() === style.toLowerCase());
-            if (found) return found.fontName;
+            if (found) {
+                if (cacheKey) fallbackFontCache.set(cacheKey, found.fontName);
+                return found.fontName;
+            }
         }
         // If no preferred style is found, return the first available style for that family.
+        if (cacheKey) fallbackFontCache.set(cacheKey, fontsInFamily[0].fontName);
         return fontsInFamily[0].fontName;
     }
 
+    if (cacheKey) fallbackFontCache.set(cacheKey, null);
     return null; // No fallback found in the same family.
 }
 
@@ -2794,11 +2880,11 @@ async function applyTranslationsToNodes(translations, onProgress) {
                 // Pass 1: Identify all missing fonts in the node and find fallbacks.
                 for (const segment of originalSegments) {
                     const { fontName } = segment;
-                    if (nodeFontFallbacks.has(fontName)) continue; // Already processed this font style
+                    const fontKey = getFontCacheKey(fontName);
+                    if (fontKey && nodeFontFallbacks.has(fontKey)) continue; // Already processed this font style
 
-                    try {
-                        await figma.loadFontAsync(fontName);
-                    } catch (fontError) {
+                    const fontLoaded = await ensureFontLoaded(fontName);
+                    if (!fontLoaded) {
                         // Font is missing. Try to find a fallback.
                         // Strategy 1: Find another style in the same family.
                         let fallbackFont = await findBestFallbackFont(fontName);
@@ -2809,10 +2895,11 @@ async function applyTranslationsToNodes(translations, onProgress) {
                             // Prioritize original style, then common styles.
                             const stylesToTry = [fontName.style, 'Regular', 'Medium', 'SemiBold', 'Bold', 'Italic'];
                             const uniqueStylesToTry = [...new Set(stylesToTry)];
+                            const universalFonts = getFontsInFamily(universalFallbackFamily);
 
                             for (const style of uniqueStylesToTry) {
                                 // Check if this Poppins variant exists in our cached list of available fonts.
-                                const found = availableFontsCache.find(f => f.fontName.family === universalFallbackFamily && f.fontName.style === style);
+                                const found = universalFonts.find(f => f.fontName.style === style);
                                 if (found) {
                                     fallbackFont = found.fontName;
                                     break; // Found a suitable Poppins style, stop searching.
@@ -2820,18 +2907,21 @@ async function applyTranslationsToNodes(translations, onProgress) {
                             }
                         }
 
-                        nodeFontFallbacks.set(fontName, fallbackFont); // Can be null if no fallback is found at all.
+                        if (fontKey) {
+                            nodeFontFallbacks.set(fontKey, fallbackFont); // Can be null if no fallback is found at all.
+                        }
                     }
                 }
 
                 // Pass 2: Apply the found fallbacks to the text ranges.
                 for (const segment of originalSegments) {
                     const { fontName, start, end } = segment;
-                    const fallbackFont = nodeFontFallbacks.get(fontName);
+                    const fontKey = getFontCacheKey(fontName);
+                    const fallbackFont = fontKey ? nodeFontFallbacks.get(fontKey) : undefined;
 
                     if (fallbackFont !== undefined) { // A fallback was sought for this font
                         if (fallbackFont) { // A fallback was successfully found
-                            await figma.loadFontAsync(fallbackFont);
+                            await ensureFontLoaded(fallbackFont);
                             node.setRangeFontName(start, end, fallbackFont);
 
                             const missingFontStr = `'${fontName.family} ${fontName.style}'`;
@@ -2890,6 +2980,9 @@ async function applyTranslationsToNodes(translations, onProgress) {
         }
     }
     availableFontsCache = null; // Clear cache after the operation completes.
+    fontLoadStatusCache.clear();
+    fallbackFontCache.clear();
+    fontsByFamilyCache.clear();
     return { successCount, failedCount, missingFonts, fontReplacements };
 }
 
@@ -3064,9 +3157,8 @@ async function mirrorNode(node, isInsideInstance = false, mirrorContext = create
         try {
             const fonts = node.getRangeAllFontNames(0, node.characters.length);
             for (const font of fonts) {
-                try {
-                    await figma.loadFontAsync(font);
-                } catch (fontError) {
+                const fontLoaded = await ensureFontLoaded(font);
+                if (!fontLoaded) {
                     console.warn(`Could not load font: ${font.family} ${font.style} for node "${node.name}". Figma will use a fallback font.`);
                 }
             }
@@ -3428,6 +3520,49 @@ function variantPropsToName(props) {
     return Object.entries(props).map(([key, value]) => `${key}=${value}`).join(', ');
 }
 
+function inferVariantLanguageName(component, fallbackLanguageName = 'English') {
+    return inferSourceIsRtl(component, 'auto') ? 'Arabic' : fallbackLanguageName;
+}
+
+function inferVariantRtlValue(component, languageName, fallbackIsRtl = false) {
+    if (languageName === 'Arabic') return 'True';
+    if (languageName && languageName !== 'Auto Detect') return 'False';
+    return inferSourceIsRtl(component, 'auto') || fallbackIsRtl ? 'True' : 'False';
+}
+
+function normalizeVariantNodeName(variant, fallbackLanguageName = 'English', fallbackIsRtl = false) {
+    if (!variant || variant.type !== 'COMPONENT') return false;
+
+    const propsMap = new Map(Object.entries(parseVariantNameToProps(variant.name)));
+    const languageName = propsMap.get('Language') || inferVariantLanguageName(variant, fallbackLanguageName);
+    const rtlValue = propsMap.get('RTL') || inferVariantRtlValue(variant, languageName, fallbackIsRtl);
+    let changed = false;
+
+    if (!propsMap.get('Language')) {
+        propsMap.set('Language', languageName);
+        changed = true;
+    }
+
+    if (!propsMap.get('RTL')) {
+        propsMap.set('RTL', rtlValue);
+        changed = true;
+    }
+
+    if (changed) {
+        variant.name = variantPropsToName(Object.fromEntries(propsMap));
+    }
+
+    return changed;
+}
+
+function normalizeComponentSetVariantProps(componentSet, fallbackLanguageName = 'English', fallbackIsRtl = false) {
+    if (!componentSet || componentSet.type !== 'COMPONENT_SET') return;
+
+    for (const variant of componentSet.children) {
+        normalizeVariantNodeName(variant, fallbackLanguageName, fallbackIsRtl);
+    }
+}
+
 function completeVariantProps(componentSet, sourceProps) {
     const completeProps = Object.assign({}, sourceProps);
 
@@ -3543,6 +3678,11 @@ async function ensureTargetVariant(mainComponent, mirrorContext) {
     const sourceLanguage = fromLanguage === 'auto'
         ? (sourceIsRtl ? 'Arabic' : 'English')
         : getLanguageName(fromLanguage);
+
+    if (componentSet) {
+        normalizeComponentSetVariantProps(componentSet, sourceLanguage, sourceIsRtl);
+    }
+
     const targetProps = Object.assign({}, sourceProps, {
         RTL: toLanguage === 'ar' ? 'True' : 'False',
         Language: getLanguageName(toLanguage)
