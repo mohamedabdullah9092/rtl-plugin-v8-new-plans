@@ -2367,6 +2367,7 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
 async function processNodesInPlace(payload, shouldMirror) {
     const { fromLanguage, toLanguage, translateText, mirrorInstances } = payload;
     const selection = figma.currentPage.selection;
+    const mirrorContext = createMirrorContext({ fromLanguage, toLanguage, translateText });
 
     if (selection.length === 0) {
         figma.ui.postMessage({ type: 'plugin-error', payload: { message: 'Please select at least one item to process.' } });
@@ -2375,30 +2376,15 @@ async function processNodesInPlace(payload, shouldMirror) {
 
     if (shouldMirror) {
         figma.notify('Mirroring selection...');
-        const mirroredMainComponents = new Set();
         for (const node of selection) {
-            await mirrorNode(node, false, mirroredMainComponents, mirrorInstances);
+            await mirrorNode(node, false, mirrorContext, mirrorInstances);
         }
     }
 
     if (translateText) {
         const nodesForTranslation = [...selection];
         if (mirrorInstances) {
-            const mainComponentsToAdd = new Map();
-            for (const node of selection) {
-                if (node.type === 'INSTANCE') {
-                    try {
-                        const mainComponent = await node.getMainComponentAsync();
-                        // Add the main component if it's local to this file and we haven't already added it.
-                        if (mainComponent && !mainComponent.remote && !mainComponentsToAdd.has(mainComponent.id)) {
-                            mainComponentsToAdd.set(mainComponent.id, mainComponent);
-                        }
-                    } catch (e) {
-                        console.warn(`Could not retrieve main component for instance "${node.name}": ${e.message}`);
-                    }
-                }
-            }
-            nodesForTranslation.push(...mainComponentsToAdd.values());
+            nodesForTranslation.push(...mirrorContext.createdVariants.values());
         }
 
         const textNodes = findTextNodes(nodesForTranslation);
@@ -2412,6 +2398,14 @@ async function processNodesInPlace(payload, shouldMirror) {
         if (shouldMirror) figma.notify('Selection mirrored successfully!');
         figma.ui.postMessage({ type: 'action-complete' });
     }
+}
+
+function createMirrorContext(options = {}) {
+    return {
+        targetVariants: new Map(),
+        createdVariants: new Map(),
+        options
+    };
 }
 
 async function handleCreateVariant(payload) {
@@ -2448,6 +2442,15 @@ async function handleCreateVariant(payload) {
     }
 
     const originalInstanceId = selectedNode.type === 'INSTANCE' ? selectedNode.id : null;
+    const sourceParent = sourceComponentOrSet.type === 'COMPONENT'
+        ? await getComponentParentAsync(sourceComponentOrSet)
+        : sourceComponentOrSet.parent;
+
+    if (!sourceParent) {
+        figma.notify('Cannot create variants because this main component no longer has a local parent in the file.', { error: true });
+        figma.ui.postMessage({ type: 'action-complete' });
+        return;
+    }
 
     figma.notify('Creating new variants...');
 
@@ -2544,11 +2547,12 @@ async function handleCreateVariant(payload) {
         sourceComponentOrSet.name = setPropsString(originalPropsMap);
 
         const newVariant = sourceComponentOrSet.clone();
+        resetMirrorMarker(newVariant);
         originalPropsMap.set('RTL', targetDirectionText === 'RTL' ? 'True' : 'False');
         originalPropsMap.set('Language', toLangName);
         newVariant.name = setPropsString(originalPropsMap);
 
-        componentSet = figma.combineAsVariants([sourceComponentOrSet, newVariant], sourceComponentOrSet.parent);
+        componentSet = figma.combineAsVariants([sourceComponentOrSet, newVariant], sourceParent);
         componentSet.layoutMode = 'NONE';
 
         if (!hasVariantsAlready) componentSet.name = originalNodeName;
@@ -2584,6 +2588,7 @@ async function handleCreateVariant(payload) {
 
         for (const originalVariant of originalVariants) {
             const newVariant = originalVariant.clone();
+            resetMirrorMarker(newVariant);
 
             const propsMap = getPropsMapTemp(originalVariant.name);
             propsMap.set('RTL', targetDirectionText === 'RTL' ? 'True' : 'False');
@@ -2642,16 +2647,30 @@ async function handleCreateVariant(payload) {
         originalInstanceId
     };
 
+    const mirrorContext = createMirrorContext({ fromLanguage, toLanguage, translateText });
     if (shouldMirror !== false) {
         for (const newVariant of newVariants) {
-            await mirrorNode(newVariant, false, new Set(), mirrorInstances);
+            await mirrorNode(newVariant, false, mirrorContext, mirrorInstances);
         }
     }
+    pendingVariantCreation.nestedComponentSetIds = Array.from(new Set(
+        Array.from(mirrorContext.createdVariants.values())
+            .map(variant => variant.parent)
+            .filter(parent => parent && parent.type === 'COMPONENT_SET')
+            .map(parent => parent.id)
+    ));
 
     if (translateText) {
         const textNodes = [];
-        for (const newVariant of newVariants) {
-            textNodes.push.apply(textNodes, findTextNodes([newVariant]));
+        const translationRoots = newVariants.concat(Array.from(mirrorContext.createdVariants.values()));
+        const seenTextNodeIds = new Set();
+        for (const root of translationRoots) {
+            for (const textNode of findTextNodes([root])) {
+                if (!seenTextNodeIds.has(textNode.id)) {
+                    seenTextNodeIds.add(textNode.id);
+                    textNodes.push(textNode);
+                }
+            }
         }
 
         if (textNodes.length === 0) {
@@ -2668,7 +2687,7 @@ async function handleCreateVariant(payload) {
 async function completeVariantCreation() {
     if (!pendingVariantCreation) return;
 
-    const { newVariantIds, componentSetId, originalInstanceId } = pendingVariantCreation;
+    const { newVariantIds, componentSetId, originalInstanceId, nestedComponentSetIds = [] } = pendingVariantCreation;
 
     pendingVariantCreation = null;
 
@@ -2677,6 +2696,16 @@ async function completeVariantCreation() {
         figma.notify('Component set not found. Variant creation failed.', { error: true });
         figma.ui.postMessage({ type: 'action-complete' });
         return;
+    }
+
+    // Translation can change text and auto-layout dimensions, so fit both the selected
+    // set and every nested set again after all asynchronous translation work finishes.
+    fitComponentSetToChildren(componentSet);
+    for (const nestedSetId of nestedComponentSetIds) {
+        const nestedSet = await figma.getNodeByIdAsync(nestedSetId);
+        if (nestedSet && !nestedSet.removed && nestedSet.type === 'COMPONENT_SET') {
+            fitComponentSetToChildren(nestedSet);
+        }
     }
 
     let selectionTargets = [];
@@ -2919,6 +2948,11 @@ function isAtomicIllustration(node) {
         if (child.type === 'TEXT') {
             return false;
         }
+        // A nested instance can contain an editable label or input even when its
+        // text descendants are not exposed on this traversal.
+        if (child.type === 'INSTANCE') {
+            return false;
+        }
         if ('children' in child) {
             stack.push.apply(stack, child.children);
         }
@@ -2972,31 +3006,26 @@ function isFixedUIElement(node) {
     return false;
 }
 
-async function mirrorNode(node, isInsideInstance = false, mirroredMainComponents = new Set(), mirrorInstances = false, isInsideFlippedContainer = false) {
+async function mirrorNode(node, isInsideInstance = false, mirrorContext = createMirrorContext(), mirrorInstances = false, isInsideFlippedContainer = false) {
     const isIllustration = isAtomicIllustration(node);
     const nodeNameLower = node.name.toLowerCase();
 
     if (node.type === 'INSTANCE' && mirrorInstances) {
-        const mainComponent = await node.getMainComponentAsync();
-        if (mainComponent && !mainComponent.remote) {
-            // 1. SMART SWAP: Get/Create an RTL variant safely instead of editing the master component
-            // Note: We use 'ar' as the default for now as it's the primary RTL target.
-            const rtlVariant = await ensureRtlVariant(mainComponent, { toLanguage: 'ar', mirrorInstances: true });
-
-            if (rtlVariant) {
-                try {
-                    // 2. SWITCH: Swap this instance properties to match the RTL variant
-                    const rtlProps = safeGetVariantProperties(rtlVariant);
-                    if (!rtlProps) {
-                        console.warn(`RTL variant "${rtlVariant.name}" has unreadable variant properties. Skipping instance swap.`);
-                        return;
-                    }
-                    node.setProperties(rtlProps);
-                    return; // Early return because the variant definition handles the internal mirroring
-                } catch (e) {
-                    console.warn(`Failed to swap variant properties for "${node.name}": ${e.message}`);
+        try {
+            const mainComponent = await node.getMainComponentAsync();
+            if (mainComponent && !mainComponent.remote) {
+                const targetVariant = await ensureTargetVariant(mainComponent, mirrorContext);
+                if (targetVariant && targetVariant.id !== mainComponent.id) {
+                    node.swapComponent(targetVariant);
                 }
+
+                // The target component owns the mirrored layout. Continuing through this
+                // instance would apply a second mirror as overrides.
+                return;
             }
+        } catch (error) {
+            console.warn(`Could not create or swap the target variant for instance "${node.name}": ${error.message}`);
+            throw error;
         }
     }
 
@@ -3004,7 +3033,7 @@ async function mirrorNode(node, isInsideInstance = false, mirroredMainComponents
         if ('children' in node && !isIllustration) {
             const currentlyInInstance = isInsideInstance || node.type === 'INSTANCE' || node.remote;
             for (const child of node.children) {
-                await mirrorNode(child, currentlyInInstance, mirroredMainComponents, mirrorInstances, isInsideFlippedContainer);
+                await mirrorNode(child, currentlyInInstance, mirrorContext, mirrorInstances, isInsideFlippedContainer);
             }
         }
         return;
@@ -3131,7 +3160,7 @@ async function mirrorNode(node, isInsideInstance = false, mirroredMainComponents
 
         const currentlyInInstance = isInsideInstance || node.type === 'INSTANCE';
         for (const child of node.children) {
-            await mirrorNode(child, currentlyInInstance, mirroredMainComponents, mirrorInstances, isInsideFlippedContainer || isFlippedNow);
+            await mirrorNode(child, currentlyInInstance, mirrorContext, mirrorInstances, isInsideFlippedContainer || isFlippedNow);
         }
     }
 }
@@ -3380,70 +3409,226 @@ function safeGetVariantProperties(node) {
     }
 }
 
+function getLanguageName(languageCode) {
+    const languageNames = {
+        auto: 'Auto Detect', en: 'English', ar: 'Arabic', es: 'Spanish', fr: 'French',
+        de: 'German', ja: 'Japanese', ko: 'Korean', pt: 'Portuguese', ru: 'Russian',
+        zh: 'Chinese', tr: 'Turkish'
+    };
+    return languageNames[languageCode] || languageCode;
+}
+
+function inferSourceIsRtl(component, fromLanguage) {
+    if (fromLanguage && fromLanguage !== 'auto') return fromLanguage === 'ar';
+    const text = findTextNodes([component]).map(node => node.characters).join(' ');
+    return /[\u0600-\u06FF]/.test(text);
+}
+
+function variantPropsToName(props) {
+    return Object.entries(props).map(([key, value]) => `${key}=${value}`).join(', ');
+}
+
+function completeVariantProps(componentSet, sourceProps) {
+    const completeProps = Object.assign({}, sourceProps);
+
+    for (const variant of componentSet.children) {
+        const variantProps = safeGetVariantProperties(variant);
+        if (!variantProps) continue;
+        for (const [key, value] of Object.entries(variantProps)) {
+            if (completeProps[key] === undefined) completeProps[key] = value;
+        }
+    }
+
+    try {
+        for (const [key, definition] of Object.entries(componentSet.componentPropertyDefinitions || {})) {
+            if (definition.type === 'VARIANT' && completeProps[key] === undefined && definition.variantOptions?.length) {
+                completeProps[key] = definition.variantOptions[0];
+            }
+        }
+    } catch (error) {
+        console.warn(`Could not read all variant properties for "${componentSet.name}": ${error.message}`);
+    }
+
+    return completeProps;
+}
+
+async function ensureTargetVariantIsMirrored(variant, mirrorContext, sourceComponentId = '') {
+    const isMarkedMirrored = variant.getPluginData('rtl-master-mirrored') === 'true';
+    const mirroredFromSourceId = variant.getPluginData('rtl-mirrored-source-id');
+
+    if (isMarkedMirrored) {
+        if (!sourceComponentId || mirroredFromSourceId === sourceComponentId) {
+            return;
+        }
+
+        resetMirrorMarker(variant);
+    }
+
+    await mirrorNode(variant, false, mirrorContext, true, false);
+    variant.setPluginData('rtl-master-mirrored', 'true');
+    variant.setPluginData('rtl-mirrored-source-id', sourceComponentId || '');
+}
+
+function resetMirrorMarker(node) {
+    if (!node || typeof node.setPluginData !== 'function') return;
+    node.setPluginData('rtl-master-mirrored', '');
+}
+
+function fitComponentSetToChildren(componentSet, padding = 24) {
+    if (!componentSet || componentSet.type !== 'COMPONENT_SET' || componentSet.children.length === 0) return;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const child of componentSet.children) {
+        minX = Math.min(minX, child.x);
+        minY = Math.min(minY, child.y);
+        maxX = Math.max(maxX, child.x + child.width);
+        maxY = Math.max(maxY, child.y + child.height);
+    }
+
+    componentSet.resize(
+        Math.max(1, (maxX - minX) + (padding * 2)),
+        Math.max(1, (maxY - minY) + (padding * 2))
+    );
+
+    for (const child of componentSet.children) {
+        child.x = (child.x - minX) + padding;
+        child.y = (child.y - minY) + padding;
+    }
+}
+
+async function getComponentParentAsync(component) {
+    if (component.parent) return component.parent;
+
+    const refreshedNode = await figma.getNodeByIdAsync(component.id);
+    if (refreshedNode && refreshedNode.type === 'COMPONENT') {
+        return refreshedNode.parent;
+    }
+
+    return null;
+}
+
 /**
- * Ensures a component has an RTL variant. Creates one if it doesn't exist.
+ * Gets or creates the target variant for a local nested instance. The source
+ * properties are captured before cloning because a duplicate clone temporarily
+ * puts a Figma component set into an invalid state.
  */
-async function ensureRtlVariant(mainComponent, options = {}) {
+async function ensureTargetVariant(mainComponent, mirrorContext) {
     if (!mainComponent || mainComponent.type !== 'COMPONENT' || mainComponent.remote) {
-        return null; // Cannot automate for remote components
+        return null;
     }
 
-    const { toLanguage = 'ar', mirrorInstances = true, translateText = true } = options;
-    const isRtl = toLanguage === 'ar';
-    const targetDirection = isRtl ? 'True' : 'False';
-    const targetProps = { 'RTL': targetDirection };
+    if (mirrorContext.targetVariants.has(mainComponent.id)) {
+        return mirrorContext.targetVariants.get(mainComponent.id);
+    }
 
-    let componentSet = (mainComponent.parent && mainComponent.parent.type === 'COMPONENT_SET')
-        ? mainComponent.parent
+    const { fromLanguage = 'auto', toLanguage = 'ar' } = mirrorContext.options || {};
+    const componentParent = await getComponentParentAsync(mainComponent);
+    const componentSet = componentParent && componentParent.type === 'COMPONENT_SET'
+        ? componentParent
         : null;
+    const rawSourceProps = safeGetVariantProperties(mainComponent) || parseVariantNameToProps(mainComponent.name);
+    const sourceProps = componentSet
+        ? completeVariantProps(componentSet, rawSourceProps)
+        : rawSourceProps;
 
-    // 1. Search for existing RTL variant
+    if (componentSet && Object.keys(sourceProps).length === 0) {
+        throw new Error(`Cannot create a target variant for "${mainComponent.name}" because its component set has invalid variant properties.`);
+    }
+
+    const sourceIsRtl = inferSourceIsRtl(mainComponent, fromLanguage);
+    const sourceLanguage = fromLanguage === 'auto'
+        ? (sourceIsRtl ? 'Arabic' : 'English')
+        : getLanguageName(fromLanguage);
+    const targetProps = Object.assign({}, sourceProps, {
+        RTL: toLanguage === 'ar' ? 'True' : 'False',
+        Language: getLanguageName(toLanguage)
+    });
+
     if (componentSet) {
-        const existing = findVariantByProps(componentSet, targetProps);
-        if (existing) return existing;
+        const existingTarget = findVariantByProps(componentSet, targetProps);
+        if (existingTarget) {
+            mirrorContext.targetVariants.set(mainComponent.id, existingTarget);
+            await ensureTargetVariantIsMirrored(existingTarget, mirrorContext, mainComponent.id);
+            return existingTarget;
+        }
+    } else if (
+        sourceProps.RTL === targetProps.RTL &&
+        sourceProps.Language === targetProps.Language
+    ) {
+        mirrorContext.targetVariants.set(mainComponent.id, mainComponent);
+        await ensureTargetVariantIsMirrored(mainComponent, mirrorContext, mainComponent.id);
+        return mainComponent;
     }
 
-    // 2. Create new RTL variant if not found
-    const newVariant = mainComponent.clone();
-
-    // Manage ComponentSet creation if it's a standalone component
-    if (!componentSet) {
-        // Prepare original component props
-        mainComponent.name = "RTL=False, Language=English";
-        newVariant.name = "RTL=True, Language=Arabic";
-
-        componentSet = figma.combineAsVariants([mainComponent, newVariant], mainComponent.parent);
-        componentSet.name = mainComponent.name.split(',')[0]; // Cleanup name
+    let newVariant;
+    let targetComponentSet = componentSet;
+    if (componentSet) {
+        componentSet.layoutMode = 'NONE';
+        const targetX = componentSet.children.reduce(
+            (rightEdge, child) => Math.max(rightEdge, child.x + child.width),
+            mainComponent.x + mainComponent.width
+        ) + 100;
+        const targetY = mainComponent.y;
+        const targetName = variantPropsToName(targetProps);
+        newVariant = mainComponent.clone();
+        resetMirrorMarker(newVariant);
+        try {
+            // Do this immediately after clone; no variant getter is safe while names collide.
+            newVariant.name = targetName;
+            // clone() may place the component on the current page. Move it only after it has
+            // unique variant properties so the source set never contains a duplicate pair.
+            componentSet.appendChild(newVariant);
+            // Reapply the name inside the set so Figma assigns every variant dimension.
+            newVariant.name = targetName;
+            newVariant.x = targetX;
+            newVariant.y = targetY;
+        } catch (error) {
+            newVariant.remove();
+            throw error;
+        }
     } else {
-        // Add to existing set
-        const currentProps = safeGetVariantProperties(mainComponent);
-        if (!currentProps) {
-            throw new Error('Selected component belongs to a variant set with invalid properties. In Figma, try renaming or recreating the broken variant set before mirroring.');
-        }
-        const newProps = Object.assign({}, currentProps, targetProps);
+        const originalName = mainComponent.name;
+        const normalizedSourceProps = Object.assign({}, sourceProps);
+        let sourceVariant = mainComponent;
+        if (!normalizedSourceProps.RTL) normalizedSourceProps.RTL = sourceIsRtl ? 'True' : 'False';
+        if (!normalizedSourceProps.Language) normalizedSourceProps.Language = sourceLanguage;
 
-        // Construct the name string for the new variant (Figma variant naming convention)
-        newVariant.name = Object.entries(newProps).map(([k, v]) => `${k}=${v}`).join(', ');
-        componentSet.appendChild(newVariant);
+        if (componentParent) {
+            mainComponent.name = variantPropsToName(normalizedSourceProps);
+            newVariant = mainComponent.clone();
+            resetMirrorMarker(newVariant);
+            newVariant.name = variantPropsToName(targetProps);
+            targetComponentSet = figma.combineAsVariants([mainComponent, newVariant], componentParent);
+        } else {
+            // Figma can return a local main component with no exposed parent (for example,
+            // a soft-deleted source). Keep that source untouched and create a usable pair
+            // on the current page instead of passing null to combineAsVariants.
+            const sourceCopy = mainComponent.clone();
+            sourceCopy.name = variantPropsToName(normalizedSourceProps);
+            sourceVariant = sourceCopy;
+            newVariant = sourceCopy.clone();
+            resetMirrorMarker(newVariant);
+            newVariant.name = variantPropsToName(targetProps);
+            targetComponentSet = figma.combineAsVariants([sourceCopy, newVariant], figma.currentPage);
+        }
+
+        targetComponentSet.name = originalName;
+        targetComponentSet.layoutMode = 'NONE';
+
+        sourceVariant.x = 24;
+        sourceVariant.y = 24;
+        newVariant.x = sourceVariant.x + sourceVariant.width + 100;
+        newVariant.y = sourceVariant.y;
     }
 
-    // Position new variant nicely
-    newVariant.x = mainComponent.x + mainComponent.width + 100;
-    newVariant.y = mainComponent.y;
+    mirrorContext.targetVariants.set(mainComponent.id, newVariant);
+    mirrorContext.createdVariants.set(newVariant.id, newVariant);
 
-    // 3. Mirror the new variant (Recursive process)
-    await mirrorNode(newVariant, false, new Set(), mirrorInstances, false);
-
-    // 4. Translate if needed
-    if (translateText) {
-        const textNodes = findTextNodes([newVariant]);
-        if (textNodes.length > 0) {
-            // We use the existing translation pipeline which eventually calls applyTranslationsToNodes
-            // For now, we'll mark it as pending if needed, or process immediately if possible.
-            // In Figma plugins, recursive translation batches can be complex.
-            // We will rely on the main mirror flow to handle the final translation.
-        }
-    }
-
+    await ensureTargetVariantIsMirrored(newVariant, mirrorContext, mainComponent.id);
+    fitComponentSetToChildren(targetComponentSet);
     return newVariant;
 }
