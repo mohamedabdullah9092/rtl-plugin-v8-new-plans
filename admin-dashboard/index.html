@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RTL Master Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <div class="brand-mark">RM</div>
+        <div>
+          <p class="eyebrow">Plugin Control</p>
+          <h1>RTL Master</h1>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item is-active" data-view="overview">Overview</button>
+        <button class="nav-item" data-view="users">Users</button>
+        <button class="nav-item" data-view="licenses">Licenses</button>
+        <button class="nav-item" data-view="analytics">Analytics</button>
+        <button class="nav-item" data-view="logs">Logs</button>
+        <button class="nav-item" data-view="settings">Settings</button>
+      </nav>
+
+      <section class="sidebar-card">
+        <p class="sidebar-card-label">This Week</p>
+        <p class="sidebar-card-value" id="sidebar-active-pro">0</p>
+        <p class="sidebar-card-copy">active Pro users recovered or verified</p>
+      </section>
+    </aside>
+
+    <main class="main-panel">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Admin Console</p>
+          <h2>Live operations and growth signals</h2>
+        </div>
+
+        <div class="topbar-tools">
+          <label class="search-box">
+            <span>Search</span>
+            <input id="global-search" type="search" placeholder="Search by user, license, or log event">
+          </label>
+          <div class="pill">Updated Jul 19, 2026</div>
+          <div class="alert-pill"><span class="dot"></span><span id="critical-count">0 critical</span></div>
+        </div>
+      </header>
+
+      <section class="hero-panel view is-visible" data-view-panel="overview">
+        <div class="hero-copy">
+          <p class="eyebrow">Control Center</p>
+          <h3>See who is active, who lost Pro, and where the plugin needs attention.</h3>
+          <p class="hero-text">This dashboard is designed to help you monitor activations, recover Pro users, inspect license health, and understand how Free users convert.</p>
+        </div>
+        <div class="hero-stack">
+          <div class="status-card">
+            <p>Worker Health</p>
+            <strong id="worker-health">Healthy</strong>
+            <span id="worker-copy">Fast responses, no outage detected.</span>
+          </div>
+          <div class="status-card warm">
+            <p>Recovery Queue</p>
+            <strong id="recovery-queue">0 users</strong>
+            <span>Users who may need silent restore or manual review.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="view is-visible" data-view-panel="overview">
+        <div class="metrics-grid" id="metrics-grid"></div>
+
+        <div class="content-grid two-up">
+          <article class="panel chart-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Revenue and Conversion</p>
+                <h3>Free to Pro movement</h3>
+              </div>
+              <div class="badge positive">+8.4%</div>
+            </div>
+            <div class="bars" id="conversion-bars"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Risk Snapshot</p>
+                <h3>License health</h3>
+              </div>
+            </div>
+            <div class="risk-list" id="risk-list"></div>
+          </article>
+        </div>
+
+        <div class="content-grid two-up">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Recovery Queue</p>
+                <h3>Users needing attention</h3>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Issue</th>
+                    <th>Last Seen</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="recovery-table"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Recent Logs</p>
+                <h3>Latest backend events</h3>
+              </div>
+            </div>
+            <div class="log-list" id="log-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" data-view-panel="users">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Users</p>
+              <h3>Search, support, and restore</h3>
+            </div>
+            <div class="panel-actions">
+              <button class="ghost-button">Export CSV</button>
+              <button class="ghost-button accent">Review Lost Pro</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Plan</th>
+                  <th>Figma User ID</th>
+                  <th>Last Active</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="users-table"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" data-view-panel="licenses">
+        <div class="content-grid two-up">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Licenses</p>
+                <h3>Linked keys</h3>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>License</th>
+                    <th>User</th>
+                    <th>State</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+                <tbody id="licenses-table"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Activation Events</p>
+                <h3>Recent verification flow</h3>
+              </div>
+            </div>
+            <div class="timeline" id="timeline"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" data-view-panel="analytics">
+        <div class="content-grid two-up">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Funnel</p>
+                <h3>Open to activation</h3>
+              </div>
+            </div>
+            <div class="funnel" id="funnel"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Feature Usage</p>
+                <h3>Most used plugin actions</h3>
+              </div>
+            </div>
+            <div class="feature-list" id="feature-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" data-view-panel="logs">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Logs and Errors</p>
+              <h3>Worker activity and failure reasons</h3>
+            </div>
+          </div>
+          <div class="log-board" id="log-board"></div>
+        </article>
+      </section>
+
+      <section class="view" data-view-panel="settings">
+        <div class="content-grid two-up">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Settings</p>
+                <h3>Plugin and recovery controls</h3>
+              </div>
+            </div>
+            <form class="settings-form">
+              <label>
+                <span>Free trial limit</span>
+                <input type="number" value="10">
+              </label>
+              <label>
+                <span>Activation worker URL</span>
+                <input type="url" value="https://rtl-master-activation.mohamedabdullah9092.workers.dev">
+              </label>
+              <label class="toggle-row">
+                <span>Silent restore enabled</span>
+                <input type="checkbox" checked>
+              </label>
+              <label class="toggle-row">
+                <span>Auto-flag users who lost Pro</span>
+                <input type="checkbox" checked>
+              </label>
+              <button type="button" class="ghost-button accent">Save Dashboard Settings</button>
+            </form>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Deployment Notes</p>
+                <h3>Ready for free hosting</h3>
+              </div>
+            </div>
+            <ul class="deployment-notes">
+              <li>Static dashboard structure works on Vercel with zero build config.</li>
+              <li>Static dashboard structure also works on Cloudflare Pages.</li>
+              <li>Next step is adding protected admin endpoints on the Worker.</li>
+              <li>After that we can replace mock data with live data.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
