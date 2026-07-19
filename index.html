@@ -932,6 +932,22 @@
       }, [geminiApiKey, openaiApiKey]);
 
       useEffect(() => {
+        if (!showUpgradeScreen) return;
+        parent.postMessage({
+          pluginMessage: {
+            type: 'telemetry',
+            payload: {
+              eventType: 'upgrade_opened',
+              details: {
+                success: true,
+                metadata: { source: 'upgrade_screen' }
+              }
+            }
+          }
+        }, '*');
+      }, [showUpgradeScreen]);
+
+      useEffect(() => {
         const handleMessage = async (event) => {
           if (!event.data.pluginMessage) return;
           const { type, payload } = event.data.pluginMessage;
@@ -1003,6 +1019,22 @@
                 parent.postMessage({ pluginMessage: { type: 'apply-translations', payload: { translations: translationsPayload } } }, '*');
               } catch (error) {
                 console.error('Translation batch failed:', error);
+                parent.postMessage({
+                  pluginMessage: {
+                    type: 'telemetry',
+                    payload: {
+                      eventType: 'feature_failed',
+                      details: {
+                        fromLanguage: from,
+                        toLanguage: to,
+                        textLayerCount: texts.length,
+                        success: false,
+                        errorCode: 'translation_batch_failed',
+                        message: error.message || 'Translation failed'
+                      }
+                    }
+                  }
+                }, '*');
                 setIsLoading(false);
                 setStatusMessage(`Translation failed: ${error.message}. Check keys or network.`);
                 setIsError(true);

@@ -1862,11 +1862,13 @@ const LANGUAGES = [
 
 // Global state for the asynchronous variant creation flow
 let pendingVariantCreation = null;
+let activeFeatureTelemetry = null;
 // Set this to your deployed backend URL to sync licenses across devices.
 const ACTIVATION_SERVER_BASE_URL = 'https://rtl-master-activation.mohamedabdullah9092.workers.dev';
 const GUMROAD_NEW_PRODUCT_ID = 'xjW3twDEIx4LJQrkpgz4fQ==';
 const GUMROAD_OLD_PRODUCT_ID = 'dK0Er2rZ-4VFBT6KD-VTYw==';
 const FREE_TRIAL_LIMIT = 10;
+let hasRecordedPluginOpen = false;
 
 function getCurrentFigmaUser() {
     return figma.currentUser && figma.currentUser.id ? figma.currentUser : null;
@@ -1884,6 +1886,63 @@ async function postJson(url, payload) {
         body: JSON.stringify(payload)
     });
     return response.json();
+}
+
+async function sendTelemetryEvent(eventType, details = {}) {
+    const endpoint = getActivationServerEndpoint('/api/telemetry');
+    if (!endpoint) return;
+
+    try {
+        const currentFigmaUser = getCurrentFigmaUser();
+        const [isPro, trialCount] = await Promise.all([
+            figma.clientStorage.getAsync('isPro'),
+            figma.clientStorage.getAsync('trialCount')
+        ]);
+
+        await postJson(endpoint, {
+            eventType,
+            figmaUserId: currentFigmaUser ? currentFigmaUser.id : null,
+            figmaUserName: currentFigmaUser ? currentFigmaUser.name || '' : '',
+            plan: isPro ? 'pro' : 'free',
+            trialCount: typeof trialCount === 'number' ? trialCount : null,
+            ...details
+        });
+    } catch (error) {
+        console.warn('Could not send telemetry event', error);
+    }
+}
+
+function getActionFeature(payload) {
+    if (!payload) return 'unknown';
+    if (payload.actionType === 'create-variant' || payload.createVariant) return 'create-variant';
+    if (payload.actionType === 'translate-only') return 'translate-only';
+    if (payload.actionType === 'mirror-translate' && payload.translateText) return 'mirror-translate';
+    if (payload.actionType === 'mirror-translate') return 'mirror-only';
+    return payload.actionType || 'unknown';
+}
+
+async function getSelectionTelemetry() {
+    return {
+        selectionCount: figma.currentPage.selection.length,
+        textLayerCount: await countTextLayersInSelection()
+    };
+}
+
+function finishActiveFeatureTelemetry(eventType = 'feature_completed', details = {}) {
+    if (!activeFeatureTelemetry) return;
+
+    const telemetry = activeFeatureTelemetry;
+    activeFeatureTelemetry = null;
+
+    void sendTelemetryEvent(eventType, {
+        feature: telemetry.feature,
+        fromLanguage: telemetry.fromLanguage,
+        toLanguage: telemetry.toLanguage,
+        durationMs: Date.now() - telemetry.startedAt,
+        ...telemetry.selectionTelemetry,
+        metadata: telemetry.metadata,
+        ...details
+    });
 }
 
 async function pingActivationServer() {
@@ -2047,6 +2106,10 @@ figma.ui.onmessage = async (msg) => {
 
                     // Send status to UI immediately — do NOT block on network calls
                     figma.ui.postMessage({ type: 'user-status', payload: { isPro: !!isPro, trialCount } });
+                    if (!hasRecordedPluginOpen) {
+                        hasRecordedPluginOpen = true;
+                        void sendTelemetryEvent('plugin_opened');
+                    }
 
                     // --- Background Re-verification (fire and forget) ---
                     // If a backend is configured, trust it as the source of truth across devices.
@@ -2138,9 +2201,11 @@ figma.ui.onmessage = async (msg) => {
                                 await figma.clientStorage.setAsync('isPro', true);
                                 await figma.clientStorage.setAsync('licenseKey', licenseKey.trim());
                                 await figma.clientStorage.setAsync('activatedFigmaUserId', currentFigmaUserId);
+                                void sendTelemetryEvent('license_activation_success', { success: true });
                                 figma.ui.postMessage({ type: 'license-verified' });
                             } else {
                                 const reason = (serverResult && serverResult.message) ? serverResult.message : 'Activation failed.';
+                                void sendTelemetryEvent('license_activation_failed', { success: false, errorCode: 'server_activation_failed', message: reason });
                                 figma.ui.postMessage({ type: 'license-invalid', payload: { message: reason } });
                             }
                             break;
@@ -2173,12 +2238,15 @@ figma.ui.onmessage = async (msg) => {
                                 if (figmaUserId) {
                                     await figma.clientStorage.setAsync('activatedFigmaUserId', figmaUserId);
                                 }
+                                void sendTelemetryEvent('license_activation_success', { success: true });
                                 figma.ui.postMessage({ type: 'license-verified' });
                             } else {
+                                void sendTelemetryEvent('license_activation_failed', { success: false, errorCode: 'inactive_subscription', message: 'Subscription ended or failed' });
                                 figma.ui.postMessage({ type: 'license-invalid', payload: { message: 'Your subscription has ended or failed. Please renew your subscription.' } });
                             }
                         } else {
                             const reason = data.message || 'Invalid license key or an issue with the purchase.';
+                            void sendTelemetryEvent('license_activation_failed', { success: false, errorCode: 'invalid_license', message: reason });
                             figma.ui.postMessage({ type: 'license-invalid', payload: { message: reason } });
                         }
                     } catch (error) {
@@ -2188,8 +2256,10 @@ figma.ui.onmessage = async (msg) => {
                             const diagnostic = healthcheck.ok
                                 ? (error instanceof Error ? error.message : 'Activation request failed.')
                                 : (healthcheck.reason || 'Activation server is unreachable from the plugin.');
+                            void sendTelemetryEvent('license_activation_failed', { success: false, errorCode: 'activation_server_error', message: diagnostic });
                             figma.ui.postMessage({ type: 'license-invalid', payload: { message: `Activation server error: ${diagnostic}` } });
                         } else {
+                            void sendTelemetryEvent('license_activation_failed', { success: false, errorCode: 'activation_network_error', message: 'Could not connect to the activation server' });
                             figma.ui.postMessage({ type: 'license-invalid', payload: { message: 'Could not connect to the activation server. Please try again.' } });
                         }
                     }
@@ -2226,7 +2296,28 @@ figma.ui.onmessage = async (msg) => {
                 }
             case 'open-url':
                 {
+                    const url = String(msg.payload && msg.payload.url || '');
+                    if (url.includes('gumroad.com')) {
+                        void sendTelemetryEvent('gumroad_clicked', { metadata: { source: 'upgrade_screen' } });
+                    } else if (url.includes('wa.me')) {
+                        void sendTelemetryEvent('support_clicked', { metadata: { source: 'upgrade_screen' } });
+                    }
                     figma.openExternal(msg.payload.url);
+                    break;
+                }
+            case 'telemetry':
+                {
+                    const payload = msg.payload || {};
+                    if (payload.eventType) {
+                        if (payload.eventType === 'feature_failed' && activeFeatureTelemetry) {
+                            finishActiveFeatureTelemetry('feature_failed', {
+                                success: false,
+                                ...(payload.details || {})
+                            });
+                        } else {
+                            void sendTelemetryEvent(payload.eventType, payload.details || {});
+                        }
+                    }
                     break;
                 }
             case 'get-api-keys':
@@ -2250,21 +2341,80 @@ figma.ui.onmessage = async (msg) => {
             case 'run-action':
                 {
                     const isPro = await figma.clientStorage.getAsync('isPro');
+                    const feature = getActionFeature(msg.payload);
+                    const startedAt = Date.now();
+                    const selectionTelemetry = await getSelectionTelemetry();
                     if (!isPro) {
                         let trialCount = await figma.clientStorage.getAsync('trialCount');
+                        if (typeof trialCount !== 'number') {
+                            trialCount = FREE_TRIAL_LIMIT;
+                            await figma.clientStorage.setAsync('trialCount', trialCount);
+                        }
                         if (trialCount > 0) {
                             trialCount--;
                             await figma.clientStorage.setAsync('trialCount', trialCount);
                             figma.ui.postMessage({ type: 'user-status-updated', payload: { trialCount } });
+                            void sendTelemetryEvent('trial_used', { feature, trialCount, ...selectionTelemetry });
+                        } else {
+                            void sendTelemetryEvent('trial_exhausted', { feature, trialCount, ...selectionTelemetry, success: false });
+                            figma.ui.postMessage({ type: 'plugin-error', payload: { message: 'Trial expired. Please upgrade to Pro.' } });
+                            return;
                         }
                     }
-                    await handleRunAction(msg.payload);
+                    void sendTelemetryEvent('feature_started', {
+                        feature,
+                        fromLanguage: msg.payload.fromLanguage,
+                        toLanguage: msg.payload.toLanguage,
+                        ...selectionTelemetry,
+                        metadata: {
+                            translateText: !!msg.payload.translateText,
+                            mirrorInstances: !!msg.payload.mirrorInstances,
+                            createVariant: !!msg.payload.createVariant,
+                            shouldMirror: !!msg.payload.shouldMirror
+                        }
+                    });
+                    activeFeatureTelemetry = {
+                        feature,
+                        startedAt,
+                        fromLanguage: msg.payload.fromLanguage,
+                        toLanguage: msg.payload.toLanguage,
+                        selectionTelemetry,
+                        metadata: {
+                            translateText: !!msg.payload.translateText,
+                            mirrorInstances: !!msg.payload.mirrorInstances,
+                            createVariant: !!msg.payload.createVariant,
+                            shouldMirror: !!msg.payload.shouldMirror
+                        }
+                    };
+                    try {
+                        await handleRunAction(msg.payload);
+                        if (!msg.payload.translateText || selectionTelemetry.textLayerCount === 0) {
+                            finishActiveFeatureTelemetry();
+                        }
+                    } catch (error) {
+                        finishActiveFeatureTelemetry('feature_failed', {
+                            success: false,
+                            errorCode: 'feature_exception',
+                            message: error instanceof Error ? error.message : 'Feature failed'
+                        });
+                        throw error;
+                    }
                     break;
                 }
             case 'apply-translations':
-                await handleApplyTranslations(msg.payload);
-                if (pendingVariantCreation) {
-                    await completeVariantCreation();
+                try {
+                    await handleApplyTranslations(msg.payload);
+                    if (pendingVariantCreation) {
+                        await completeVariantCreation();
+                    }
+                    finishActiveFeatureTelemetry();
+                } catch (error) {
+                    finishActiveFeatureTelemetry('feature_failed', {
+                        success: false,
+                        errorCode: 'apply_translations_failed',
+                        message: error instanceof Error ? error.message : 'Translation apply failed'
+                    });
+                    throw error;
                 }
                 break;
 
@@ -2291,19 +2441,42 @@ figma.ui.onmessage = async (msg) => {
             case 'change-font':
                 {
                     const isPro = await figma.clientStorage.getAsync('isPro');
+                    const feature = 'change-font';
+                    const startedAt = Date.now();
+                    const selectionTelemetry = await getSelectionTelemetry();
                     if (!isPro) {
                         let trialCount = await figma.clientStorage.getAsync('trialCount');
+                        if (typeof trialCount !== 'number') {
+                            trialCount = FREE_TRIAL_LIMIT;
+                            await figma.clientStorage.setAsync('trialCount', trialCount);
+                        }
                         if (trialCount > 0) {
                             trialCount--;
                             await figma.clientStorage.setAsync('trialCount', trialCount);
                             figma.ui.postMessage({ type: 'user-status-updated', payload: { trialCount } });
+                            void sendTelemetryEvent('trial_used', { feature, trialCount, ...selectionTelemetry });
                         } else {
                             // Should be caught by UI, but double check
+                            void sendTelemetryEvent('trial_exhausted', { feature, trialCount, ...selectionTelemetry, success: false });
                             figma.ui.postMessage({ type: 'plugin-error', payload: { message: 'Trial expired. Please upgrade to Pro.' } });
                             return;
                         }
                     }
-                    await handleChangeFont(msg.payload);
+                    void sendTelemetryEvent('feature_started', {
+                        feature,
+                        ...selectionTelemetry,
+                        metadata: { autoFit: !!msg.payload.autoFit }
+                    });
+                    const fontResult = await handleChangeFont(msg.payload);
+                    void sendTelemetryEvent(fontResult && fontResult.success ? 'feature_completed' : 'feature_failed', {
+                        feature,
+                        durationMs: Date.now() - startedAt,
+                        ...selectionTelemetry,
+                        success: !!(fontResult && fontResult.success),
+                        errorCode: fontResult && fontResult.errorCode,
+                        message: fontResult && fontResult.message,
+                        metadata: { autoFit: !!msg.payload.autoFit }
+                    });
                     break;
                 }
             case 'get-recent-fonts':
@@ -2401,8 +2574,10 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
     } else {
         if (!pendingVariantCreation) {
             figma.ui.postMessage({ type: 'action-complete' });
+            finishActiveFeatureTelemetry();
         } else {
             await completeVariantCreation();
+            finishActiveFeatureTelemetry();
         }
     }
 }
@@ -3336,8 +3511,9 @@ async function handleChangeFont(payload) {
     const selection = figma.currentPage.selection;
 
     if (selection.length === 0) {
-        figma.ui.postMessage({ type: 'font-change-error', payload: { message: 'Please select at least one item.' } });
-        return;
+        const message = 'Please select at least one item.';
+        figma.ui.postMessage({ type: 'font-change-error', payload: { message } });
+        return { success: false, errorCode: 'no_selection', message };
     }
 
     try {
@@ -3354,8 +3530,9 @@ async function handleChangeFont(payload) {
         collectTextNodes(selection);
 
         if (textNodes.length === 0) {
-            figma.ui.postMessage({ type: 'font-change-error', payload: { message: 'No text layers found in selection.' } });
-            return;
+            const message = 'No text layers found in selection.';
+            figma.ui.postMessage({ type: 'font-change-error', payload: { message } });
+            return { success: false, errorCode: 'no_text_layers', message };
         }
 
         // Get all available styles for the target font
@@ -3363,8 +3540,9 @@ async function handleChangeFont(payload) {
         const targetFontStyles = availableFonts.filter(font => font.fontName.family === fontFamily);
 
         if (targetFontStyles.length === 0) {
-            figma.ui.postMessage({ type: 'font-change-error', payload: { message: `Font family "${fontFamily}" not found.` } });
-            return;
+            const message = `Font family "${fontFamily}" not found.`;
+            figma.ui.postMessage({ type: 'font-change-error', payload: { message } });
+            return { success: false, errorCode: 'font_not_found', message };
         }
 
         const total = textNodes.length;
@@ -3442,10 +3620,16 @@ async function handleChangeFont(payload) {
             type: 'font-change-complete',
             payload: { message: `Successfully changed font for ${changedCount} text layer(s).` }
         });
+        return {
+            success: true,
+            message: `Changed ${changedCount} of ${total} text layer(s).`
+        };
 
     } catch (error) {
         console.error('Error changing font:', error);
-        figma.ui.postMessage({ type: 'font-change-error', payload: { message: `Error: ${error.message}` } });
+        const message = `Error: ${error.message}`;
+        figma.ui.postMessage({ type: 'font-change-error', payload: { message } });
+        return { success: false, errorCode: 'font_change_exception', message };
     }
 }
 
