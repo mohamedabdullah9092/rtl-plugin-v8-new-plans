@@ -1963,6 +1963,36 @@ async function unlinkLicenseOnServer(figmaUserId) {
     return postJson(endpoint, { figmaUserId });
 }
 
+async function restoreProAccessFromStoredLicense(storedKey, currentFigmaUser, trialCount) {
+    if (!storedKey || !currentFigmaUser) return false;
+
+    try {
+        if (ACTIVATION_SERVER_BASE_URL) {
+            const serverResult = await activateLicenseOnServer(storedKey, currentFigmaUser);
+            if (serverResult && serverResult.success && serverResult.isPro) {
+                await figma.clientStorage.setAsync('isPro', true);
+                await figma.clientStorage.setAsync('licenseKey', storedKey.trim());
+                await figma.clientStorage.setAsync('activatedFigmaUserId', currentFigmaUser.id);
+                figma.ui.postMessage({ type: 'user-status', payload: { isPro: true, trialCount } });
+                return true;
+            }
+        }
+
+        const gumroadData = await verifyLicenseWithGumroad(storedKey, false);
+        if (isGumroadPurchaseActive(gumroadData)) {
+            await figma.clientStorage.setAsync('isPro', true);
+            await figma.clientStorage.setAsync('licenseKey', storedKey.trim());
+            await figma.clientStorage.setAsync('activatedFigmaUserId', currentFigmaUser.id);
+            figma.ui.postMessage({ type: 'user-status', payload: { isPro: true, trialCount } });
+            return true;
+        }
+    } catch (error) {
+        console.warn('Silent Pro restoration failed', error);
+    }
+
+    return false;
+}
+
 function formatUserFacingPluginError(error) {
     const fallbackMessage = 'Something went wrong while processing the selection. Please try again.';
     if (!(error instanceof Error)) return fallbackMessage;
@@ -1991,6 +2021,8 @@ figma.ui.onmessage = async (msg) => {
                     let trialCount = await figma.clientStorage.getAsync('trialCount');
                     const currentFigmaUser = getCurrentFigmaUser();
                     const currentFigmaUserId = currentFigmaUser ? currentFigmaUser.id : null;
+                    const storedKey = await figma.clientStorage.getAsync('licenseKey');
+                    const activatedFigmaUserId = await figma.clientStorage.getAsync('activatedFigmaUserId');
 
                     if (isPro === undefined && trialCount === undefined) {
                         isPro = false;
@@ -2002,7 +2034,6 @@ figma.ui.onmessage = async (msg) => {
                     // --- Figma User ID Binding Check ---
                     // If isPro is stored, make sure it belongs to the current Figma user
                     if (isPro) {
-                        const activatedFigmaUserId = await figma.clientStorage.getAsync('activatedFigmaUserId');
                         if (activatedFigmaUserId && currentFigmaUserId && activatedFigmaUserId !== currentFigmaUserId) {
                             // Different Figma user on this device → revoke Pro silently
                             isPro = false;
@@ -2019,38 +2050,43 @@ figma.ui.onmessage = async (msg) => {
                         try {
                             if (currentFigmaUserId && ACTIVATION_SERVER_BASE_URL) {
                                 const serverStatus = await fetchServerLicenseStatus(currentFigmaUserId);
-                                const serverIsPro = !!(serverStatus && serverStatus.success && serverStatus.isPro);
-
-                                await figma.clientStorage.setAsync('isPro', serverIsPro);
+                                const serverCheckSucceeded = !!(serverStatus && serverStatus.success);
+                                const serverIsPro = !!(serverCheckSucceeded && serverStatus.isPro);
 
                                 if (serverIsPro) {
+                                    await figma.clientStorage.setAsync('isPro', true);
                                     await figma.clientStorage.setAsync('activatedFigmaUserId', currentFigmaUserId);
+                                    if (storedKey) {
+                                        await figma.clientStorage.setAsync('licenseKey', storedKey.trim());
+                                    }
                                     figma.ui.postMessage({ type: 'user-status', payload: { isPro: true, trialCount } });
                                 } else {
-                                    await figma.clientStorage.deleteAsync('licenseKey');
-                                    await figma.clientStorage.deleteAsync('activatedFigmaUserId');
-                                    figma.ui.postMessage({ type: 'user-status', payload: { isPro: false, trialCount } });
+                                    const keyBelongsToCurrentUser = storedKey && (!activatedFigmaUserId || activatedFigmaUserId === currentFigmaUserId);
+                                    const restored = keyBelongsToCurrentUser
+                                        ? await restoreProAccessFromStoredLicense(storedKey, currentFigmaUser, trialCount)
+                                        : false;
+
+                                    if (!restored && serverCheckSucceeded) {
+                                        await figma.clientStorage.setAsync('isPro', false);
+                                        figma.ui.postMessage({ type: 'user-status', payload: { isPro: false, trialCount } });
+                                    }
                                 }
                                 return;
                             }
 
                             // Fallback to local-only behavior when no backend is configured.
-                            const storedKey = await figma.clientStorage.getAsync('licenseKey');
-                            const storedUserId = await figma.clientStorage.getAsync('activatedFigmaUserId');
-                            const keyBelongsToCurrentUser = storedKey && (!storedUserId || storedUserId === currentFigmaUserId);
+                            const keyBelongsToCurrentUser = storedKey && (!activatedFigmaUserId || activatedFigmaUserId === currentFigmaUserId);
                             if (!isPro && keyBelongsToCurrentUser) {
                                 const data = await verifyLicenseWithGumroad(storedKey, false);
                                 if (isGumroadPurchaseActive(data)) {
                                     await figma.clientStorage.setAsync('isPro', true);
-                                    if (!storedUserId && currentFigmaUserId) {
+                                    if (!activatedFigmaUserId && currentFigmaUserId) {
                                         await figma.clientStorage.setAsync('activatedFigmaUserId', currentFigmaUserId);
                                     }
                                     // Update UI silently to Pro
                                     figma.ui.postMessage({ type: 'user-status', payload: { isPro: true, trialCount } });
                                 } else {
                                     await figma.clientStorage.setAsync('isPro', false);
-                                    await figma.clientStorage.deleteAsync('licenseKey');
-                                    await figma.clientStorage.deleteAsync('activatedFigmaUserId');
                                 }
                             }
                         } catch (e) {
@@ -2096,6 +2132,7 @@ figma.ui.onmessage = async (msg) => {
                                     await figma.clientStorage.setAsync('trialCountBeforePro', currentTrialCount);
                                 }
                                 await figma.clientStorage.setAsync('isPro', true);
+                                await figma.clientStorage.setAsync('licenseKey', licenseKey.trim());
                                 await figma.clientStorage.setAsync('activatedFigmaUserId', currentFigmaUserId);
                                 figma.ui.postMessage({ type: 'license-verified' });
                             } else {
