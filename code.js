@@ -1866,6 +1866,7 @@ let pendingVariantCreation = null;
 const ACTIVATION_SERVER_BASE_URL = 'https://rtl-master-activation.mohamedabdullah9092.workers.dev';
 const GUMROAD_NEW_PRODUCT_ID = 'xjW3twDEIx4LJQrkpgz4fQ==';
 const GUMROAD_OLD_PRODUCT_ID = 'dK0Er2rZ-4VFBT6KD-VTYw==';
+const FREE_TRIAL_LIMIT = 10;
 
 function getCurrentFigmaUser() {
     return figma.currentUser && figma.currentUser.id ? figma.currentUser : null;
@@ -2026,8 +2027,11 @@ figma.ui.onmessage = async (msg) => {
 
                     if (isPro === undefined && trialCount === undefined) {
                         isPro = false;
-                        trialCount = 20;
+                        trialCount = FREE_TRIAL_LIMIT;
                         await figma.clientStorage.setAsync('isPro', isPro);
+                        await figma.clientStorage.setAsync('trialCount', trialCount);
+                    } else if (typeof trialCount === 'number' && trialCount > FREE_TRIAL_LIMIT) {
+                        trialCount = FREE_TRIAL_LIMIT;
                         await figma.clientStorage.setAsync('trialCount', trialCount);
                     }
 
@@ -2207,7 +2211,9 @@ figma.ui.onmessage = async (msg) => {
                     }
                     let trialCountToRestore = await figma.clientStorage.getAsync('trialCountBeforePro');
                     if (typeof trialCountToRestore !== 'number') {
-                        trialCountToRestore = 20;
+                        trialCountToRestore = FREE_TRIAL_LIMIT;
+                    } else if (trialCountToRestore > FREE_TRIAL_LIMIT) {
+                        trialCountToRestore = FREE_TRIAL_LIMIT;
                     }
                     await figma.clientStorage.setAsync('trialCount', trialCountToRestore);
 
