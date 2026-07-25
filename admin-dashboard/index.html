@@ -11,7 +11,55 @@
   <link rel="stylesheet" href="./styles.css?v=20260725-dashboard-session">
 </head>
 <body>
-  <div class="app-shell">
+  <section id="login-screen" class="login-screen">
+    <div class="login-shell">
+      <div class="login-hero">
+        <div class="brand-mark large">RM</div>
+        <p class="eyebrow">Admin Access</p>
+        <h1>RTL Master Dashboard</h1>
+        <p class="login-copy">Manage subscriptions, Gumroad activations, feature usage, and customer history from one secure control room.</p>
+        <div class="login-points">
+          <div><strong>Live Data</strong><span>Connected to Cloudflare D1 after sign-in</span></div>
+          <div><strong>Secure Session</strong><span>HttpOnly cookie instead of browser token storage</span></div>
+          <div><strong>User Lookup</strong><span>Search instantly by Figma User ID</span></div>
+        </div>
+      </div>
+
+      <form id="login-form" class="login-card">
+        <div>
+          <p class="eyebrow">Sign In</p>
+          <h2>Welcome back</h2>
+          <p class="login-card-copy">Use your admin username and password to unlock the dashboard.</p>
+        </div>
+
+        <div id="login-status" class="lookup-result empty">
+          <strong>Session required</strong>
+          <span>Enter your credentials to continue.</span>
+        </div>
+
+        <label>
+          <span>Admin username</span>
+          <input id="login-username" type="text" placeholder="admin" autocomplete="username">
+        </label>
+
+        <label>
+          <span>Admin password</span>
+          <input id="login-password" type="password" placeholder="Enter password" autocomplete="current-password">
+        </label>
+
+        <label>
+          <span>Activation worker URL</span>
+          <input id="login-api-base-url" type="url" value="https://rtl-master-activation.mohamedabdullah9092.workers.dev">
+        </label>
+
+        <div class="panel-actions">
+          <button id="login-submit" type="submit" class="ghost-button accent">Sign In</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <div id="dashboard-app" class="app-shell" hidden>
     <aside class="sidebar">
       <div class="sidebar-main">
         <div class="brand-block">
@@ -69,7 +117,7 @@
                 <h3 id="worker-health">No live data</h3>
               </div>
             </div>
-            <p class="status-copy" id="worker-copy">Add the admin token and refresh to load real Cloudflare D1 data.</p>
+            <p class="status-copy" id="worker-copy">Sign in to load live Cloudflare D1 data.</p>
           </article>
 
           <article class="panel">
@@ -469,12 +517,11 @@
               <input id="api-base-url" type="url" value="https://rtl-master-activation.mohamedabdullah9092.workers.dev">
             </label>
             <label>
-              <span>Admin password</span>
-              <input id="admin-password" type="password" placeholder="Used only to start the secure session" autocomplete="off">
+              <span>Admin username</span>
+              <input id="admin-username" type="text" placeholder="Current session user" autocomplete="off" disabled>
             </label>
             <div class="panel-actions">
               <button id="save-dashboard-settings" type="button" class="ghost-button">Save Worker URL</button>
-              <button id="admin-login-button" type="button" class="ghost-button accent">Sign In</button>
               <button id="admin-logout-button" type="button" class="ghost-button">Logout</button>
             </div>
           </form>

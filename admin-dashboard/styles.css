@@ -38,6 +38,10 @@ body {
   padding: var(--body-padding);
 }
 
+[hidden] {
+  display: none !important;
+}
+
 button,
 input,
 select {
@@ -46,6 +50,112 @@ select {
 
 button {
   border: 0;
+}
+
+.login-screen {
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.14), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(5, 150, 105, 0.1), transparent 24%),
+    linear-gradient(180deg, #eef4ff 0%, #f7fafc 46%, #eef2f7 100%);
+}
+
+.login-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(360px, 460px);
+  align-items: stretch;
+  gap: 18px;
+  min-height: calc(100vh - 48px);
+}
+
+.login-hero,
+.login-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow);
+}
+
+.login-hero {
+  display: grid;
+  align-content: space-between;
+  gap: 18px;
+  padding: 34px;
+}
+
+.brand-mark.large {
+  width: 56px;
+  height: 56px;
+  font-size: 1.2rem;
+}
+
+.login-hero h1,
+.login-card h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.login-hero h1 {
+  max-width: 12ch;
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  line-height: 0.98;
+}
+
+.login-copy,
+.login-card-copy {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.login-points {
+  display: grid;
+  gap: 12px;
+}
+
+.login-points div {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.95);
+}
+
+.login-points strong,
+.login-points span {
+  display: block;
+}
+
+.login-points strong {
+  margin-bottom: 6px;
+}
+
+.login-points span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.login-card {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  padding: 30px;
+}
+
+.login-card label,
+.settings-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.login-card input,
+.settings-form input[type="url"],
+.settings-form input[type="password"],
+.settings-form input[type="text"] {
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
 }
 
 .app-shell {
@@ -903,19 +1013,6 @@ tbody tr:hover {
   gap: 12px;
 }
 
-.settings-form label {
-  display: grid;
-  gap: 8px;
-}
-
-.settings-form input[type="url"],
-.settings-form input[type="password"] {
-  padding: 12px 13px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-soft);
-}
-
 .view {
   display: none;
   width: 100%;
@@ -928,6 +1025,10 @@ tbody tr:hover {
 }
 
 @media (max-width: 1240px) {
+  .login-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1017,6 +1118,24 @@ tbody tr:hover {
 @media (max-width: 760px) {
   body {
     padding: 0;
+  }
+
+  .login-screen {
+    padding: 12px;
+  }
+
+  .login-shell {
+    min-height: calc(100vh - 24px);
+  }
+
+  .login-hero,
+  .login-card {
+    padding: 20px;
+    border-radius: 14px;
+  }
+
+  .login-hero h1 {
+    font-size: 2.2rem;
   }
 
   .app-shell {

@@ -275,6 +275,10 @@ function getAdminSessionSecret(env) {
   return (env.ADMIN_SESSION_SECRET || env.ADMIN_TOKEN || '').trim();
 }
 
+function getAdminUsername(env) {
+  return compactString(env.ADMIN_USERNAME, 80) || 'admin';
+}
+
 async function signSessionValue(value, env) {
   const secret = getAdminSessionSecret(env);
   const key = await crypto.subtle.importKey(
@@ -288,11 +292,12 @@ async function signSessionValue(value, env) {
   return encodeBase64Url(new Uint8Array(signature));
 }
 
-async function createAdminSessionCookie(env) {
-  const payload = {
+async function createAdminSessionCookie(env, payload = {}) {
+  const sessionPayload = {
+    ...payload,
     exp: Math.floor(Date.now() / 1000) + ADMIN_SESSION_MAX_AGE
   };
-  const encodedPayload = encodeBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
+  const encodedPayload = encodeBase64Url(new TextEncoder().encode(JSON.stringify(sessionPayload)));
   const signature = await signSessionValue(encodedPayload, env);
   return `${encodedPayload}.${signature}`;
 }
@@ -367,6 +372,22 @@ async function isAdminAuthorized(request, env) {
   const [configuredDigest, requestDigest] = await Promise.all([
     sha256Hex(configuredToken),
     sha256Hex(requestToken)
+  ]);
+
+  return constantTimeEqualHex(configuredDigest, requestDigest);
+}
+
+async function verifyAdminCredentials(env, username, password) {
+  const configuredUsername = getAdminUsername(env);
+  const configuredPassword = (env.ADMIN_PASSWORD || env.ADMIN_TOKEN || '').trim();
+  const submittedUsername = compactString(username, 80) || '';
+  const submittedPassword = String(password || '').trim();
+  if (!configuredPassword || !submittedUsername || !submittedPassword) return false;
+  if (submittedUsername !== configuredUsername) return false;
+
+  const [configuredDigest, requestDigest] = await Promise.all([
+    sha256Hex(configuredPassword),
+    sha256Hex(submittedPassword)
   ]);
 
   return constantTimeEqualHex(configuredDigest, requestDigest);
@@ -1848,24 +1869,21 @@ export default {
 
     try {
       if (url.pathname === '/api/admin/login') {
-        const { password = '' } = await request.json().catch(() => ({}));
-        const configuredToken = (env.ADMIN_TOKEN || '').trim();
-        if (!configuredToken || !String(password).trim()) {
-          return json({ success: false, message: 'Missing admin password.' }, 400, request);
+        const { username = '', password = '' } = await request.json().catch(() => ({}));
+        if (!String(username).trim() || !String(password).trim()) {
+          return json({ success: false, message: 'Missing admin username or password.' }, 400, request);
         }
 
-        const [configuredDigest, requestDigest] = await Promise.all([
-          sha256Hex(configuredToken),
-          sha256Hex(String(password).trim())
-        ]);
-
-        if (!constantTimeEqualHex(configuredDigest, requestDigest)) {
-          return json({ success: false, message: 'Invalid admin password.' }, 401, request);
+        const valid = await verifyAdminCredentials(env, username, password);
+        if (!valid) {
+          return json({ success: false, message: 'Invalid admin username or password.' }, 401, request);
         }
 
-        const sessionCookie = await createAdminSessionCookie(env);
+        const sessionCookie = await createAdminSessionCookie(env, {
+          username: getAdminUsername(env)
+        });
         return json(
-          { success: true, authenticated: true },
+          { success: true, authenticated: true, username: getAdminUsername(env) },
           200,
           request,
           { 'Set-Cookie': buildAdminSessionSetCookie(sessionCookie) }
@@ -1882,8 +1900,21 @@ export default {
       }
 
       if (url.pathname === '/api/admin/session') {
+        const session = await readAdminSession(request, env);
+        if (session) {
+          return json({
+            success: true,
+            authenticated: true,
+            username: session.username || getAdminUsername(env)
+          }, 200, request);
+        }
+
         const authorized = await isAdminAuthorized(request, env);
-        return json({ success: true, authenticated: authorized }, 200, request);
+        return json({
+          success: true,
+          authenticated: authorized,
+          username: authorized ? getAdminUsername(env) : null
+        }, 200, request);
       }
 
       if (url.pathname === '/api/activate-license') {

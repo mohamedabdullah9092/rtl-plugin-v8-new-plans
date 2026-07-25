@@ -48,6 +48,7 @@ let currentActivityEventFilter = 'all';
 let currentActivityPlanFilter = 'all';
 let currentActivityDateFilter = 'all';
 let isAdminAuthenticated = false;
+let currentAdminUsername = '';
 
 function cloneData(data) {
   return JSON.parse(JSON.stringify(data));
@@ -416,6 +417,7 @@ function showDashboardAuthMissing() {
   if (cached) {
     mergeDashboardData(cached);
     isAdminAuthenticated = false;
+    currentAdminUsername = '';
     dashboardData.summary = {
       ...(dashboardData.summary || {}),
       workerHealth: 'Cached data',
@@ -432,6 +434,15 @@ function showDashboardAuthMissing() {
   }
 
   showDashboardLoadError(new Error('Admin session is missing in this browser. Open Settings and sign in to load live data.'));
+}
+
+function renderAuthView() {
+  const loginScreen = document.getElementById('login-screen');
+  const dashboardApp = document.getElementById('dashboard-app');
+  const adminUsernameInput = document.getElementById('admin-username');
+  if (loginScreen) loginScreen.hidden = isAdminAuthenticated;
+  if (dashboardApp) dashboardApp.hidden = !isAdminAuthenticated;
+  if (adminUsernameInput) adminUsernameInput.value = currentAdminUsername || '';
 }
 
 function renderMetrics() {
@@ -1050,6 +1061,16 @@ function renderSessionStatus() {
   `;
 }
 
+function renderLoginStatus({ title, copy, isError = false } = {}) {
+  const status = document.getElementById('login-status');
+  if (!status) return;
+  status.className = isError ? 'lookup-result' : 'lookup-result empty';
+  status.innerHTML = `
+    <strong>${escapeHtml(title || 'Session required')}</strong>
+    <span>${escapeHtml(copy || 'Enter your credentials to continue.')}</span>
+  `;
+}
+
 async function syncAdminSession({ quiet = true } = {}) {
   try {
     const { response, payload } = await fetchJson('/api/admin/session');
@@ -1057,13 +1078,16 @@ async function syncAdminSession({ quiet = true } = {}) {
       throw new Error(payload.message || 'Could not check admin session.');
     }
     isAdminAuthenticated = Boolean(payload.authenticated);
+    currentAdminUsername = payload.username || '';
   } catch (error) {
     isAdminAuthenticated = false;
+    currentAdminUsername = '';
     if (!quiet) {
       alert(error instanceof Error ? error.message : 'Could not check admin session.');
     }
   }
   renderSessionStatus();
+  renderAuthView();
   return isAdminAuthenticated;
 }
 
@@ -1355,36 +1379,17 @@ function attachUserProfile() {
 
 function attachSettings() {
   const apiInput = document.getElementById('api-base-url');
-  const passwordInput = document.getElementById('admin-password');
   const saveButton = document.getElementById('save-dashboard-settings');
-  const loginButton = document.getElementById('admin-login-button');
   const logoutButton = document.getElementById('admin-logout-button');
   const refreshButton = document.getElementById('refresh-dashboard');
   const importGumroadButton = document.getElementById('import-gumroad-sales');
 
   apiInput.value = getApiBaseUrl();
   renderSessionStatus();
+  renderAuthView();
 
   saveButton.addEventListener('click', () => {
     localStorage.setItem(API_BASE_URL_KEY, apiInput.value.trim() || DEFAULT_API_BASE_URL);
-  });
-
-  loginButton.addEventListener('click', async () => {
-    loginButton.disabled = true;
-    loginButton.textContent = 'Signing in...';
-    try {
-      await postJson('/api/admin/login', { password: passwordInput.value.trim() });
-      passwordInput.value = '';
-      isAdminAuthenticated = true;
-      renderSessionStatus();
-      await loadLiveDashboardData({ quiet: true });
-      if (typeof window.openDashboardView === 'function') window.openDashboardView('overview');
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Could not sign in.');
-    } finally {
-      loginButton.disabled = false;
-      loginButton.textContent = 'Sign In';
-    }
   });
 
   logoutButton.addEventListener('click', async () => {
@@ -1392,10 +1397,15 @@ function attachSettings() {
     try {
       await postJson('/api/admin/logout', {});
       isAdminAuthenticated = false;
+      currentAdminUsername = '';
       renderSessionStatus();
+      renderLoginStatus({
+        title: 'Signed out',
+        copy: 'Your secure session ended successfully.'
+      });
+      renderAuthView();
       showDashboardAuthMissing();
       renderDashboard();
-      if (typeof window.openDashboardView === 'function') window.openDashboardView('settings');
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Could not log out.');
     } finally {
@@ -1426,6 +1436,58 @@ function attachSettings() {
       }
     });
   }
+}
+
+function attachLoginScreen() {
+  const form = document.getElementById('login-form');
+  const usernameInput = document.getElementById('login-username');
+  const passwordInput = document.getElementById('login-password');
+  const apiInput = document.getElementById('login-api-base-url');
+  const submitButton = document.getElementById('login-submit');
+  if (!form || !usernameInput || !passwordInput || !apiInput || !submitButton) return;
+
+  apiInput.value = getApiBaseUrl();
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    localStorage.setItem(API_BASE_URL_KEY, apiInput.value.trim() || DEFAULT_API_BASE_URL);
+    submitButton.disabled = true;
+    submitButton.textContent = 'Signing in...';
+    renderLoginStatus({
+      title: 'Checking access',
+      copy: 'We are starting your secure admin session.'
+    });
+
+    try {
+      const payload = await postJson('/api/admin/login', {
+        username: usernameInput.value.trim(),
+        password: passwordInput.value.trim()
+      });
+      isAdminAuthenticated = true;
+      currentAdminUsername = payload.username || usernameInput.value.trim();
+      passwordInput.value = '';
+      renderSessionStatus();
+      renderAuthView();
+      await loadLiveDashboardData({ quiet: true });
+      renderLoginStatus({
+        title: 'Signed in',
+        copy: 'Your session is active and live dashboard data is ready.'
+      });
+      if (typeof window.openDashboardView === 'function') window.openDashboardView('overview');
+    } catch (error) {
+      isAdminAuthenticated = false;
+      currentAdminUsername = '';
+      renderAuthView();
+      renderLoginStatus({
+        title: 'Sign-in failed',
+        copy: error instanceof Error ? error.message : 'Could not sign in with these credentials.',
+        isError: true
+      });
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = 'Sign In';
+    }
+  });
 }
 
 function attachExports() {
@@ -1463,6 +1525,7 @@ function init() {
   attachUserLookup();
   attachActivityFilters();
   attachUserProfile();
+  attachLoginScreen();
   attachSettings();
   attachExports();
   syncAdminSession({ quiet: true }).then((authenticated) => {
@@ -1471,6 +1534,10 @@ function init() {
       return;
     }
 
+    renderLoginStatus({
+      title: 'Session required',
+      copy: 'Use your admin username and password to continue.'
+    });
     showDashboardAuthMissing();
     renderDashboard();
   });
