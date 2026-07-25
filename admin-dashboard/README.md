@@ -6,7 +6,7 @@ Standalone admin dashboard for the RTL Master plugin.
 
 - `index.html`: the dashboard shell and page sections
 - `styles.css`: responsive visual system and layout
-- `app.js`: live Cloudflare Worker data loading, fallback mock data, tab switching, and small interactions
+- `app.js`: live Cloudflare Worker data loading, Gumroad import, user search, CSV export, and tab switching
 - `WIREFRAME.md`: page structure and product wireframe
 
 ## Open locally
@@ -20,6 +20,12 @@ python -m http.server 4173
 Then open `http://localhost:4173/`.
 
 ## Live Data
+
+The dashboard keeps the admin surface intentionally small:
+
+- `Overview`: key metrics, Worker status, alerts, recent customers, and latest events
+- `Users`: all activated/imported customers with billing type and expiry date
+- `Settings`: Worker URL and admin token
 
 The dashboard reads live data from:
 
@@ -60,6 +66,9 @@ After a successful Gumroad activation, the admin-only dashboard can show and exp
 - Buyer/Figma name
 - Full activation code
 - Purchase date
+- Billing type
+- Subscription status
+- Expiry date
 
 Keep the `ADMIN_TOKEN` private because the Users CSV includes full activation codes.
 

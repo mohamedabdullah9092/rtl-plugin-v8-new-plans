@@ -2,16 +2,56 @@ const GUMROAD_VERIFY_URL = 'https://api.gumroad.com/v2/licenses/verify';
 const GUMROAD_SALES_URL = 'https://api.gumroad.com/v2/sales';
 const NEW_PRODUCT_ID = 'xjW3twDEIx4LJQrkpgz4fQ==';
 const OLD_PRODUCT_ID = 'dK0Er2rZ-4VFBT6KD-VTYw==';
+const ADMIN_SESSION_COOKIE = 'rtl_master_admin_session';
+const ADMIN_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
-function json(data, status = 200) {
+function isAllowedDashboardOrigin(origin) {
+  if (!origin) return false;
+
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname.toLowerCase();
+    if ((hostname === 'localhost' || hostname === '127.0.0.1') && /^http:$/.test(url.protocol)) return true;
+    if (hostname.endsWith('.vercel.app') && url.protocol === 'https:') return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function buildCorsHeaders(request, { allowCredentials = false } = {}) {
+  const headers = {
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Token'
+  };
+  const origin = request ? request.headers.get('Origin') || '' : '';
+
+  if (isAllowedDashboardOrigin(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
+    headers.Vary = 'Origin';
+    if (allowCredentials) headers['Access-Control-Allow-Credentials'] = 'true';
+  } else {
+    headers['Access-Control-Allow-Origin'] = '*';
+  }
+
+  return headers;
+}
+
+function json(data, status = 200, request = null, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Token'
+      ...buildCorsHeaders(request, { allowCredentials: true }),
+      ...extraHeaders
     }
+  });
+}
+
+function jsonPreflight(request) {
+  return new Response(null, {
+    status: 204,
+    headers: buildCorsHeaders(request, { allowCredentials: true })
   });
 }
 
@@ -210,6 +250,94 @@ function getAdminTokenFromRequest(request) {
   return (request.headers.get('X-Admin-Token') || '').trim();
 }
 
+function encodeBase64Url(bytes) {
+  const base64 = btoa(String.fromCharCode(...bytes));
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function decodeBase64Url(text) {
+  const base64 = text.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64 + '='.repeat((4 - (base64.length % 4 || 4)) % 4);
+  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
+}
+
+function parseCookies(request) {
+  const cookieHeader = request.headers.get('Cookie') || '';
+  return cookieHeader.split(';').reduce((cookies, part) => {
+    const [name, ...rest] = part.trim().split('=');
+    if (!name) return cookies;
+    cookies[name] = rest.join('=');
+    return cookies;
+  }, {});
+}
+
+function getAdminSessionSecret(env) {
+  return (env.ADMIN_SESSION_SECRET || env.ADMIN_TOKEN || '').trim();
+}
+
+async function signSessionValue(value, env) {
+  const secret = getAdminSessionSecret(env);
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(value));
+  return encodeBase64Url(new Uint8Array(signature));
+}
+
+async function createAdminSessionCookie(env) {
+  const payload = {
+    exp: Math.floor(Date.now() / 1000) + ADMIN_SESSION_MAX_AGE
+  };
+  const encodedPayload = encodeBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
+  const signature = await signSessionValue(encodedPayload, env);
+  return `${encodedPayload}.${signature}`;
+}
+
+async function readAdminSession(request, env) {
+  const sessionValue = parseCookies(request)[ADMIN_SESSION_COOKIE];
+  if (!sessionValue || !getAdminSessionSecret(env)) return null;
+
+  const [encodedPayload, signature] = sessionValue.split('.');
+  if (!encodedPayload || !signature) return null;
+
+  const expectedSignature = await signSessionValue(encodedPayload, env);
+  if (!constantTimeEqualHex(await sha256Hex(signature), await sha256Hex(expectedSignature))) return null;
+
+  try {
+    const payload = JSON.parse(new TextDecoder().decode(decodeBase64Url(encodedPayload)));
+    if (!payload || !payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function buildAdminSessionSetCookie(value) {
+  return [
+    `${ADMIN_SESSION_COOKIE}=${value}`,
+    'Path=/',
+    `Max-Age=${ADMIN_SESSION_MAX_AGE}`,
+    'HttpOnly',
+    'Secure',
+    'SameSite=None'
+  ].join('; ');
+}
+
+function buildAdminSessionClearCookie() {
+  return [
+    `${ADMIN_SESSION_COOKIE}=`,
+    'Path=/',
+    'Max-Age=0',
+    'HttpOnly',
+    'Secure',
+    'SameSite=None'
+  ].join('; ');
+}
+
 async function sha256Hex(value) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest))
@@ -229,6 +357,9 @@ function constantTimeEqualHex(left, right) {
 }
 
 async function isAdminAuthorized(request, env) {
+  const session = await readAdminSession(request, env);
+  if (session) return true;
+
   const configuredToken = (env.ADMIN_TOKEN || '').trim();
   const requestToken = getAdminTokenFromRequest(request);
   if (!configuredToken || !requestToken) return false;
@@ -316,6 +447,54 @@ async function getBindingByUser(env, figmaUserId) {
       .bind(figmaUserId)
       .first();
   }
+}
+
+async function handleLicenseStatus(env, ctx, figmaUserId) {
+  if (!figmaUserId) return json({ success: false, message: 'Missing figmaUserId' }, 400);
+
+  const binding = await getBindingByUser(env, figmaUserId);
+  if (!binding) return json({ success: true, isPro: false });
+
+  const gumroadData = await verifyWithGumroad(binding.license_key, false);
+  if (!isPurchaseActive(gumroadData)) {
+    await env.DB.prepare('DELETE FROM license_bindings WHERE figma_user_id = ?1').bind(figmaUserId).run();
+    schedule(ctx, recordLicenseEvent(env, {
+      type: 'license-status',
+      figmaUserId,
+      figmaUserName: binding.figma_user_name,
+      licenseKey: binding.license_key,
+      success: false,
+      message: 'Inactive Gumroad purchase removed from D1'
+    }));
+    return json({ success: true, isPro: false });
+  }
+
+  await updateBindingPurchaseDetails(env, figmaUserId, extractGumroadPurchaseDetails(gumroadData));
+  schedule(ctx, recordLicenseEvent(env, {
+    type: 'license-status',
+    figmaUserId,
+    figmaUserName: binding.figma_user_name,
+    licenseKey: binding.license_key,
+    success: true,
+    message: 'License status verified'
+  }));
+  return json({ success: true, isPro: true });
+}
+
+async function handleUnlinkLicense(env, ctx, figmaUserId) {
+  if (!figmaUserId) return json({ success: false, message: 'Missing figmaUserId' }, 400);
+
+  const binding = await getBindingByUser(env, figmaUserId);
+  await env.DB.prepare('DELETE FROM license_bindings WHERE figma_user_id = ?1').bind(figmaUserId).run();
+  schedule(ctx, recordLicenseEvent(env, {
+    type: 'unlink-license',
+    figmaUserId,
+    figmaUserName: binding && binding.figma_user_name,
+    licenseKey: binding && binding.license_key,
+    success: true,
+    message: 'License unlinked'
+  }));
+  return json({ success: true });
 }
 
 async function getBindingByLicense(env, licenseKey) {
@@ -715,6 +894,50 @@ async function recordPluginEvent(env, event) {
   }
 }
 
+async function upsertPluginUser(env, event) {
+  const figmaUserId = compactString(event.figmaUserId, 120);
+  if (!figmaUserId) return false;
+
+  try {
+    await env.DB
+      .prepare(`
+        INSERT INTO plugin_users (
+          figma_user_id,
+          figma_user_name,
+          plan,
+          first_seen_at,
+          last_seen_at,
+          last_event_type,
+          last_feature,
+          usage_count,
+          updated_at
+        )
+        VALUES (?1, ?2, ?3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?4, ?5, 1, CURRENT_TIMESTAMP)
+        ON CONFLICT(figma_user_id) DO UPDATE SET
+          figma_user_name = COALESCE(excluded.figma_user_name, plugin_users.figma_user_name),
+          plan = COALESCE(excluded.plan, plugin_users.plan),
+          last_seen_at = CURRENT_TIMESTAMP,
+          last_event_type = excluded.last_event_type,
+          last_feature = excluded.last_feature,
+          usage_count = plugin_users.usage_count + 1,
+          updated_at = CURRENT_TIMESTAMP
+      `)
+      .bind(
+        figmaUserId,
+        compactString(event.figmaUserName, 120),
+        compactString(event.plan, 20),
+        compactString(event.eventType || event.type, 80) || 'unknown',
+        compactString(event.feature, 80)
+      )
+      .run();
+
+    return true;
+  } catch (error) {
+    if (!isMissingTableError(error)) console.warn('Could not upsert plugin user', error);
+    return false;
+  }
+}
+
 async function getRecentEvents(env, limit = 80) {
   try {
     const result = await env.DB
@@ -765,6 +988,35 @@ async function getRecentPluginEvents(env, limit = 1000) {
     return result.results || [];
   } catch (error) {
     console.warn('Could not read plugin events', error);
+    return [];
+  }
+}
+
+async function getPluginUsersForAdmin(env, limit = 500) {
+  try {
+    const result = await env.DB
+      .prepare(`
+        SELECT
+          figma_user_id,
+          figma_user_name,
+          plan,
+          first_seen_at,
+          last_seen_at,
+          last_event_type,
+          last_feature,
+          usage_count,
+          updated_at
+        FROM plugin_users
+        ORDER BY datetime(last_seen_at) DESC
+        LIMIT ?1
+      `)
+      .bind(limit)
+      .all();
+
+    return result.results || [];
+  } catch (error) {
+    if (isMissingTableError(error)) return [];
+    console.warn('Could not read plugin users', error);
     return [];
   }
 }
@@ -883,20 +1135,22 @@ async function getLicenseBindingStats(env) {
 }
 
 async function getDatabaseDiagnostics(env) {
-  const [licenseBindingsExists, licenseEventsExists, pluginEventsExists, gumroadSalesExists] = await Promise.all([
+  const [licenseBindingsExists, licenseEventsExists, pluginEventsExists, gumroadSalesExists, pluginUsersExists] = await Promise.all([
     tableExists(env, 'license_bindings'),
     tableExists(env, 'license_events'),
     tableExists(env, 'plugin_events'),
-    tableExists(env, 'gumroad_sales')
+    tableExists(env, 'gumroad_sales'),
+    tableExists(env, 'plugin_users')
   ]);
   const bindingColumns = licenseBindingsExists ? await getTableColumns(env, 'license_bindings') : [];
   const requiredPurchaseColumns = getRequiredPurchaseColumns();
   const missingPurchaseColumns = requiredPurchaseColumns.filter((column) => !bindingColumns.includes(column));
-  const [licenseBindingCount, licenseEventCount, pluginEventCount, gumroadSalesCount] = await Promise.all([
+  const [licenseBindingCount, licenseEventCount, pluginEventCount, gumroadSalesCount, pluginUsersCount] = await Promise.all([
     licenseBindingsExists ? countTableRows(env, 'license_bindings') : Promise.resolve(null),
     licenseEventsExists ? countTableRows(env, 'license_events') : Promise.resolve(null),
     pluginEventsExists ? countTableRows(env, 'plugin_events') : Promise.resolve(null),
-    gumroadSalesExists ? countTableRows(env, 'gumroad_sales') : Promise.resolve(null)
+    gumroadSalesExists ? countTableRows(env, 'gumroad_sales') : Promise.resolve(null),
+    pluginUsersExists ? countTableRows(env, 'plugin_users') : Promise.resolve(null)
   ]);
 
   return {
@@ -904,16 +1158,18 @@ async function getDatabaseDiagnostics(env) {
       license_bindings: licenseBindingsExists,
       license_events: licenseEventsExists,
       plugin_events: pluginEventsExists,
-      gumroad_sales: gumroadSalesExists
+      gumroad_sales: gumroadSalesExists,
+      plugin_users: pluginUsersExists
     },
     counts: {
       license_bindings: licenseBindingCount,
       license_events: licenseEventCount,
       plugin_events: pluginEventCount,
-      gumroad_sales: gumroadSalesCount
+      gumroad_sales: gumroadSalesCount,
+      plugin_users: pluginUsersCount
     },
     missingPurchaseColumns,
-    migrationRequired: !licenseEventsExists || !pluginEventsExists || !gumroadSalesExists || missingPurchaseColumns.length > 0
+    migrationRequired: !licenseEventsExists || !pluginEventsExists || !gumroadSalesExists || !pluginUsersExists || missingPurchaseColumns.length > 0
   };
 }
 
@@ -1089,7 +1345,298 @@ function buildFeatureUsage(pluginEvents) {
   }));
 }
 
-function buildAdminDashboardPayload(bindings, licenseEvents, pluginEvents, gumroadSales = [], diagnostics = null, stats = {}) {
+function buildErrorHotspots(pluginEvents, licenseEvents) {
+  const counts = new Map();
+  const failedPluginEvents = pluginEvents.filter((event) => !event.success || event.error_code);
+  const failedLicenseEvents = licenseEvents.filter((event) => !event.success);
+
+  failedPluginEvents.forEach((event) => {
+    const key = event.error_code || event.message || event.event_type || 'plugin_error';
+    const current = counts.get(key) || {
+      title: labelFromEventType(key),
+      count: 0,
+      feature: event.feature ? labelFromFeature(event.feature) : '',
+      latest: event.created_at || '',
+      source: 'Plugin'
+    };
+    current.count += 1;
+    if (!current.latest || (event.created_at && event.created_at > current.latest)) current.latest = event.created_at;
+    counts.set(key, current);
+  });
+
+  failedLicenseEvents.forEach((event) => {
+    const key = event.message || event.event_type || 'license_error';
+    const current = counts.get(key) || {
+      title: key,
+      count: 0,
+      feature: '',
+      latest: event.created_at || '',
+      source: 'License'
+    };
+    current.count += 1;
+    if (!current.latest || (event.created_at && event.created_at > current.latest)) current.latest = event.created_at;
+    counts.set(key, current);
+  });
+
+  return Array.from(counts.values())
+    .sort((left, right) => right.count - left.count)
+    .slice(0, 6)
+    .map((item) => ({
+      title: compactString(item.title, 120) || 'Unknown issue',
+      count: item.count,
+      feature: item.feature,
+      latest: item.latest,
+      source: item.source
+    }));
+}
+
+function didEventSucceed(event) {
+  return event.success === true || event.success === 1 || event.success === '1';
+}
+
+function didEventFail(event) {
+  return event.success === false || event.success === 0 || event.success === '0' || Boolean(event.error_code);
+}
+
+function buildActivityEvents(pluginEvents, licenseEvents) {
+  return pluginEvents.map((event) => ({
+    source: 'Plugin',
+    eventType: labelFromEventType(event.event_type || 'plugin_event'),
+    rawEventType: event.event_type || '',
+    user: event.figma_user_name || event.figma_user_id || 'Unknown user',
+    figmaUserId: event.figma_user_id || '',
+    plan: event.plan || '',
+    feature: event.feature ? labelFromFeature(event.feature) : '',
+    rawFeature: event.feature || '',
+    success: didEventSucceed(event),
+    errorCode: event.error_code || '',
+    message: compactString(event.message || '', 180),
+    createdAt: event.created_at || '',
+    durationMs: event.duration_ms || '',
+    trialCount: event.trial_count ?? ''
+  })).concat(licenseEvents.map((event) => ({
+    source: 'License',
+    eventType: labelFromEventType(event.event_type || 'license_event'),
+    rawEventType: event.event_type || '',
+    user: event.figma_user_name || event.figma_user_id || 'Unknown user',
+    figmaUserId: event.figma_user_id || '',
+    plan: '',
+    feature: 'License',
+    rawFeature: 'license',
+    success: didEventSucceed(event),
+    errorCode: '',
+    message: compactString(event.message || '', 180),
+    createdAt: event.created_at || '',
+    durationMs: '',
+    trialCount: ''
+  }))).sort((left, right) => {
+    const leftDate = toIsoDate(left.createdAt);
+    const rightDate = toIsoDate(right.createdAt);
+    return (rightDate ? rightDate.getTime() : 0) - (leftDate ? leftDate.getTime() : 0);
+  }).slice(0, 250);
+}
+
+function buildErrorRows(pluginEvents, licenseEvents) {
+  const groups = new Map();
+  const addEvent = (event, source) => {
+    if (!didEventFail(event)) return;
+
+    const key = [
+      source,
+      event.error_code || '',
+      event.feature || '',
+      event.message || event.event_type || 'unknown_error'
+    ].join('|');
+    const current = groups.get(key) || {
+      source,
+      title: event.error_code ? labelFromEventType(event.error_code) : compactString(event.message || event.event_type || 'Unknown issue', 120),
+      errorCode: event.error_code || '',
+      feature: event.feature ? labelFromFeature(event.feature) : source === 'License' ? 'License' : '',
+      message: compactString(event.message || '', 180),
+      count: 0,
+      latest: event.created_at || '',
+      users: new Set()
+    };
+
+    current.count += 1;
+    if (event.figma_user_name || event.figma_user_id) current.users.add(event.figma_user_name || event.figma_user_id);
+    if (!current.latest || (event.created_at && event.created_at > current.latest)) current.latest = event.created_at;
+    groups.set(key, current);
+  };
+
+  pluginEvents.forEach((event) => addEvent(event, 'Plugin'));
+  licenseEvents.forEach((event) => addEvent(event, 'License'));
+
+  return Array.from(groups.values())
+    .sort((left, right) => {
+      const byCount = right.count - left.count;
+      if (byCount) return byCount;
+      return String(right.latest || '').localeCompare(String(left.latest || ''));
+    })
+    .slice(0, 80)
+    .map((item) => ({
+      ...item,
+      users: Array.from(item.users).slice(0, 8),
+      affectedUsers: item.users.size
+    }));
+}
+
+function buildFeaturePerformance(pluginEvents) {
+  const groups = new Map();
+  pluginEvents
+    .filter((event) => event.feature)
+    .forEach((event) => {
+      const key = event.feature;
+      const current = groups.get(key) || {
+        feature: labelFromFeature(key),
+        rawFeature: key,
+        started: 0,
+        completed: 0,
+        failed: 0,
+        freeUses: 0,
+        proUses: 0,
+        durations: [],
+        lastUsedAt: ''
+      };
+
+      if (event.event_type === 'feature_started') current.started += 1;
+      if (event.event_type === 'feature_completed') current.completed += 1;
+      if (event.event_type === 'feature_failed' || didEventFail(event)) current.failed += 1;
+      if (event.plan === 'pro') current.proUses += 1;
+      if (event.plan === 'free') current.freeUses += 1;
+      if (Number.isFinite(Number(event.duration_ms))) current.durations.push(Number(event.duration_ms));
+      if (!current.lastUsedAt || (event.created_at && event.created_at > current.lastUsedAt)) current.lastUsedAt = event.created_at || '';
+      groups.set(key, current);
+    });
+
+  return Array.from(groups.values())
+    .map((item) => {
+      const totalFinished = item.completed + item.failed;
+      const averageDurationMs = item.durations.length
+        ? Math.round(item.durations.reduce((sum, value) => sum + value, 0) / item.durations.length)
+        : 0;
+
+      return {
+        feature: item.feature,
+        rawFeature: item.rawFeature,
+        started: item.started,
+        completed: item.completed,
+        failed: item.failed,
+        successRate: totalFinished ? Math.round((item.completed / totalFinished) * 1000) / 10 : 0,
+        averageDurationMs,
+        freeUses: item.freeUses,
+        proUses: item.proUses,
+        lastUsedAt: item.lastUsedAt
+      };
+    })
+    .sort((left, right) => (right.completed + right.started) - (left.completed + left.started))
+    .slice(0, 60);
+}
+
+function buildRetentionSummary(pluginUsers, users, pluginEvents) {
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const active7Days = pluginUsers.filter((user) => {
+    const date = toIsoDate(user.last_seen_at);
+    return date && date >= sevenDaysAgo;
+  }).length;
+  const active30Days = pluginUsers.filter((user) => {
+    const date = toIsoDate(user.last_seen_at);
+    return date && date >= thirtyDaysAgo;
+  }).length;
+  const new7Days = pluginUsers.filter((user) => {
+    const date = toIsoDate(user.first_seen_at);
+    return date && date >= sevenDaysAgo;
+  }).length;
+  const oneTimeUsers = pluginUsers.filter((user) => Number(user.usage_count) <= 1).length;
+  const proUserIds = new Set(users.filter((user) => user.plan === 'Pro' && user.figmaUserId).map((user) => user.figmaUserId));
+  const activePro30Days = pluginUsers.filter((user) => {
+    const date = toIsoDate(user.last_seen_at);
+    return proUserIds.has(user.figma_user_id) && date && date >= thirtyDaysAgo;
+  }).length;
+  const trialLimitUsers = countUnique(pluginEvents, (event) => event.event_type === 'trial_exhausted');
+
+  return {
+    trackedUsers: pluginUsers.length,
+    active7Days,
+    active30Days,
+    new7Days,
+    oneTimeUsers,
+    activePro30Days,
+    trialLimitUsers,
+    items: [
+      { label: 'Active last 7 days', value: String(active7Days), copy: `${new7Days} new tracked users in the same window.` },
+      { label: 'Active last 30 days', value: String(active30Days), copy: `${activePro30Days} linked Pro users came back recently.` },
+      { label: 'One-use users', value: String(oneTimeUsers), copy: 'Users who opened or used the plugin once only.' },
+      { label: 'Trial limit reached', value: String(trialLimitUsers), copy: 'Unique users who hit the free usage limit.' }
+    ]
+  };
+}
+
+function buildSmartAlerts({ failedEvents, gumroadSales, gumroadOnlySales, pluginUsers, diagnostics, users }) {
+  const endedSubscriptions = users.filter((user) => {
+    const status = String(user.subscriptionStatus || '').toLowerCase();
+    return status && status !== 'active' && status !== 'one_time';
+  }).length;
+  const alerts = [];
+
+  if (diagnostics && diagnostics.migrationRequired) {
+    alerts.push({
+      level: 'critical',
+      title: 'D1 migration required',
+      copy: 'Some dashboard tables or columns are missing. Run the latest schema migration.',
+      action: 'Open Settings'
+    });
+  }
+
+  if (failedEvents > 0) {
+    alerts.push({
+      level: 'critical',
+      title: 'Failed events need review',
+      copy: `${failedEvents} failed license or plugin events are visible to the dashboard.`,
+      action: 'Open Errors'
+    });
+  }
+
+  if (!gumroadSales.length) {
+    alerts.push({
+      level: 'warning',
+      title: 'Gumroad buyers are not imported',
+      copy: 'Import Gumroad sales to show old buyers who never activated inside Figma.',
+      action: 'Import Sales'
+    });
+  } else if (gumroadOnlySales.length) {
+    alerts.push({
+      level: 'warning',
+      title: 'Unmatched Gumroad buyers',
+      copy: `${gumroadOnlySales.length} Gumroad buyers are not linked to a Figma user yet.`,
+      action: 'Open Users'
+    });
+  }
+
+  if (!pluginUsers.length) {
+    alerts.push({
+      level: 'info',
+      title: 'Usage tracking is waiting',
+      copy: 'Plugin users will appear after the updated plugin sends telemetry events.',
+      action: 'Open Activity'
+    });
+  }
+
+  if (endedSubscriptions > 0) {
+    alerts.push({
+      level: 'warning',
+      title: 'Ended subscriptions',
+      copy: `${endedSubscriptions} customer records show an inactive subscription state.`,
+      action: 'Open Users'
+    });
+  }
+
+  return alerts.slice(0, 8);
+}
+
+function buildAdminDashboardPayload(bindings, licenseEvents, pluginEvents, gumroadSales = [], pluginUsers = [], diagnostics = null, stats = {}) {
   const linkedCount = Number.isFinite(stats.total) ? stats.total : bindings.length;
   const gumroadOnlySales = gumroadSales.filter((sale) => !bindings.some((binding) => binding.license_key && binding.license_key === sale.license_key));
   const now = new Date();
@@ -1125,6 +1672,10 @@ function buildAdminDashboardPayload(bindings, licenseEvents, pluginEvents, gumro
   const upgradeOpenedCount = pluginEvents.filter((event) => event.event_type === 'upgrade_opened').length;
   const gumroadClickedCount = pluginEvents.filter((event) => event.event_type === 'gumroad_clicked').length;
   const users = buildUserRows(bindings, pluginEvents, gumroadSales);
+  const featurePerformance = buildFeaturePerformance(pluginEvents);
+  const errorRows = buildErrorRows(pluginEvents, licenseEvents);
+  const retention = buildRetentionSummary(pluginUsers, users, pluginEvents);
+  const activityEvents = buildActivityEvents(pluginEvents, licenseEvents);
 
   const licenses = bindings.map((binding) => ({
     key: binding.license_key,
@@ -1232,6 +1783,28 @@ function buildAdminDashboardPayload(bindings, licenseEvents, pluginEvents, gumro
         action: 'Inspect'
       })),
     users,
+    pluginUsers: pluginUsers.map((user) => ({
+      name: user.figma_user_name || user.figma_user_id || 'Unknown user',
+      figmaUserId: user.figma_user_id || '',
+      plan: user.plan || '',
+      firstSeenAt: user.first_seen_at || '',
+      lastSeenAt: user.last_seen_at || '',
+      lastEventType: user.last_event_type || '',
+      lastFeature: user.last_feature || '',
+      usageCount: Number(user.usage_count) || 0
+    })),
+    activityEvents,
+    errorRows,
+    retention,
+    featurePerformance,
+    alerts: buildSmartAlerts({
+      failedEvents,
+      gumroadSales,
+      gumroadOnlySales,
+      pluginUsers,
+      diagnostics,
+      users
+    }),
     licenses,
     timeline,
     funnel: [
@@ -1242,6 +1815,7 @@ function buildAdminDashboardPayload(bindings, licenseEvents, pluginEvents, gumro
       { label: 'Activated Pro', count: `${linkedCount} linked users` }
     ],
     features: buildFeatureUsage(pluginEvents),
+    errorHotspots: buildErrorHotspots(pluginEvents, licenseEvents),
     logs: pluginEvents.slice(0, 8).map((event) => ({
       level: event.success ? 'ok' : 'error',
       title: `POST /api/telemetry ${event.event_type}`,
@@ -1267,12 +1841,51 @@ function buildAdminDashboardPayload(bindings, licenseEvents, pluginEvents, gumro
 
 export default {
   async fetch(request, env, ctx) {
-    if (request.method === 'OPTIONS') return json({ ok: true });
+    if (request.method === 'OPTIONS') return jsonPreflight(request);
     if (request.method !== 'POST') return json({ success: false, message: 'Method not allowed' }, 405);
 
     const url = new URL(request.url);
 
     try {
+      if (url.pathname === '/api/admin/login') {
+        const { password = '' } = await request.json().catch(() => ({}));
+        const configuredToken = (env.ADMIN_TOKEN || '').trim();
+        if (!configuredToken || !String(password).trim()) {
+          return json({ success: false, message: 'Missing admin password.' }, 400, request);
+        }
+
+        const [configuredDigest, requestDigest] = await Promise.all([
+          sha256Hex(configuredToken),
+          sha256Hex(String(password).trim())
+        ]);
+
+        if (!constantTimeEqualHex(configuredDigest, requestDigest)) {
+          return json({ success: false, message: 'Invalid admin password.' }, 401, request);
+        }
+
+        const sessionCookie = await createAdminSessionCookie(env);
+        return json(
+          { success: true, authenticated: true },
+          200,
+          request,
+          { 'Set-Cookie': buildAdminSessionSetCookie(sessionCookie) }
+        );
+      }
+
+      if (url.pathname === '/api/admin/logout') {
+        return json(
+          { success: true, authenticated: false },
+          200,
+          request,
+          { 'Set-Cookie': buildAdminSessionClearCookie() }
+        );
+      }
+
+      if (url.pathname === '/api/admin/session') {
+        const authorized = await isAdminAuthorized(request, env);
+        return json({ success: true, authenticated: authorized }, 200, request);
+      }
+
       if (url.pathname === '/api/activate-license') {
         const { figmaUserId, figmaUserName = '', licenseKey = '' } = await request.json();
         if (!figmaUserId || !licenseKey.trim()) {
@@ -1337,52 +1950,12 @@ export default {
 
       if (url.pathname === '/api/license-status') {
         const { figmaUserId } = await request.json();
-        if (!figmaUserId) return json({ success: false, message: 'Missing figmaUserId' }, 400);
-
-        const binding = await getBindingByUser(env, figmaUserId);
-        if (!binding) return json({ success: true, isPro: false });
-
-        const gumroadData = await verifyWithGumroad(binding.license_key, false);
-        if (!isPurchaseActive(gumroadData)) {
-          await env.DB.prepare('DELETE FROM license_bindings WHERE figma_user_id = ?1').bind(figmaUserId).run();
-          schedule(ctx, recordLicenseEvent(env, {
-            type: 'license-status',
-            figmaUserId,
-            figmaUserName: binding.figma_user_name,
-            licenseKey: binding.license_key,
-            success: false,
-            message: 'Inactive Gumroad purchase removed from D1'
-          }));
-          return json({ success: true, isPro: false });
-        }
-
-        await updateBindingPurchaseDetails(env, figmaUserId, extractGumroadPurchaseDetails(gumroadData));
-        schedule(ctx, recordLicenseEvent(env, {
-          type: 'license-status',
-          figmaUserId,
-          figmaUserName: binding.figma_user_name,
-          licenseKey: binding.license_key,
-          success: true,
-          message: 'License status verified'
-        }));
-        return json({ success: true, isPro: true });
+        return handleLicenseStatus(env, ctx, figmaUserId);
       }
 
       if (url.pathname === '/api/unlink-license') {
         const { figmaUserId } = await request.json();
-        if (!figmaUserId) return json({ success: false, message: 'Missing figmaUserId' }, 400);
-
-        const binding = await getBindingByUser(env, figmaUserId);
-        await env.DB.prepare('DELETE FROM license_bindings WHERE figma_user_id = ?1').bind(figmaUserId).run();
-        schedule(ctx, recordLicenseEvent(env, {
-          type: 'unlink-license',
-          figmaUserId,
-          figmaUserName: binding && binding.figma_user_name,
-          licenseKey: binding && binding.license_key,
-          success: true,
-          message: 'License unlinked'
-        }));
-        return json({ success: true });
+        return handleUnlinkLicense(env, ctx, figmaUserId);
       }
 
       if (url.pathname === '/api/telemetry') {
@@ -1395,25 +1968,29 @@ export default {
           return json({ success: false, message: 'Missing eventType' }, 400);
         }
 
-        schedule(ctx, recordPluginEvent(env, event));
+        schedule(ctx, Promise.all([
+          recordPluginEvent(env, event),
+          upsertPluginUser(env, event)
+        ]));
         return json({ success: true });
       }
 
       if (url.pathname === '/api/admin/dashboard') {
         const authorized = await isAdminAuthorized(request, env);
         if (!authorized) {
-          return json({ success: false, message: 'Unauthorized admin request' }, 401);
+          return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
         }
 
-        const [bindingsResult, events, pluginEvents, gumroadSales, diagnostics, licenseStats] = await Promise.all([
+        const [bindingsResult, events, pluginEvents, gumroadSales, pluginUsers, diagnostics, licenseStats] = await Promise.all([
           getLicenseBindingsForAdmin(env),
           getRecentEvents(env),
           getRecentPluginEvents(env),
           getGumroadSalesForAdmin(env),
+          getPluginUsersForAdmin(env),
           getDatabaseDiagnostics(env),
           getLicenseBindingStats(env)
         ]);
-        const payload = buildAdminDashboardPayload(bindingsResult.rows || [], events, pluginEvents, gumroadSales, {
+        const payload = buildAdminDashboardPayload(bindingsResult.rows || [], events, pluginEvents, gumroadSales, pluginUsers, {
           ...diagnostics,
           missingPurchaseFields: bindingsResult.missingPurchaseFields
         }, licenseStats);
@@ -1422,25 +1999,25 @@ export default {
           success: true,
           generatedAt: new Date().toISOString(),
           data: payload
-        });
+        }, 200, request);
       }
 
       if (url.pathname === '/api/admin/diagnostics') {
         const authorized = await isAdminAuthorized(request, env);
         if (!authorized) {
-          return json({ success: false, message: 'Unauthorized admin request' }, 401);
+          return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
         }
 
         return json({
           success: true,
           diagnostics: await getDatabaseDiagnostics(env)
-        });
+        }, 200, request);
       }
 
       if (url.pathname === '/api/admin/test-telemetry') {
         const authorized = await isAdminAuthorized(request, env);
         if (!authorized) {
-          return json({ success: false, message: 'Unauthorized admin request' }, 401);
+          return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
         }
 
         const recorded = await recordPluginEvent(env, {
@@ -1455,13 +2032,13 @@ export default {
         return json({
           success: recorded,
           message: recorded ? 'Telemetry test event recorded.' : 'Telemetry table is not ready. Run schema migration.'
-        }, recorded ? 200 : 500);
+        }, recorded ? 200 : 500, request);
       }
 
       if (url.pathname === '/api/admin/backfill-purchases') {
         const authorized = await isAdminAuthorized(request, env);
         if (!authorized) {
-          return json({ success: false, message: 'Unauthorized admin request' }, 401);
+          return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
         }
 
         const body = await request.json().catch(() => ({}));
@@ -1470,13 +2047,13 @@ export default {
           success: !result.migrationRequired,
           message: result.migrationRequired ? 'Purchase-field migration required before backfill.' : undefined,
           ...result
-        }, result.migrationRequired ? 409 : 200);
+        }, result.migrationRequired ? 409 : 200, request);
       }
 
       if (url.pathname === '/api/admin/import-gumroad-sales') {
         const authorized = await isAdminAuthorized(request, env);
         if (!authorized) {
-          return json({ success: false, message: 'Unauthorized admin request' }, 401);
+          return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
         }
 
         const body = await request.json().catch(() => ({}));
@@ -1488,7 +2065,41 @@ export default {
         return json({
           success: !result.migrationRequired,
           ...result
-        }, result.migrationRequired ? 409 : 200);
+        }, result.migrationRequired ? 409 : 200, request);
+      }
+
+      if (url.pathname === '/api/admin/license-status') {
+        const authorized = await isAdminAuthorized(request, env);
+        if (!authorized) {
+          return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
+        }
+
+        const { figmaUserId } = await request.json();
+        const response = await handleLicenseStatus(env, ctx, figmaUserId);
+        return new Response(response.body, {
+          status: response.status,
+          headers: {
+            ...Object.fromEntries(response.headers.entries()),
+            ...buildCorsHeaders(request, { allowCredentials: true })
+          }
+        });
+      }
+
+      if (url.pathname === '/api/admin/unlink-license') {
+        const authorized = await isAdminAuthorized(request, env);
+        if (!authorized) {
+          return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
+        }
+
+        const { figmaUserId } = await request.json();
+        const response = await handleUnlinkLicense(env, ctx, figmaUserId);
+        return new Response(response.body, {
+          status: response.status,
+          headers: {
+            ...Object.fromEntries(response.headers.entries()),
+            ...buildCorsHeaders(request, { allowCredentials: true })
+          }
+        });
       }
 
       return json({ success: false, message: 'Not found' }, 404);
@@ -1496,7 +2107,7 @@ export default {
       return json({
         success: false,
         message: error instanceof Error ? error.message : 'Server error'
-      }, 500);
+      }, 500, request);
     }
   }
 };

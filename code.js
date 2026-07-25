@@ -1,3 +1,5 @@
+const PLUGIN_VERSION = 'tracking-2026-07-25';
+
 // A local dictionary for common UX terms to provide instant, high-quality translations for them.
 // The structure supports multiple target languages, with English as the source of truth.
 const uxDictionary = {
@@ -1899,13 +1901,19 @@ async function sendTelemetryEvent(eventType, details = {}) {
             figma.clientStorage.getAsync('trialCount')
         ]);
 
+        const metadata = {
+            pluginVersion: PLUGIN_VERSION,
+            ...(details && details.metadata && typeof details.metadata === 'object' ? details.metadata : {})
+        };
+
         await postJson(endpoint, {
             eventType,
             figmaUserId: currentFigmaUser ? currentFigmaUser.id : null,
             figmaUserName: currentFigmaUser ? currentFigmaUser.name || '' : '',
             plan: isPro ? 'pro' : 'free',
             trialCount: typeof trialCount === 'number' ? trialCount : null,
-            ...details
+            ...details,
+            metadata
         });
     } catch (error) {
         console.warn('Could not send telemetry event', error);

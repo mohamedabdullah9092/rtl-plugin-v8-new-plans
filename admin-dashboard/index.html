@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=20260725-dashboard-session">
 </head>
 <body>
   <div class="app-shell">
@@ -20,23 +20,24 @@
             <p class="eyebrow">Plugin Control</p>
             <h1>RTL Master</h1>
           </div>
+          <button id="mobile-menu-toggle" class="menu-toggle" type="button" aria-expanded="false" aria-controls="dashboard-nav">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span class="sr-only">Menu</span>
+          </button>
         </div>
 
-        <nav class="sidebar-nav">
+        <nav id="dashboard-nav" class="sidebar-nav" aria-label="Dashboard sections">
           <button class="nav-item is-active" data-view="overview">Overview</button>
           <button class="nav-item" data-view="users">Users</button>
-          <button class="nav-item" data-view="licenses">Licenses</button>
-          <button class="nav-item" data-view="analytics">Analytics</button>
-          <button class="nav-item" data-view="logs">Logs</button>
+          <button class="nav-item" data-view="activity">Activity</button>
+          <button class="nav-item" data-view="errors">Errors</button>
+          <button class="nav-item" data-view="retention">Retention</button>
+          <button class="nav-item" data-view="exports">Exports</button>
           <button class="nav-item" data-view="settings">Settings</button>
         </nav>
       </div>
-
-      <section class="sidebar-card">
-        <p class="sidebar-card-label">Recovered this week</p>
-        <p class="sidebar-card-value" id="sidebar-active-pro">0</p>
-        <p class="sidebar-card-copy">Pro accounts restored or verified</p>
-      </section>
     </aside>
 
     <main class="main-panel">
@@ -49,9 +50,9 @@
         <div class="topbar-tools">
           <label class="search-box">
             <span>Search</span>
-            <input id="global-search" type="search" placeholder="Users, licenses, logs">
+            <input id="global-search" type="search" placeholder="Name, email, license">
           </label>
-          <div class="pill">Updated Jul 19, 2026</div>
+          <div class="pill" id="last-updated">Not loaded yet</div>
           <div class="alert-pill"><span class="dot"></span><span id="critical-count">0 critical</span></div>
           <button id="refresh-dashboard" class="ghost-button" type="button">Refresh</button>
         </div>
@@ -61,15 +62,14 @@
         <div class="metrics-grid" id="metrics-grid"></div>
 
         <div class="content-grid two-up">
-          <article class="panel chart-panel">
+          <article class="panel status-panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Conversion</p>
-                <h3>Free to Pro</h3>
+                <p class="eyebrow">System</p>
+                <h3 id="worker-health">No live data</h3>
               </div>
-              <div class="badge positive">+8.4%</div>
             </div>
-            <div class="bars" id="conversion-bars"></div>
+            <p class="status-copy" id="worker-copy">Add the admin token and refresh to load real Cloudflare D1 data.</p>
           </article>
 
           <article class="panel">
@@ -83,25 +83,59 @@
           </article>
         </div>
 
+        <div class="content-grid three-up insights-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Insights</p>
+                <h3>Feature Usage</h3>
+              </div>
+            </div>
+            <div class="insight-list" id="feature-usage-list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Funnel</p>
+                <h3>Activation Path</h3>
+              </div>
+            </div>
+            <div class="insight-list" id="funnel-list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Quality</p>
+                <h3>Error Hotspots</h3>
+              </div>
+            </div>
+            <div class="insight-list" id="error-hotspots-list"></div>
+          </article>
+        </div>
+
         <div class="content-grid two-up">
           <article class="panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Recovery Queue</p>
-                <h3>Needs Attention</h3>
+                <p class="eyebrow">Users</p>
+                <h3>Recent Users</h3>
               </div>
+              <button class="ghost-button" type="button" data-nav-target="users">Open Users</button>
             </div>
             <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>User</th>
-                    <th>Issue</th>
-                    <th>Last Seen</th>
-                    <th>Action</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Plan</th>
+                    <th>Billing</th>
+                    <th>Expiry Date</th>
                   </tr>
                 </thead>
-                <tbody id="recovery-table"></tbody>
+                <tbody id="recent-users-table"></tbody>
               </table>
             </div>
           </article>
@@ -122,12 +156,68 @@
         <article class="panel">
           <div class="panel-head">
             <div>
+              <p class="eyebrow">User ID</p>
+              <h3>User Lookup</h3>
+            </div>
+          </div>
+          <div class="table-toolbar">
+            <label class="table-search">
+              <span>Figma User ID</span>
+              <input id="user-id-lookup-input" type="search" placeholder="Paste exact user ID">
+            </label>
+            <div class="panel-actions">
+              <button id="user-id-lookup-button" class="ghost-button accent" type="button">Find User</button>
+              <button id="user-id-lookup-clear" class="ghost-button" type="button">Clear</button>
+            </div>
+          </div>
+          <div id="user-id-lookup-result" class="lookup-result empty">
+            <strong>No user selected</strong>
+            <span>Search by Figma User ID to open the customer profile and actions quickly.</span>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
               <p class="eyebrow">Users</p>
-              <h3>User Directory</h3>
+              <h3>All Customers</h3>
             </div>
             <div class="panel-actions">
-              <button id="export-users-csv" class="ghost-button">Export CSV</button>
-              <button class="ghost-button accent">Review Queue</button>
+              <button id="import-gumroad-sales" type="button" class="ghost-button accent">Import Gumroad Sales</button>
+              <button id="export-users-csv" class="ghost-button" type="button">Export CSV</button>
+            </div>
+          </div>
+          <div class="table-toolbar">
+            <label class="table-search">
+              <span>Search</span>
+              <input id="users-search" type="search" placeholder="Name, email, license, plan">
+            </label>
+            <label class="table-filter">
+              <span>Plan</span>
+              <select id="users-plan-filter">
+                <option value="all">All plans</option>
+                <option value="pro">Pro</option>
+                <option value="free">Free</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+                <option value="one_time">One-time</option>
+              </select>
+            </label>
+            <label class="table-filter">
+              <span>Status</span>
+              <select id="users-status-filter">
+                <option value="all">All statuses</option>
+                <option value="active">Active</option>
+                <option value="linked">Linked</option>
+                <option value="ended">Ended</option>
+                <option value="one_time">One-time</option>
+                <option value="risk">Risk</option>
+              </select>
+            </label>
+            <button id="clear-user-filters" class="ghost-button" type="button">Clear Filters</button>
+            <div class="table-meta">
+              <span id="users-result-count">0 users</span>
+              <span>Newest first</span>
             </div>
           </div>
           <div class="table-wrap">
@@ -142,147 +232,271 @@
                   <th>Activation Code</th>
                   <th>Purchase Date</th>
                   <th>Expiry Date</th>
-                  <th>Last Active</th>
+                  <th>Last Active ↓</th>
                   <th>Status</th>
-                  <th>Action</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody id="users-table"></tbody>
             </table>
           </div>
         </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Plugin Tracking</p>
+              <h3>Plugin Usage Log</h3>
+            </div>
+            <div class="panel-actions">
+              <button id="export-plugin-users-csv" class="ghost-button" type="button">Export Usage CSV</button>
+            </div>
+          </div>
+          <div class="table-toolbar compact">
+            <div class="table-meta">
+              <span id="plugin-users-result-count">0 tracked users</span>
+              <span>Filtered with users search and plan</span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Plan</th>
+                  <th>First Used</th>
+                  <th>Last Used ↓</th>
+                  <th>Usage Count</th>
+                  <th>Last Event</th>
+                  <th>Last Feature</th>
+                  <th>Figma User ID</th>
+                </tr>
+              </thead>
+              <tbody id="plugin-users-table"></tbody>
+            </table>
+          </div>
+        </article>
       </section>
 
-      <section class="view" data-view-panel="licenses">
+      <section class="view" data-view-panel="activity">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Activity</p>
+              <h3>Plugin & License Events</h3>
+            </div>
+            <div class="panel-actions">
+              <button id="export-activity-csv" class="ghost-button" type="button">Export Activity CSV</button>
+            </div>
+          </div>
+          <div class="table-toolbar">
+            <label class="table-search">
+              <span>Search</span>
+              <input id="activity-search" type="search" placeholder="User, event, feature, message">
+            </label>
+            <label class="table-filter">
+              <span>Event</span>
+              <select id="activity-event-filter">
+                <option value="all">All events</option>
+              </select>
+            </label>
+            <label class="table-filter">
+              <span>Plan</span>
+              <select id="activity-plan-filter">
+                <option value="all">All plans</option>
+                <option value="pro">Pro</option>
+                <option value="free">Free</option>
+              </select>
+            </label>
+            <label class="table-filter">
+              <span>Date</span>
+              <select id="activity-date-filter">
+                <option value="all">All time</option>
+                <option value="today">Today</option>
+                <option value="7d">Last 7 days</option>
+                <option value="30d">Last 30 days</option>
+              </select>
+            </label>
+            <button id="clear-activity-filters" class="ghost-button" type="button">Clear Filters</button>
+            <div class="table-meta">
+              <span id="activity-result-count">0 events</span>
+              <span>Newest first</span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time ↓</th>
+                  <th>Source</th>
+                  <th>Event</th>
+                  <th>User</th>
+                  <th>Plan</th>
+                  <th>Feature</th>
+                  <th>Status</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody id="activity-table"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" data-view-panel="errors">
         <div class="content-grid two-up">
           <article class="panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Licenses</p>
-                <h3>Linked Keys</h3>
+                <p class="eyebrow">Alerts</p>
+                <h3>Smart Alerts</h3>
               </div>
+            </div>
+            <div class="alert-list" id="smart-alerts-list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Quality</p>
+                <h3>Error Summary</h3>
+              </div>
+              <button id="export-errors-csv" class="ghost-button" type="button">Export Errors CSV</button>
+            </div>
+            <div class="table-meta standalone">
+              <span id="errors-result-count">0 error groups</span>
+              <span>Grouped by source, feature, and message</span>
             </div>
             <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>License</th>
-                    <th>User</th>
-                    <th>Email</th>
-                    <th>Purchase Date</th>
-                    <th>Billing</th>
-                    <th>Expiry Date</th>
-                    <th>State</th>
-                    <th>Updated</th>
+                    <th>Issue</th>
+                    <th>Source</th>
+                    <th>Feature</th>
+                    <th>Count</th>
+                    <th>Affected Users</th>
+                    <th>Latest</th>
+                    <th>Message</th>
                   </tr>
                 </thead>
-                <tbody id="licenses-table"></tbody>
+                <tbody id="errors-table"></tbody>
               </table>
             </div>
           </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Activation Events</p>
-                <h3>Verification Flow</h3>
-              </div>
-            </div>
-            <div class="timeline" id="timeline"></div>
-          </article>
         </div>
       </section>
 
-      <section class="view" data-view-panel="analytics">
-        <div class="content-grid two-up">
-          <article class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Funnel</p>
-                <h3>Open to Activation</h3>
-              </div>
-            </div>
-            <div class="funnel" id="funnel"></div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Feature Usage</p>
-                <h3>Top Actions</h3>
-              </div>
-            </div>
-            <div class="feature-list" id="feature-list"></div>
-          </article>
-        </div>
-      </section>
-
-      <section class="view" data-view-panel="logs">
+      <section class="view" data-view-panel="retention">
+        <div class="summary-grid" id="retention-grid"></div>
         <article class="panel">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Logs and Errors</p>
-              <h3>System Activity</h3>
+              <p class="eyebrow">Features</p>
+              <h3>Feature Performance</h3>
+            </div>
+            <button id="export-feature-performance-csv" class="ghost-button" type="button">Export Performance CSV</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Feature</th>
+                  <th>Started</th>
+                  <th>Completed</th>
+                  <th>Failed</th>
+                  <th>Success Rate</th>
+                  <th>Avg Duration</th>
+                  <th>Free Uses</th>
+                  <th>Pro Uses</th>
+                  <th>Last Used</th>
+                </tr>
+              </thead>
+              <tbody id="feature-performance-table"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" data-view-panel="exports">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Exports</p>
+              <h3>Download Dashboard Data</h3>
             </div>
           </div>
-          <div class="log-board" id="log-board"></div>
+          <div class="export-grid">
+            <button id="export-users-csv-page" class="export-card" type="button">
+              <strong>Customers CSV</strong>
+              <span>Filtered customer list with plan, billing, and expiry.</span>
+            </button>
+            <button id="export-plugin-users-csv-page" class="export-card" type="button">
+              <strong>Plugin Usage CSV</strong>
+              <span>Tracked users, first use, last use, and counts.</span>
+            </button>
+            <button id="export-activity-csv-page" class="export-card" type="button">
+              <strong>Activity CSV</strong>
+              <span>Plugin and license events with filters applied.</span>
+            </button>
+            <button id="export-errors-csv-page" class="export-card" type="button">
+              <strong>Errors CSV</strong>
+              <span>Grouped failures and affected user counts.</span>
+            </button>
+            <button id="export-feature-performance-csv-page" class="export-card" type="button">
+              <strong>Feature Performance CSV</strong>
+              <span>Starts, completions, failures, and duration data.</span>
+            </button>
+          </div>
         </article>
       </section>
 
       <section class="view" data-view-panel="settings">
-        <div class="content-grid two-up">
-          <article class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Settings</p>
-                <h3>Recovery Controls</h3>
-              </div>
+        <article class="panel settings-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Settings</p>
+              <h3>Access & Connection</h3>
             </div>
-            <form class="settings-form">
-              <label>
-                <span>Free trial limit</span>
-                <input type="number" value="10">
-              </label>
-              <label>
-                <span>Activation worker URL</span>
-                <input id="api-base-url" type="url" value="https://rtl-master-activation.mohamedabdullah9092.workers.dev">
-              </label>
-              <label>
-                <span>Admin token</span>
-                <input id="admin-token" type="password" placeholder="Stored in this browser only" autocomplete="off">
-              </label>
-              <label class="toggle-row">
-                <span>Silent restore enabled</span>
-                <input type="checkbox" checked>
-              </label>
-              <label class="toggle-row">
-                <span>Auto-flag users who lost Pro</span>
-                <input type="checkbox" checked>
-              </label>
-              <button id="save-dashboard-settings" type="button" class="ghost-button accent">Save Dashboard Settings</button>
-              <button id="import-gumroad-sales" type="button" class="ghost-button">Import Gumroad Sales</button>
-            </form>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Deployment Notes</p>
-                <h3>Deployment</h3>
-              </div>
+          </div>
+          <form class="settings-form">
+            <div id="admin-session-status" class="lookup-result empty">
+              <strong>Admin session required</strong>
+              <span>Sign in once to load live dashboard data in this browser.</span>
             </div>
-            <ul class="deployment-notes">
-              <li>Static dashboard structure works on Vercel with zero build config.</li>
-              <li>Static dashboard structure also works on Cloudflare Pages.</li>
-              <li>Next step is adding protected admin endpoints on the Worker.</li>
-              <li>After that we can replace mock data with live data.</li>
-            </ul>
-          </article>
-        </div>
+            <label>
+              <span>Activation worker URL</span>
+              <input id="api-base-url" type="url" value="https://rtl-master-activation.mohamedabdullah9092.workers.dev">
+            </label>
+            <label>
+              <span>Admin password</span>
+              <input id="admin-password" type="password" placeholder="Used only to start the secure session" autocomplete="off">
+            </label>
+            <div class="panel-actions">
+              <button id="save-dashboard-settings" type="button" class="ghost-button">Save Worker URL</button>
+              <button id="admin-login-button" type="button" class="ghost-button accent">Sign In</button>
+              <button id="admin-logout-button" type="button" class="ghost-button">Logout</button>
+            </div>
+          </form>
+        </article>
       </section>
     </main>
   </div>
 
-  <script src="./app.js"></script>
+  <div id="user-profile-modal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-profile></div>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="user-profile-title">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">User Profile</p>
+          <h3 id="user-profile-title">Customer</h3>
+        </div>
+        <button id="close-user-profile" class="ghost-button" type="button" data-close-profile>Close</button>
+      </div>
+      <div id="user-profile-body" class="profile-body"></div>
+    </section>
+  </div>
+
+  <script src="./app.js?v=20260725-dashboard-session"></script>
 </body>
 </html>

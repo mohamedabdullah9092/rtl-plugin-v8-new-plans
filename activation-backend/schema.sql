@@ -88,3 +88,21 @@ ON plugin_events (event_type);
 
 CREATE INDEX IF NOT EXISTS idx_plugin_events_feature
 ON plugin_events (feature);
+
+CREATE TABLE IF NOT EXISTS plugin_users (
+  figma_user_id TEXT PRIMARY KEY,
+  figma_user_name TEXT,
+  plan TEXT,
+  first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_event_type TEXT,
+  last_feature TEXT,
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_plugin_users_last_seen_at
+ON plugin_users (last_seen_at);
+
+CREATE INDEX IF NOT EXISTS idx_plugin_users_plan
+ON plugin_users (plan);
