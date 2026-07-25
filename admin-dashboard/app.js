@@ -1,6 +1,7 @@
 const DEFAULT_API_BASE_URL = 'https://rtl-master-activation.mohamedabdullah9092.workers.dev';
 const API_BASE_URL_KEY = 'rtlMasterAdminApiBaseUrl';
 const ADMIN_TOKEN_KEY = 'rtlMasterAdminToken';
+const DASHBOARD_CACHE_KEY = 'rtlMasterDashboardData';
 
 const fallbackDashboardData = {
   metrics: [
@@ -110,6 +111,24 @@ function getAdminToken() {
   return localStorage.getItem(ADMIN_TOKEN_KEY) || '';
 }
 
+function getCachedDashboardData() {
+  try {
+    const cached = localStorage.getItem(DASHBOARD_CACHE_KEY);
+    return cached ? JSON.parse(cached) : null;
+  } catch (error) {
+    console.warn('Could not read dashboard cache', error);
+    return null;
+  }
+}
+
+function setCachedDashboardData(data) {
+  try {
+    localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(data));
+  } catch (error) {
+    console.warn('Could not cache dashboard data', error);
+  }
+}
+
 function mergeDashboardData(liveData) {
   const next = cloneData(fallbackDashboardData);
 
@@ -169,6 +188,28 @@ function showDashboardLoadError(error) {
     ...next.logs
   ];
   dashboardData = next;
+}
+
+function showDashboardAuthMissing() {
+  const cached = getCachedDashboardData();
+  if (cached) {
+    mergeDashboardData(cached);
+    dashboardData.summary = {
+      ...(dashboardData.summary || {}),
+      workerHealth: 'Cached data',
+      workerCopy: 'Showing the last loaded dashboard data. Add the admin token in Settings, then refresh to load current D1 data.'
+    };
+    dashboardData.risks = [
+      {
+        title: 'Admin token required',
+        copy: 'The dashboard cannot refresh live Cloudflare D1 data until ADMIN_TOKEN is saved in Settings.'
+      },
+      ...dashboardData.risks
+    ];
+    return;
+  }
+
+  showDashboardLoadError(new Error('ADMIN_TOKEN is not saved in this browser. Open Settings, paste the admin token, then click Save Dashboard Settings.'));
 }
 
 function renderMetrics() {
@@ -392,6 +433,7 @@ async function loadLiveDashboardData({ quiet = false } = {}) {
   const token = getAdminToken();
   if (!token) {
     if (!quiet) alert('Add the admin token in Settings first.');
+    showDashboardAuthMissing();
     renderDashboard();
     return false;
   }
@@ -411,6 +453,7 @@ async function loadLiveDashboardData({ quiet = false } = {}) {
       throw new Error(payload.message || 'Could not load live dashboard data.');
     }
 
+    setCachedDashboardData(payload.data);
     mergeDashboardData(payload.data);
     renderDashboard();
     return true;
