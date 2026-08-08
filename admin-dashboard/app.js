@@ -17,6 +17,39 @@ const fallbackDashboardData = {
   alerts: [],
   activityEvents: [],
   errorRows: [],
+  subscriptionAlerts: [],
+  revenue: {
+    monthly: 0,
+    yearly: 0,
+    oneTime: 0,
+    ended: 0,
+    importedSales: 0,
+    estimatedRevenue: 0,
+    currency: 'USD',
+    note: ''
+  },
+  cohort: {
+    openedPlugin: 0,
+    reachedFreeLimit: 0,
+    clickedUpgrade: 0,
+    activatedPro: 0
+  },
+  topFeaturesByPlan: {
+    free: [],
+    pro: []
+  },
+  reports: {
+    today: { pluginEvents: 0, uniqueUsers: 0, errors: 0, expiringSoon: 0 },
+    week: { pluginEvents: 0, uniqueUsers: 0, errors: 0, newPro: 0 }
+  },
+  systemHealth: {
+    worker: 'No live data',
+    d1: 'No live data',
+    lastGumroadImportAt: '',
+    errors24h: 0
+  },
+  auditLog: [],
+  savedViews: [],
   retention: {
     trackedUsers: 0,
     active7Days: 0,
@@ -30,6 +63,7 @@ const fallbackDashboardData = {
   featurePerformance: [],
   users: [],
   pluginUsers: [],
+  timeline: [],
   logs: [],
   summary: {
     activeProThisWeek: 0,
@@ -43,12 +77,16 @@ let dashboardData = cloneData(fallbackDashboardData);
 let currentUserSearchTerm = '';
 let currentPlanFilter = 'all';
 let currentStatusFilter = 'all';
+let currentUserDateFilter = 'all';
+let currentUserSourceFilter = 'all';
 let currentActivitySearchTerm = '';
 let currentActivityEventFilter = 'all';
 let currentActivityPlanFilter = 'all';
 let currentActivityDateFilter = 'all';
+let currentActivitySourceFilter = 'all';
 let isAdminAuthenticated = false;
 let currentAdminUsername = '';
+let selectedUserIds = new Set();
 
 function cloneData(data) {
   return JSON.parse(JSON.stringify(data));
@@ -138,6 +176,8 @@ function getVisibleUsers() {
     if (term && !userSearchText(user).includes(term)) return false;
     if (!matchesPlanFilter(user)) return false;
     if (!matchesStatusFilter(user)) return false;
+    if (!matchesUserDateFilter(user)) return false;
+    if (!matchesUserSourceFilter(user)) return false;
     return true;
   });
 }
@@ -171,6 +211,23 @@ function matchesPlanFilter(user) {
 function matchesStatusFilter(user) {
   if (currentStatusFilter === 'all') return true;
   return getUserStatusTokens(user).includes(currentStatusFilter);
+}
+
+function matchesUserDateFilter(user) {
+  if (currentUserDateFilter === 'all') return true;
+  const timestamp = getUserSortTime(user);
+  if (!timestamp) return false;
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (currentUserDateFilter === '7d') return timestamp >= now - 7 * dayMs;
+  if (currentUserDateFilter === '30d') return timestamp >= now - 30 * dayMs;
+  if (currentUserDateFilter === '90d') return timestamp >= now - 90 * dayMs;
+  return true;
+}
+
+function matchesUserSourceFilter(user) {
+  if (currentUserSourceFilter === 'all') return true;
+  return normalizeFilterValue(user.source) === currentUserSourceFilter;
 }
 
 function pluginUserSearchText(user) {
@@ -238,6 +295,7 @@ function getVisibleActivityEvents() {
       if (currentActivityEventFilter !== 'all' && normalizeFilterValue(event.rawEventType || event.eventType) !== currentActivityEventFilter) return false;
       if (currentActivityPlanFilter !== 'all' && normalizeFilterValue(event.plan) !== currentActivityPlanFilter) return false;
       if (!matchesActivityDateFilter(event)) return false;
+      if (currentActivitySourceFilter !== 'all' && normalizeFilterValue(event.source) !== currentActivitySourceFilter) return false;
       return true;
     });
 }
@@ -313,6 +371,29 @@ function formatDuration(value) {
   if (!Number.isFinite(duration) || duration <= 0) return '-';
   if (duration >= 1000) return `${Math.round(duration / 100) / 10}s`;
   return `${Math.round(duration)}ms`;
+}
+
+function formatDateLabel(value) {
+  if (!value) return '-';
+  const date = new Date(String(value).replace(' ', 'T'));
+  return Number.isFinite(date.getTime()) ? date.toLocaleString() : value;
+}
+
+function riskLabel(score) {
+  const value = Number(score) || 0;
+  if (value >= 70) return 'High';
+  if (value >= 40) return 'Medium';
+  return 'Low';
+}
+
+function updateSelectedUsersMeta() {
+  const count = document.getElementById('selected-users-count');
+  if (count) count.textContent = `${selectedUserIds.size} selected`;
+  const selectAll = document.getElementById('select-all-users');
+  if (selectAll) {
+    const visibleIds = getVisibleUsers().map((user) => user.figmaUserId).filter(Boolean);
+    selectAll.checked = visibleIds.length > 0 && visibleIds.every((id) => selectedUserIds.has(id));
+  }
 }
 
 function statusLabel(success) {
@@ -560,12 +641,14 @@ function renderUsersTable(rows = getVisibleUsers()) {
   if (resultCount) resultCount.textContent = `${rows.length} user${rows.length === 1 ? '' : 's'}`;
 
   if (!rows.length) {
-    renderEmptyRow('users-table', 'No users match this view.', 11);
+    renderEmptyRow('users-table', 'No users match this view.', 13);
+    updateSelectedUsersMeta();
     return;
   }
 
   document.getElementById('users-table').innerHTML = rows.map((user) => `
     <tr class="searchable-row" data-search="${escapeHtml(userSearchText(user))}">
+      <td data-label="Select">${user.figmaUserId ? `<input type="checkbox" class="user-select-checkbox" data-user-select="${escapeHtml(user.figmaUserId)}" ${selectedUserIds.has(user.figmaUserId) ? 'checked' : ''}>` : ''}</td>
       <td data-label="Name">${escapeHtml(user.name)}</td>
       <td data-label="Email">${escapeHtml(user.email || '-')}</td>
       <td data-label="Plan"><span class="tag ${escapeHtml(String(user.plan || '').toLowerCase())}">${escapeHtml(user.plan)}</span></td>
@@ -576,16 +659,19 @@ function renderUsersTable(rows = getVisibleUsers()) {
       <td data-label="Expiry Date">${escapeHtml(user.subscriptionEndsAt || '-')}</td>
       <td data-label="Last Active">${escapeHtml(user.active)}</td>
       <td data-label="Status"><span class="tag ${toStatusClass(user.subscriptionStatus || user.status)}">${escapeHtml(formatSubscriptionStatus(user.subscriptionStatus) || user.status)}</span></td>
+      <td data-label="Risk"><span class="tag ${Number(user.churnRiskScore) >= 70 ? 'error' : Number(user.churnRiskScore) >= 40 ? 'risk' : 'ok'}">${escapeHtml(`${riskLabel(user.churnRiskScore)} ${Number(user.churnRiskScore) || 0}`)}</span></td>
       <td data-label="Actions">
         <div class="action-stack">
           <button class="table-action" data-user-profile="${escapeHtml(user.figmaUserId || user.licenseKey || user.email || user.name)}">Profile</button>
           ${user.figmaUserId ? `<button class="table-action" data-user-lookup="${escapeHtml(user.figmaUserId)}">Lookup</button>` : ''}
+          ${user.email ? `<button class="table-action" data-copy-email="${escapeHtml(user.email)}">Copy Email</button>` : ''}
           ${user.figmaUserId ? `<button class="table-action" data-user-refresh="${escapeHtml(user.figmaUserId)}">Refresh License</button>` : ''}
           ${user.figmaUserId ? `<button class="table-action danger" data-user-unlink="${escapeHtml(user.figmaUserId)}">Unlink</button>` : ''}
         </div>
       </td>
     </tr>
   `).join('');
+  updateSelectedUsersMeta();
 }
 
 function renderPluginUsersTable(rows = getVisiblePluginUsers()) {
@@ -717,6 +803,163 @@ function renderRetention() {
   `).join('');
 }
 
+function renderReports() {
+  const target = document.getElementById('reports-grid');
+  if (!target) return;
+  const reports = dashboardData.reports || fallbackDashboardData.reports;
+  const rows = [
+    { label: 'Today Events', value: reports.today?.pluginEvents || 0, copy: `${reports.today?.uniqueUsers || 0} active users today` },
+    { label: 'Today Errors', value: reports.today?.errors || 0, copy: `${reports.today?.expiringSoon || 0} expiring in 3 days` },
+    { label: 'Week Events', value: reports.week?.pluginEvents || 0, copy: `${reports.week?.uniqueUsers || 0} active users this week` },
+    { label: 'New Pro This Week', value: reports.week?.newPro || 0, copy: `${reports.week?.errors || 0} weekly errors` }
+  ];
+
+  target.innerHTML = rows.map((item) => `
+    <article class="panel summary-card">
+      <p class="eyebrow">${escapeHtml(item.label)}</p>
+      <div class="metric-value">${escapeHtml(item.value)}</div>
+      <p>${escapeHtml(item.copy)}</p>
+    </article>
+  `).join('');
+}
+
+function renderSubscriptionAlertsPreview() {
+  const rows = (dashboardData.subscriptionAlerts || []).slice(0, 6);
+  if (!rows.length) {
+    renderEmptyRow('subscription-alerts-table', 'No subscriptions expiring in the next 30 days.', 4);
+    return;
+  }
+  document.getElementById('subscription-alerts-table').innerHTML = rows.map((item) => `
+    <tr>
+      <td data-label="User">${escapeHtml(item.name)}</td>
+      <td data-label="Plan">${escapeHtml(formatSubscriptionPlan(item.subscriptionPlan))}</td>
+      <td data-label="Ends At">${escapeHtml(item.subscriptionEndsAt || '-')}</td>
+      <td data-label="Days Left"><span class="tag ${item.daysLeft <= 3 ? 'error' : item.daysLeft <= 7 ? 'risk' : 'ok'}">${escapeHtml(item.daysLeft)}</span></td>
+    </tr>
+  `).join('');
+}
+
+function renderRevenue() {
+  const target = document.getElementById('revenue-grid');
+  if (!target) return;
+  const revenue = dashboardData.revenue || fallbackDashboardData.revenue;
+  const rows = [
+    { label: 'Monthly Active', value: revenue.monthly || 0, copy: 'Recurring monthly subscriptions' },
+    { label: 'Yearly Active', value: revenue.yearly || 0, copy: 'Recurring yearly subscriptions' },
+    { label: 'One-time', value: revenue.oneTime || 0, copy: 'Lifetime / one-time buyers' },
+    { label: 'Ended', value: revenue.ended || 0, copy: 'Inactive subscriptions' },
+    { label: 'Imported Sales', value: revenue.importedSales || 0, copy: 'Gumroad sales stored in D1' },
+    { label: 'Estimated Revenue', value: `${revenue.estimatedRevenue || 0} ${revenue.currency || 'USD'}`, copy: revenue.note || 'Simple estimate' }
+  ];
+  target.innerHTML = rows.map((item) => `
+    <article class="panel summary-card">
+      <p class="eyebrow">${escapeHtml(item.label)}</p>
+      <div class="metric-value">${escapeHtml(item.value)}</div>
+      <p>${escapeHtml(item.copy)}</p>
+    </article>
+  `).join('');
+}
+
+function renderCohort() {
+  const target = document.getElementById('cohort-grid');
+  if (!target) return;
+  const cohort = dashboardData.cohort || fallbackDashboardData.cohort;
+  const rows = [
+    { label: 'Opened Plugin', value: cohort.openedPlugin || 0 },
+    { label: 'Reached Free Limit', value: cohort.reachedFreeLimit || 0 },
+    { label: 'Clicked Upgrade', value: cohort.clickedUpgrade || 0 },
+    { label: 'Activated Pro', value: cohort.activatedPro || 0 }
+  ];
+  target.innerHTML = rows.map((item) => `
+    <article class="panel summary-card">
+      <p class="eyebrow">${escapeHtml(item.label)}</p>
+      <div class="metric-value">${escapeHtml(item.value)}</div>
+    </article>
+  `).join('');
+}
+
+function renderTopFeaturesByPlan() {
+  const freeTarget = document.getElementById('top-features-free');
+  const proTarget = document.getElementById('top-features-pro');
+  if (!freeTarget || !proTarget) return;
+
+  const renderItems = (label, rows) => `
+    <div class="insight-item">
+      <div class="insight-row">
+        <strong>${escapeHtml(label)}</strong>
+        <span>${rows.length}</span>
+      </div>
+      ${rows.length ? rows.map((item) => `<p>${escapeHtml(`${item.feature} (${item.count})`)}</p>`).join('') : '<p>No tracked features yet.</p>'}
+    </div>
+  `;
+
+  freeTarget.innerHTML = renderItems('Free Plan', dashboardData.topFeaturesByPlan?.free || []);
+  proTarget.innerHTML = renderItems('Pro Plan', dashboardData.topFeaturesByPlan?.pro || []);
+}
+
+function renderSubscriptionAlertsFull() {
+  const rows = dashboardData.subscriptionAlerts || [];
+  if (!rows.length) {
+    renderEmptyRow('subscription-alerts-full-table', 'No active expiry alerts right now.', 6);
+    return;
+  }
+  document.getElementById('subscription-alerts-full-table').innerHTML = rows.map((item) => `
+    <tr>
+      <td data-label="User">${escapeHtml(item.name)}</td>
+      <td data-label="Email">${escapeHtml(item.email || '-')}</td>
+      <td data-label="Plan">${escapeHtml(formatSubscriptionPlan(item.subscriptionPlan))}</td>
+      <td data-label="Ends At">${escapeHtml(item.subscriptionEndsAt || '-')}</td>
+      <td data-label="Days Left">${escapeHtml(item.daysLeft)}</td>
+      <td data-label="Bucket"><span class="tag ${item.bucket === '3d' ? 'error' : item.bucket === '7d' ? 'risk' : 'ok'}">${escapeHtml(item.bucket)}</span></td>
+    </tr>
+  `).join('');
+}
+
+function renderHealth() {
+  const target = document.getElementById('health-grid');
+  if (!target) return;
+  const health = dashboardData.systemHealth || fallbackDashboardData.systemHealth;
+  const rows = [
+    { label: 'Worker', value: health.worker || '-' },
+    { label: 'D1', value: health.d1 || '-' },
+    { label: 'Last Gumroad Import', value: formatDateLabel(health.lastGumroadImportAt || '-') },
+    { label: 'Errors Last 24h', value: health.errors24h || 0 }
+  ];
+  target.innerHTML = rows.map((item) => `
+    <article class="panel summary-card">
+      <p class="eyebrow">${escapeHtml(item.label)}</p>
+      <div class="metric-value">${escapeHtml(item.value)}</div>
+    </article>
+  `).join('');
+}
+
+function renderAuditLog() {
+  const rows = dashboardData.auditLog || [];
+  if (!rows.length) {
+    renderEmptyRow('audit-log-table', 'No admin audit rows yet.', 6);
+    return;
+  }
+  document.getElementById('audit-log-table').innerHTML = rows.map((item) => `
+    <tr>
+      <td data-label="Time">${escapeHtml(item.created_at || '-')}</td>
+      <td data-label="Admin">${escapeHtml(item.admin_username || '-')}</td>
+      <td data-label="Action">${escapeHtml(item.action || '-')}</td>
+      <td data-label="Target">${escapeHtml([item.target_type, item.target_id].filter(Boolean).join(' / ') || '-')}</td>
+      <td data-label="Status"><span class="tag ${item.status === 'ok' ? 'ok' : 'risk'}">${escapeHtml(item.status || '-')}</span></td>
+      <td data-label="Details">${escapeHtml(item.details ? JSON.stringify(item.details) : '-')}</td>
+    </tr>
+  `).join('');
+}
+
+function renderSavedUserViews() {
+  const target = document.getElementById('saved-user-views');
+  if (!target) return;
+  const rows = (dashboardData.savedViews || []).filter((item) => item.viewType === 'users').slice(0, 8);
+  target.innerHTML = rows.map((item) => `
+    <button class="ghost-button small" type="button" data-apply-saved-view="${escapeHtml(item.id)}">${escapeHtml(item.name)}</button>
+  `).join('');
+}
+
 function renderFeaturePerformance() {
   const rows = dashboardData.featurePerformance || [];
   if (!rows.length) {
@@ -803,6 +1046,8 @@ function renderUserProfile(identifier) {
   body.innerHTML = `
     <div class="profile-actions">
       ${user.figmaUserId ? `<button class="ghost-button" type="button" data-user-lookup="${escapeHtml(user.figmaUserId)}">Open In Lookup</button>` : ''}
+      ${user.figmaUserId ? `<button class="ghost-button" type="button" data-user-timeline="${escapeHtml(user.figmaUserId)}">Open Timeline</button>` : ''}
+      ${user.email ? `<button class="ghost-button" type="button" data-copy-email="${escapeHtml(user.email)}">Copy Email</button>` : ''}
       ${user.figmaUserId ? `<button class="ghost-button" type="button" data-user-refresh="${escapeHtml(user.figmaUserId)}">Refresh License</button>` : ''}
       ${user.figmaUserId ? `<button class="table-action danger" type="button" data-user-unlink="${escapeHtml(user.figmaUserId)}">Unlink License</button>` : ''}
     </div>
@@ -817,7 +1062,19 @@ function renderUserProfile(identifier) {
         <div><span>Last Active</span><strong>${escapeHtml(user.active || user.lastSeenAt || '-')}</strong></div>
         <div><span>Purchase Date</span><strong>${escapeHtml(user.purchaseDate || '-')}</strong></div>
         <div><span>Figma User ID</span><strong>${escapeHtml(user.figmaUserId || '-')}</strong></div>
+        <div><span>Risk Score</span><strong>${escapeHtml(`${Number(user.churnRiskScore) || 0} (${riskLabel(user.churnRiskScore)})`)}</strong></div>
+        <div><span>Source</span><strong>${escapeHtml(user.source || '-')}</strong></div>
         <div class="wide"><span>Activation Code</span><strong>${escapeHtml(user.licenseKey || '-')}</strong></div>
+      </div>
+    </div>
+    <div class="profile-section">
+      <p class="profile-section-title">Admin Note</p>
+      <label>
+        <span>Internal note</span>
+        <textarea id="profile-admin-note" rows="4" placeholder="Add internal note for this user">${escapeHtml(user.note || '')}</textarea>
+      </label>
+      <div class="panel-actions">
+        ${user.figmaUserId ? `<button class="ghost-button accent" type="button" data-save-note="${escapeHtml(user.figmaUserId)}">Save Note</button>` : ''}
       </div>
     </div>
     <div class="profile-section">
@@ -1013,7 +1270,16 @@ function renderDashboard() {
   renderSmartAlerts();
   renderErrorsTable();
   renderRetention();
+  renderReports();
+  renderSubscriptionAlertsPreview();
+  renderRevenue();
+  renderCohort();
+  renderTopFeaturesByPlan();
+  renderSubscriptionAlertsFull();
   renderFeaturePerformance();
+  renderHealth();
+  renderAuditLog();
+  renderSavedUserViews();
   renderLogs();
   hydrateSummary();
 }
@@ -1192,9 +1458,12 @@ function attachSearch() {
 function attachUserFilters() {
   const planFilter = document.getElementById('users-plan-filter');
   const statusFilter = document.getElementById('users-status-filter');
+  const dateFilter = document.getElementById('users-date-filter');
+  const sourceFilter = document.getElementById('users-source-filter');
   const clearButton = document.getElementById('clear-user-filters');
   const globalInput = document.getElementById('global-search');
   const usersInput = document.getElementById('users-search');
+  const saveViewButton = document.getElementById('save-user-view');
 
   if (planFilter) {
     planFilter.addEventListener('change', () => {
@@ -1210,18 +1479,62 @@ function attachUserFilters() {
     });
   }
 
+  if (dateFilter) {
+    dateFilter.addEventListener('change', () => {
+      currentUserDateFilter = dateFilter.value || 'all';
+      refreshUserViews();
+    });
+  }
+
+  if (sourceFilter) {
+    sourceFilter.addEventListener('change', () => {
+      currentUserSourceFilter = sourceFilter.value || 'all';
+      refreshUserViews();
+    });
+  }
+
   if (clearButton) {
     clearButton.addEventListener('click', () => {
       currentUserSearchTerm = '';
       currentPlanFilter = 'all';
       currentStatusFilter = 'all';
+      currentUserDateFilter = 'all';
+      currentUserSourceFilter = 'all';
       if (globalInput) globalInput.value = '';
       if (usersInput) usersInput.value = '';
       if (planFilter) planFilter.value = 'all';
       if (statusFilter) statusFilter.value = 'all';
+      if (dateFilter) dateFilter.value = 'all';
+      if (sourceFilter) sourceFilter.value = 'all';
       refreshUserViews();
     });
   }
+
+  if (saveViewButton) {
+    saveViewButton.addEventListener('click', () => {
+      saveCurrentUserView().catch((error) => {
+        alert(error instanceof Error ? error.message : 'Could not save view.');
+      });
+    });
+  }
+
+  document.querySelectorAll('[data-user-preset]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const preset = button.getAttribute('data-user-preset');
+      if (preset === 'expired_users') applyUserFilters({ status: 'ended' });
+      if (preset === 'active_pro') applyUserFilters({ plan: 'pro', status: 'active' });
+      if (preset === 'trial_exhausted') {
+        currentActivityEventFilter = 'trial_exhausted';
+        currentActivityPlanFilter = 'free';
+        const eventFilter = document.getElementById('activity-event-filter');
+        const planActivity = document.getElementById('activity-plan-filter');
+        if (eventFilter) eventFilter.value = 'trial_exhausted';
+        if (planActivity) planActivity.value = 'free';
+        refreshActivityViews();
+        if (typeof window.openDashboardView === 'function') window.openDashboardView('activity');
+      }
+    });
+  });
 }
 
 function attachActivityFilters() {
@@ -1229,6 +1542,7 @@ function attachActivityFilters() {
   const eventFilter = document.getElementById('activity-event-filter');
   const planFilter = document.getElementById('activity-plan-filter');
   const dateFilter = document.getElementById('activity-date-filter');
+  const sourceFilter = document.getElementById('activity-source-filter');
   const clearButton = document.getElementById('clear-activity-filters');
 
   if (searchInput) {
@@ -1259,16 +1573,25 @@ function attachActivityFilters() {
     });
   }
 
+  if (sourceFilter) {
+    sourceFilter.addEventListener('change', () => {
+      currentActivitySourceFilter = sourceFilter.value || 'all';
+      refreshActivityViews();
+    });
+  }
+
   if (clearButton) {
     clearButton.addEventListener('click', () => {
       currentActivitySearchTerm = '';
       currentActivityEventFilter = 'all';
       currentActivityPlanFilter = 'all';
       currentActivityDateFilter = 'all';
+      currentActivitySourceFilter = 'all';
       if (searchInput) searchInput.value = '';
       if (eventFilter) eventFilter.value = 'all';
       if (planFilter) planFilter.value = 'all';
       if (dateFilter) dateFilter.value = 'all';
+      if (sourceFilter) sourceFilter.value = 'all';
       refreshActivityViews();
     });
   }
@@ -1306,6 +1629,93 @@ async function unlinkUserLicense(figmaUserId) {
   await loadLiveDashboardData({ quiet: true });
   renderUserLookupResult(figmaUserId);
   alert(`License unlinked for ${figmaUserId}.`);
+}
+
+async function saveUserNote(figmaUserId, note) {
+  await postJson('/api/admin/save-note', { figmaUserId, note });
+  await loadLiveDashboardData({ quiet: true });
+  renderUserProfile(figmaUserId);
+}
+
+async function loadUserTimeline(figmaUserId) {
+  const summary = document.getElementById('timeline-summary');
+  const list = document.getElementById('user-timeline-list');
+  if (summary) {
+    summary.className = 'lookup-result';
+    summary.innerHTML = `<strong>Loading timeline</strong><span>${escapeHtml(figmaUserId)}</span>`;
+  }
+  const payload = await postJson('/api/admin/user-timeline', { figmaUserId, limit: 200 });
+  const rows = payload.timeline || [];
+  if (summary) {
+    summary.className = 'lookup-result';
+    summary.innerHTML = `<strong>${escapeHtml(figmaUserId)}</strong><span>${escapeHtml(`${rows.length} timeline events`)}</span>`;
+  }
+  if (list) {
+    list.innerHTML = rows.length ? rows.map((item) => `
+      <div class="profile-event">
+        <strong>${escapeHtml(item.title || item.eventType || '-')}</strong>
+        <span>${escapeHtml([item.createdAt, item.source, item.message, statusLabel(item.success)].filter(Boolean).join(' - '))}</span>
+      </div>
+    `).join('') : '<div class="profile-event"><strong>No timeline events</strong><span>This user has no stored timeline yet.</span></div>';
+  }
+  const input = document.getElementById('timeline-user-id');
+  if (input) input.value = figmaUserId;
+  if (typeof window.openDashboardView === 'function') window.openDashboardView('timeline');
+}
+
+async function saveCurrentUserView() {
+  const name = window.prompt('Saved view name');
+  if (!name) return;
+  const payload = await postJson('/api/admin/save-view', {
+    name,
+    viewType: 'users',
+    filters: {
+      search: currentUserSearchTerm,
+      plan: currentPlanFilter,
+      status: currentStatusFilter,
+      date: currentUserDateFilter,
+      source: currentUserSourceFilter
+    }
+  });
+  dashboardData.savedViews = payload.views || [];
+  renderSavedUserViews();
+}
+
+function applyUserFilters(filters = {}) {
+  currentUserSearchTerm = filters.search || '';
+  currentPlanFilter = filters.plan || 'all';
+  currentStatusFilter = filters.status || 'all';
+  currentUserDateFilter = filters.date || 'all';
+  currentUserSourceFilter = filters.source || 'all';
+  const fieldMap = {
+    'global-search': currentUserSearchTerm,
+    'users-search': currentUserSearchTerm,
+    'users-plan-filter': currentPlanFilter,
+    'users-status-filter': currentStatusFilter,
+    'users-date-filter': currentUserDateFilter,
+    'users-source-filter': currentUserSourceFilter
+  };
+  Object.entries(fieldMap).forEach(([id, value]) => {
+    const element = document.getElementById(id);
+    if (element) element.value = value;
+  });
+  refreshUserViews();
+}
+
+async function runBulkAction(action) {
+  const figmaUserIds = Array.from(selectedUserIds);
+  if (!figmaUserIds.length) {
+    alert('Select at least one user first.');
+    return;
+  }
+  let note = '';
+  if (action === 'save_note') {
+    note = window.prompt('Note text for selected users') || '';
+    if (!note) return;
+  }
+  const payload = await postJson('/api/admin/bulk-action', { action, figmaUserIds, note });
+  await loadLiveDashboardData({ quiet: true });
+  alert(`Processed ${payload.processed || 0} of ${payload.total || figmaUserIds.length} users.`);
 }
 
 function attachUserLookup() {
@@ -1351,6 +1761,24 @@ function attachUserProfile() {
       return;
     }
 
+    const timelineButton = event.target.closest('[data-user-timeline]');
+    if (timelineButton) {
+      loadUserTimeline(timelineButton.dataset.userTimeline).catch((error) => {
+        alert(error instanceof Error ? error.message : 'Could not load user timeline.');
+      });
+      return;
+    }
+
+    const copyEmailButton = event.target.closest('[data-copy-email]');
+    if (copyEmailButton) {
+      navigator.clipboard.writeText(copyEmailButton.dataset.copyEmail || '').then(() => {
+        alert('Email copied.');
+      }).catch(() => {
+        alert('Could not copy email.');
+      });
+      return;
+    }
+
     const refreshButton = event.target.closest('[data-user-refresh]');
     if (refreshButton) {
       refreshUserLicense(refreshButton.dataset.userRefresh).catch((error) => {
@@ -1367,6 +1795,15 @@ function attachUserProfile() {
       return;
     }
 
+    const saveNoteButton = event.target.closest('[data-save-note]');
+    if (saveNoteButton) {
+      const textarea = document.getElementById('profile-admin-note');
+      saveUserNote(saveNoteButton.dataset.saveNote, textarea ? textarea.value : '').catch((error) => {
+        alert(error instanceof Error ? error.message : 'Could not save note.');
+      });
+      return;
+    }
+
     if (event.target.closest('[data-close-profile]')) {
       closeProfile();
     }
@@ -1374,6 +1811,102 @@ function attachUserProfile() {
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeProfile();
+  });
+}
+
+function attachBulkActions() {
+  const selectAll = document.getElementById('select-all-users');
+  const bulkRefresh = document.getElementById('bulk-refresh-license');
+  const bulkUnlink = document.getElementById('bulk-unlink-license');
+  const bulkExport = document.getElementById('bulk-export-users');
+  const timelineLoad = document.getElementById('load-user-timeline');
+  const timelineClear = document.getElementById('clear-user-timeline');
+  const timelineInput = document.getElementById('timeline-user-id');
+
+  if (selectAll) {
+    selectAll.addEventListener('change', () => {
+      const visibleIds = getVisibleUsers().map((user) => user.figmaUserId).filter(Boolean);
+      if (selectAll.checked) {
+        visibleIds.forEach((id) => selectedUserIds.add(id));
+      } else {
+        visibleIds.forEach((id) => selectedUserIds.delete(id));
+      }
+      renderUsersTable();
+    });
+  }
+
+  document.addEventListener('change', (event) => {
+    const checkbox = event.target.closest('.user-select-checkbox');
+    if (!checkbox) return;
+    const userId = checkbox.dataset.userSelect;
+    if (!userId) return;
+    if (checkbox.checked) selectedUserIds.add(userId);
+    else selectedUserIds.delete(userId);
+    updateSelectedUsersMeta();
+  });
+
+  if (bulkRefresh) {
+    bulkRefresh.addEventListener('click', () => runBulkAction('refresh_license').catch((error) => {
+      alert(error instanceof Error ? error.message : 'Could not run bulk refresh.');
+    }));
+  }
+  if (bulkUnlink) {
+    bulkUnlink.addEventListener('click', () => runBulkAction('unlink_license').catch((error) => {
+      alert(error instanceof Error ? error.message : 'Could not run bulk unlink.');
+    }));
+  }
+  if (bulkExport) {
+    bulkExport.addEventListener('click', () => {
+      const rows = getVisibleUsers().filter((user) => selectedUserIds.has(user.figmaUserId));
+      if (!rows.length) {
+        alert('Select users first.');
+        return;
+      }
+      const headers = ['Name', 'Email', 'Plan', 'Billing', 'Figma User ID', 'Expiry Date', 'Status', 'Risk', 'Note'];
+      const csvRows = rows.map((user) => [
+        user.name,
+        user.email,
+        user.plan,
+        formatSubscriptionPlan(user.subscriptionPlan),
+        user.figmaUserId,
+        user.subscriptionEndsAt,
+        formatSubscriptionStatus(user.subscriptionStatus) || user.status,
+        user.churnRiskScore || 0,
+        user.note || ''
+      ]);
+      downloadCsv(`rtl-master-selected-users-${new Date().toISOString().slice(0, 10)}.csv`, headers, csvRows);
+    });
+  }
+
+  if (timelineLoad && timelineInput) {
+    timelineLoad.addEventListener('click', () => {
+      const value = timelineInput.value.trim();
+      if (!value) return;
+      loadUserTimeline(value).catch((error) => {
+        alert(error instanceof Error ? error.message : 'Could not load user timeline.');
+      });
+    });
+  }
+
+  if (timelineClear && timelineInput) {
+    timelineClear.addEventListener('click', () => {
+      timelineInput.value = '';
+      const summary = document.getElementById('timeline-summary');
+      const list = document.getElementById('user-timeline-list');
+      if (summary) {
+        summary.className = 'lookup-result empty';
+        summary.innerHTML = '<strong>No timeline loaded</strong><span>Choose a user from profile or enter a Figma User ID.</span>';
+      }
+      if (list) list.innerHTML = '';
+    });
+  }
+
+  document.addEventListener('click', (event) => {
+    const savedViewButton = event.target.closest('[data-apply-saved-view]');
+    if (savedViewButton) {
+      const row = (dashboardData.savedViews || []).find((item) => item.id === savedViewButton.dataset.applySavedView);
+      if (row) applyUserFilters(row.filters || {});
+    }
   });
 }
 
@@ -1525,6 +2058,7 @@ function init() {
   attachUserLookup();
   attachActivityFilters();
   attachUserProfile();
+  attachBulkActions();
   attachLoginScreen();
   attachSettings();
   attachExports();

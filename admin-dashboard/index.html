@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=20260725-dashboard-session">
+  <link rel="stylesheet" href="./styles.css?v=20260808-dashboard-expansion">
 </head>
 <body>
   <section id="login-screen" class="login-screen">
@@ -80,8 +80,11 @@
           <button class="nav-item is-active" data-view="overview">Overview</button>
           <button class="nav-item" data-view="users">Users</button>
           <button class="nav-item" data-view="activity">Activity</button>
+          <button class="nav-item" data-view="revenue">Revenue</button>
+          <button class="nav-item" data-view="timeline">Timeline</button>
           <button class="nav-item" data-view="errors">Errors</button>
           <button class="nav-item" data-view="retention">Retention</button>
+          <button class="nav-item" data-view="health">Health</button>
           <button class="nav-item" data-view="exports">Exports</button>
           <button class="nav-item" data-view="settings">Settings</button>
         </nav>
@@ -198,6 +201,41 @@
             <div class="log-list" id="log-list"></div>
           </article>
         </div>
+
+        <div class="content-grid two-up">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Reports</p>
+                <h3>Daily / Weekly Snapshot</h3>
+              </div>
+            </div>
+            <div class="summary-grid" id="reports-grid"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Subscriptions</p>
+                <h3>Expiring Soon</h3>
+              </div>
+              <button class="ghost-button" type="button" data-nav-target="revenue">Open Revenue</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Plan</th>
+                    <th>Ends At</th>
+                    <th>Days Left</th>
+                  </tr>
+                </thead>
+                <tbody id="subscription-alerts-table"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
       </section>
 
       <section class="view" data-view-panel="users">
@@ -241,6 +279,15 @@
               <input id="users-search" type="search" placeholder="Name, email, license, plan">
             </label>
             <label class="table-filter">
+              <span>Date</span>
+              <select id="users-date-filter">
+                <option value="all">All time</option>
+                <option value="7d">Last 7 days</option>
+                <option value="30d">Last 30 days</option>
+                <option value="90d">Last 90 days</option>
+              </select>
+            </label>
+            <label class="table-filter">
               <span>Plan</span>
               <select id="users-plan-filter">
                 <option value="all">All plans</option>
@@ -260,6 +307,16 @@
                 <option value="ended">Ended</option>
                 <option value="one_time">One-time</option>
                 <option value="risk">Risk</option>
+                <option value="payment_failed">Payment Failed</option>
+              </select>
+            </label>
+            <label class="table-filter">
+              <span>Source</span>
+              <select id="users-source-filter">
+                <option value="all">All sources</option>
+                <option value="activation">Activation</option>
+                <option value="gumroad">Gumroad</option>
+                <option value="plugin">Plugin</option>
               </select>
             </label>
             <button id="clear-user-filters" class="ghost-button" type="button">Clear Filters</button>
@@ -268,10 +325,31 @@
               <span>Newest first</span>
             </div>
           </div>
+          <div class="table-toolbar compact">
+            <div class="saved-views-bar">
+              <button class="ghost-button small" type="button" data-user-preset="expired_users">Expired Users</button>
+              <button class="ghost-button small" type="button" data-user-preset="active_pro">Active Pro</button>
+              <button class="ghost-button small" type="button" data-user-preset="trial_exhausted">Trial Exhausted</button>
+              <button id="save-user-view" class="ghost-button small accent" type="button">Save Current View</button>
+            </div>
+            <div class="saved-views-list" id="saved-user-views"></div>
+          </div>
+          <div class="table-toolbar compact bulk-toolbar">
+            <div class="panel-actions">
+              <button id="bulk-refresh-license" class="ghost-button small" type="button">Bulk Refresh</button>
+              <button id="bulk-unlink-license" class="ghost-button small" type="button">Bulk Unlink</button>
+              <button id="bulk-export-users" class="ghost-button small" type="button">Export Selected</button>
+            </div>
+            <div class="table-meta">
+              <span id="selected-users-count">0 selected</span>
+              <span>Use checkboxes to run bulk actions</span>
+            </div>
+          </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
+                  <th><input id="select-all-users" type="checkbox" aria-label="Select all users"></th>
                   <th>Name</th>
                   <th>Email</th>
                   <th>Plan</th>
@@ -282,6 +360,7 @@
                   <th>Expiry Date</th>
                   <th>Last Active ↓</th>
                   <th>Status</th>
+                  <th>Risk</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -363,6 +442,15 @@
                 <option value="today">Today</option>
                 <option value="7d">Last 7 days</option>
                 <option value="30d">Last 30 days</option>
+                <option value="90d">Last 90 days</option>
+              </select>
+            </label>
+            <label class="table-filter">
+              <span>Source</span>
+              <select id="activity-source-filter">
+                <option value="all">All sources</option>
+                <option value="plugin">Plugin</option>
+                <option value="license">License</option>
               </select>
             </label>
             <button id="clear-activity-filters" class="ghost-button" type="button">Clear Filters</button>
@@ -388,6 +476,84 @@
               <tbody id="activity-table"></tbody>
             </table>
           </div>
+        </article>
+      </section>
+
+      <section class="view" data-view-panel="revenue">
+        <div class="summary-grid" id="revenue-grid"></div>
+        <div class="content-grid two-up">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Conversion</p>
+                <h3>Cohort / Conversion</h3>
+              </div>
+            </div>
+            <div class="summary-grid" id="cohort-grid"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Features</p>
+                <h3>Top Features By Plan</h3>
+              </div>
+            </div>
+            <div class="content-grid two-up plan-feature-grid">
+              <div class="insight-list" id="top-features-free"></div>
+              <div class="insight-list" id="top-features-pro"></div>
+            </div>
+          </article>
+        </div>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Alerts</p>
+              <h3>Subscription Alerts</h3>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Email</th>
+                  <th>Plan</th>
+                  <th>Ends At</th>
+                  <th>Days Left</th>
+                  <th>Bucket</th>
+                </tr>
+              </thead>
+              <tbody id="subscription-alerts-full-table"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" data-view-panel="timeline">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Timeline</p>
+              <h3>User Timeline</h3>
+            </div>
+          </div>
+          <div class="table-toolbar">
+            <label class="table-search">
+              <span>Figma User ID</span>
+              <input id="timeline-user-id" type="search" placeholder="Enter user ID">
+            </label>
+            <div class="panel-actions">
+              <button id="load-user-timeline" class="ghost-button accent" type="button">Load Timeline</button>
+              <button id="clear-user-timeline" class="ghost-button" type="button">Clear</button>
+            </div>
+          </div>
+          <div id="timeline-summary" class="lookup-result empty">
+            <strong>No timeline loaded</strong>
+            <span>Choose a user from profile or enter a Figma User ID.</span>
+          </div>
+          <div class="timeline-list" id="user-timeline-list"></div>
         </article>
       </section>
 
@@ -461,6 +627,33 @@
                 </tr>
               </thead>
               <tbody id="feature-performance-table"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" data-view-panel="health">
+        <div class="summary-grid" id="health-grid"></div>
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Admin</p>
+              <h3>Audit Log</h3>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Admin</th>
+                  <th>Action</th>
+                  <th>Target</th>
+                  <th>Status</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="audit-log-table"></tbody>
             </table>
           </div>
         </article>
@@ -544,6 +737,6 @@
     </section>
   </div>
 
-  <script src="./app.js?v=20260725-dashboard-session"></script>
+  <script src="./app.js?v=20260808-dashboard-expansion"></script>
 </body>
 </html>

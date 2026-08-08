@@ -148,6 +148,14 @@ function safeMetadataJson(metadata) {
   return json === '{}' ? null : json.slice(0, 1000);
 }
 
+function safeJsonStringify(value, maxLength = 2000) {
+  try {
+    return JSON.stringify(value).slice(0, maxLength);
+  } catch {
+    return null;
+  }
+}
+
 function isMissingColumnError(error) {
   const message = error instanceof Error ? error.message : String(error || '');
   return /no such column|has no column named|no column named/i.test(message);
@@ -272,11 +280,11 @@ function parseCookies(request) {
 }
 
 function getAdminSessionSecret(env) {
-  return (env.ADMIN_SESSION_SECRET || env.ADMIN_TOKEN || '').trim();
+  return (env.ADMIN_SESSION_SECRET || env.ADMIN_PASSWORD || '').trim();
 }
 
 function getAdminUsername(env) {
-  return compactString(env.ADMIN_USERNAME, 80) || 'admin';
+  return compactString(env.ADMIN_USERNAME, 80) || '';
 }
 
 async function signSessionValue(value, env) {
@@ -363,23 +371,12 @@ function constantTimeEqualHex(left, right) {
 
 async function isAdminAuthorized(request, env) {
   const session = await readAdminSession(request, env);
-  if (session) return true;
-
-  const configuredToken = (env.ADMIN_TOKEN || '').trim();
-  const requestToken = getAdminTokenFromRequest(request);
-  if (!configuredToken || !requestToken) return false;
-
-  const [configuredDigest, requestDigest] = await Promise.all([
-    sha256Hex(configuredToken),
-    sha256Hex(requestToken)
-  ]);
-
-  return constantTimeEqualHex(configuredDigest, requestDigest);
+  return Boolean(session);
 }
 
 async function verifyAdminCredentials(env, username, password) {
   const configuredUsername = getAdminUsername(env);
-  const configuredPassword = (env.ADMIN_PASSWORD || env.ADMIN_TOKEN || '').trim();
+  const configuredPassword = (env.ADMIN_PASSWORD || '').trim();
   const submittedUsername = compactString(username, 80) || '';
   const submittedPassword = String(password || '').trim();
   if (!configuredPassword || !submittedUsername || !submittedPassword) return false;
@@ -391,6 +388,85 @@ async function verifyAdminCredentials(env, username, password) {
   ]);
 
   return constantTimeEqualHex(configuredDigest, requestDigest);
+}
+
+async function ensureAdminTables(env) {
+  await env.DB.batch([
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS admin_notes (
+        figma_user_id TEXT PRIMARY KEY,
+        note TEXT NOT NULL,
+        updated_by TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `),
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS admin_audit_log (
+        id TEXT PRIMARY KEY,
+        admin_username TEXT,
+        action TEXT NOT NULL,
+        target_type TEXT,
+        target_id TEXT,
+        status TEXT,
+        details_json TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `),
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS admin_saved_views (
+        id TEXT PRIMARY KEY,
+        admin_username TEXT,
+        name TEXT NOT NULL,
+        view_type TEXT NOT NULL,
+        filters_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_admin_notes_updated_at ON admin_notes (updated_at)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created_at ON admin_audit_log (created_at)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_admin_audit_log_action ON admin_audit_log (action)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_admin_saved_views_type ON admin_saved_views (view_type)')
+  ]);
+}
+
+async function recordAdminAudit(env, {
+  adminUsername,
+  action,
+  targetType = null,
+  targetId = null,
+  status = 'ok',
+  details = null
+}) {
+  try {
+    await ensureAdminTables(env);
+    await env.DB
+      .prepare(`
+        INSERT INTO admin_audit_log (
+          id,
+          admin_username,
+          action,
+          target_type,
+          target_id,
+          status,
+          details_json,
+          created_at
+        )
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, CURRENT_TIMESTAMP)
+      `)
+      .bind(
+        crypto.randomUUID(),
+        compactString(adminUsername, 80),
+        compactString(action, 80) || 'unknown',
+        compactString(targetType, 80),
+        compactString(targetId, 180),
+        compactString(status, 40) || 'ok',
+        safeJsonStringify(details)
+      )
+      .run();
+  } catch (error) {
+    console.warn('Could not record admin audit', error);
+  }
 }
 
 async function verifyWithGumroad(licenseKey, incrementUsesCount) {
@@ -1106,6 +1182,158 @@ async function getGumroadSalesForAdmin(env) {
   }
 }
 
+async function getAdminNotesMap(env) {
+  try {
+    await ensureAdminTables(env);
+    const result = await env.DB
+      .prepare(`
+        SELECT figma_user_id, note, updated_by, updated_at
+        FROM admin_notes
+      `)
+      .all();
+
+    return new Map((result.results || []).map((row) => [row.figma_user_id, row]));
+  } catch (error) {
+    console.warn('Could not read admin notes', error);
+    return new Map();
+  }
+}
+
+async function getAuditLogForAdmin(env, limit = 200) {
+  try {
+    await ensureAdminTables(env);
+    const result = await env.DB
+      .prepare(`
+        SELECT id, admin_username, action, target_type, target_id, status, details_json, created_at
+        FROM admin_audit_log
+        ORDER BY datetime(created_at) DESC
+        LIMIT ?1
+      `)
+      .bind(Math.max(1, Math.min(toIntegerOrNull(limit) || 200, 500)))
+      .all();
+
+    return (result.results || []).map((row) => ({
+      ...row,
+      details: (() => {
+        try {
+          return row.details_json ? JSON.parse(row.details_json) : null;
+        } catch {
+          return null;
+        }
+      })()
+    }));
+  } catch (error) {
+    console.warn('Could not read admin audit log', error);
+    return [];
+  }
+}
+
+async function getSavedViewsForAdmin(env, adminUsername) {
+  try {
+    await ensureAdminTables(env);
+    const result = await env.DB
+      .prepare(`
+        SELECT id, admin_username, name, view_type, filters_json, created_at, updated_at
+        FROM admin_saved_views
+        WHERE admin_username IS NULL OR admin_username = ?1
+        ORDER BY datetime(updated_at) DESC
+      `)
+      .bind(compactString(adminUsername, 80))
+      .all();
+
+    return (result.results || []).map((row) => ({
+      id: row.id,
+      adminUsername: row.admin_username || '',
+      name: row.name,
+      viewType: row.view_type,
+      filters: (() => {
+        try {
+          return JSON.parse(row.filters_json || '{}');
+        } catch {
+          return {};
+        }
+      })(),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+  } catch (error) {
+    console.warn('Could not read saved views', error);
+    return [];
+  }
+}
+
+async function upsertAdminNote(env, { figmaUserId, note, adminUsername }) {
+  await ensureAdminTables(env);
+  const trimmedUserId = compactString(figmaUserId, 120);
+  const trimmedNote = compactString(note, 1500);
+  if (!trimmedUserId) throw new Error('Missing figmaUserId.');
+
+  if (!trimmedNote) {
+    await env.DB.prepare('DELETE FROM admin_notes WHERE figma_user_id = ?1').bind(trimmedUserId).run();
+    return null;
+  }
+
+  await env.DB
+    .prepare(`
+      INSERT INTO admin_notes (figma_user_id, note, updated_by, updated_at)
+      VALUES (?1, ?2, ?3, CURRENT_TIMESTAMP)
+      ON CONFLICT(figma_user_id) DO UPDATE SET
+        note = excluded.note,
+        updated_by = excluded.updated_by,
+        updated_at = CURRENT_TIMESTAMP
+    `)
+    .bind(trimmedUserId, trimmedNote, compactString(adminUsername, 80))
+    .run();
+
+  return {
+    figmaUserId: trimmedUserId,
+    note: trimmedNote,
+    updatedBy: compactString(adminUsername, 80)
+  };
+}
+
+async function saveAdminView(env, { adminUsername, id, name, viewType, filters }) {
+  await ensureAdminTables(env);
+  const viewId = compactString(id, 120) || crypto.randomUUID();
+  const trimmedName = compactString(name, 120);
+  const trimmedType = compactString(viewType, 80);
+  if (!trimmedName || !trimmedType) throw new Error('Missing saved view name or type.');
+
+  await env.DB
+    .prepare(`
+      INSERT INTO admin_saved_views (
+        id,
+        admin_username,
+        name,
+        view_type,
+        filters_json,
+        created_at,
+        updated_at
+      )
+      VALUES (?1, ?2, ?3, ?4, ?5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name,
+        view_type = excluded.view_type,
+        filters_json = excluded.filters_json,
+        updated_at = CURRENT_TIMESTAMP
+    `)
+    .bind(
+      viewId,
+      compactString(adminUsername, 80),
+      trimmedName,
+      trimmedType,
+      safeJsonStringify(filters || {}, 5000) || '{}'
+    )
+    .run();
+
+  return viewId;
+}
+
+async function deleteAdminView(env, id) {
+  await ensureAdminTables(env);
+  await env.DB.prepare('DELETE FROM admin_saved_views WHERE id = ?1').bind(compactString(id, 120)).run();
+}
+
 async function tableExists(env, tableName) {
   const result = await env.DB
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?1")
@@ -1265,7 +1493,7 @@ async function backfillPurchaseDetails(env, limit = 50) {
   };
 }
 
-function buildUserRows(bindings, pluginEvents, gumroadSales = []) {
+function buildUserRows(bindings, pluginEvents, gumroadSales = [], pluginUsers = [], adminNotes = new Map(), activityEvents = []) {
   const usersById = new Map();
   const linkedLicenseKeys = new Set(bindings.map((binding) => binding.license_key).filter(Boolean));
 
@@ -1319,11 +1547,35 @@ function buildUserRows(bindings, pluginEvents, gumroadSales = []) {
     });
   });
 
+  const pluginUsersById = new Map((pluginUsers || []).map((user) => [user.figma_user_id, user]));
+
   return Array.from(usersById.values())
+    .map((user) => {
+      const figmaUserId = user.figmaUserId || '';
+      const note = figmaUserId ? adminNotes.get(figmaUserId) : null;
+      const userEvents = figmaUserId ? activityEvents.filter((event) => event.figmaUserId === figmaUserId) : [];
+      const userErrors = userEvents.filter((event) => !event.success);
+      const trackedUser = figmaUserId ? pluginUsersById.get(figmaUserId) : null;
+      const subscriptionStatus = normalizeSubscriptionStatus(user.subscriptionStatus || user.status);
+      const source = user.figmaUserId && user.licenseKey ? 'activation' : user.licenseKey ? 'gumroad' : 'plugin';
+
+      return {
+        ...user,
+        firstSeenAt: trackedUser?.first_seen_at || '',
+        lastSeenAt: trackedUser?.last_seen_at || user.active || '',
+        source,
+        note: note?.note || '',
+        noteUpdatedAt: note?.updated_at || '',
+        noteUpdatedBy: note?.updated_by || '',
+        churnRiskScore: scoreChurnRisk(user, userEvents, userErrors),
+        statusKey: subscriptionStatus || normalizeSubscriptionStatus(user.status || ''),
+        activityCount: userEvents.length
+      };
+    })
     .sort((left, right) => {
-      const leftDate = toIsoDate(left.active);
-      const rightDate = toIsoDate(right.active);
-      return (rightDate ? rightDate.getTime() : 0) - (leftDate ? leftDate.getTime() : 0);
+      const leftDate = parseDateValue(left.active || left.lastSeenAt || left.purchaseDate);
+      const rightDate = parseDateValue(right.active || right.lastSeenAt || right.purchaseDate);
+      return rightDate - leftDate;
     });
 }
 
@@ -1455,6 +1707,214 @@ function buildActivityEvents(pluginEvents, licenseEvents) {
     const rightDate = toIsoDate(right.createdAt);
     return (rightDate ? rightDate.getTime() : 0) - (leftDate ? leftDate.getTime() : 0);
   }).slice(0, 250);
+}
+
+function buildTimelineEvents(pluginEvents, licenseEvents, bindings) {
+  return pluginEvents.map((event) => ({
+    source: 'plugin',
+    figmaUserId: event.figma_user_id || '',
+    user: event.figma_user_name || event.figma_user_id || 'Unknown user',
+    title: event.feature ? `${labelFromEventType(event.event_type)}: ${labelFromFeature(event.feature)}` : labelFromEventType(event.event_type),
+    eventType: event.event_type || '',
+    feature: event.feature ? labelFromFeature(event.feature) : '',
+    plan: event.plan || '',
+    success: didEventSucceed(event),
+    message: compactString(event.message || '', 180),
+    createdAt: event.created_at || ''
+  })).concat(licenseEvents.map((event) => ({
+    source: 'license',
+    figmaUserId: event.figma_user_id || '',
+    user: event.figma_user_name || event.figma_user_id || 'Unknown user',
+    title: labelFromEventType(event.event_type),
+    eventType: event.event_type || '',
+    feature: 'License',
+    plan: '',
+    success: didEventSucceed(event),
+    message: compactString(event.message || '', 180),
+    createdAt: event.created_at || ''
+  }))).concat(bindings.map((binding) => ({
+    source: 'binding',
+    figmaUserId: binding.figma_user_id || '',
+    user: binding.gumroad_buyer_name || binding.figma_user_name || binding.figma_user_id || 'Unknown user',
+    title: 'License linked',
+    eventType: 'license_linked',
+    feature: 'License',
+    plan: 'pro',
+    success: true,
+    message: compactString(binding.gumroad_product_name || binding.license_key || '', 180),
+    createdAt: binding.updated_at || ''
+  }))).sort((left, right) => {
+    const leftDate = toIsoDate(left.createdAt);
+    const rightDate = toIsoDate(right.createdAt);
+    return (rightDate ? rightDate.getTime() : 0) - (leftDate ? leftDate.getTime() : 0);
+  });
+}
+
+function buildSubscriptionAlerts(users) {
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  return users
+    .filter((user) => user.subscriptionEndsAt)
+    .map((user) => {
+      const endsAt = parseDateValue(user.subscriptionEndsAt);
+      const daysLeft = endsAt ? Math.ceil((endsAt - now) / dayMs) : null;
+      return { ...user, daysLeft };
+    })
+    .filter((user) => Number.isFinite(user.daysLeft) && user.daysLeft >= 0 && user.daysLeft <= 30)
+    .sort((left, right) => left.daysLeft - right.daysLeft)
+    .map((user) => ({
+      figmaUserId: user.figmaUserId || '',
+      name: user.name || user.email || 'Unknown user',
+      email: user.email || '',
+      subscriptionPlan: user.subscriptionPlan || '',
+      subscriptionEndsAt: user.subscriptionEndsAt || '',
+      daysLeft: user.daysLeft,
+      bucket: user.daysLeft <= 3 ? '3d' : user.daysLeft <= 7 ? '7d' : '30d'
+    }));
+}
+
+function parseDateValue(value) {
+  const date = toIsoDate(String(value || '').replace(' ', 'T'));
+  return date ? date.getTime() : 0;
+}
+
+function buildRevenueView(users, gumroadSales) {
+  const monthly = users.filter((user) => user.subscriptionPlan === 'monthly' && normalizeSubscriptionStatus(user.subscriptionStatus) === 'active').length;
+  const yearly = users.filter((user) => user.subscriptionPlan === 'yearly' && normalizeSubscriptionStatus(user.subscriptionStatus) === 'active').length;
+  const oneTime = users.filter((user) => user.subscriptionPlan === 'one_time').length;
+  const ended = users.filter((user) => normalizeSubscriptionStatus(user.subscriptionStatus) === 'ended').length;
+  const estimate = monthly * 5 + yearly * 49 + oneTime * 29;
+  const importedSales = gumroadSales.length;
+
+  return {
+    monthly,
+    yearly,
+    oneTime,
+    ended,
+    importedSales,
+    estimatedRevenue: estimate,
+    currency: 'USD',
+    note: 'Simple estimate using default plan values: Monthly $5, Yearly $49, One-time $29.'
+  };
+}
+
+function normalizeSubscriptionStatus(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (!normalized) return '';
+  if (normalized === 'payment_failed') return 'payment_failed';
+  if (normalized === 'one_time') return 'one_time';
+  if (normalized.includes('end')) return 'ended';
+  if (normalized.includes('active')) return 'active';
+  if (normalized.includes('refund')) return 'refunded';
+  if (normalized.includes('chargeback')) return 'chargebacked';
+  return normalized;
+}
+
+function buildCohortConversion(pluginEvents, bindings) {
+  const opened = new Set();
+  const freeLimit = new Set();
+  const upgrade = new Set();
+  const activated = new Set(bindings.map((binding) => binding.figma_user_id).filter(Boolean));
+
+  pluginEvents.forEach((event) => {
+    if (!event.figma_user_id) return;
+    if (event.event_type === 'plugin_opened') opened.add(event.figma_user_id);
+    if (event.event_type === 'trial_exhausted') freeLimit.add(event.figma_user_id);
+    if (event.event_type === 'upgrade_opened' || event.event_type === 'gumroad_clicked') upgrade.add(event.figma_user_id);
+  });
+
+  return {
+    openedPlugin: opened.size,
+    reachedFreeLimit: freeLimit.size,
+    clickedUpgrade: upgrade.size,
+    activatedPro: activated.size
+  };
+}
+
+function buildTopFeaturesByPlan(pluginEvents) {
+  const plans = { free: new Map(), pro: new Map() };
+  pluginEvents.forEach((event) => {
+    if (!event.feature) return;
+    const plan = event.plan === 'pro' ? 'pro' : 'free';
+    const current = plans[plan].get(event.feature) || 0;
+    plans[plan].set(event.feature, current + 1);
+  });
+
+  return Object.fromEntries(Object.entries(plans).map(([plan, counts]) => [
+    plan,
+    Array.from(counts.entries())
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 5)
+      .map(([feature, count]) => ({
+        feature: labelFromFeature(feature),
+        rawFeature: feature,
+        count
+      }))
+  ]));
+}
+
+function buildDailyWeeklyReports(pluginEvents, licenseEvents, users, alerts) {
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const todayPlugin = pluginEvents.filter((event) => parseDateValue(event.created_at) >= now - dayMs);
+  const weekPlugin = pluginEvents.filter((event) => parseDateValue(event.created_at) >= now - 7 * dayMs);
+  const todayErrors = todayPlugin.filter((event) => didEventFail(event)).length
+    + licenseEvents.filter((event) => didEventFail(event) && parseDateValue(event.created_at) >= now - dayMs).length;
+  const weekErrors = weekPlugin.filter((event) => didEventFail(event)).length
+    + licenseEvents.filter((event) => didEventFail(event) && parseDateValue(event.created_at) >= now - 7 * dayMs).length;
+
+  return {
+    today: {
+      pluginEvents: todayPlugin.length,
+      uniqueUsers: countUnique(todayPlugin),
+      errors: todayErrors,
+      expiringSoon: alerts.filter((item) => item.daysLeft <= 3).length
+    },
+    week: {
+      pluginEvents: weekPlugin.length,
+      uniqueUsers: countUnique(weekPlugin),
+      errors: weekErrors,
+      newPro: users.filter((user) => user.plan === 'Pro' && parseDateValue(user.purchaseDate || user.active) >= now - 7 * dayMs).length
+    }
+  };
+}
+
+function scoreChurnRisk(user, activityEvents, errorRowsForUser) {
+  let score = 0;
+  const lastActiveAt = parseDateValue(user.active || user.lastSeenAt);
+  const endsAt = parseDateValue(user.subscriptionEndsAt);
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  if (!lastActiveAt || lastActiveAt < now - 14 * dayMs) score += 35;
+  if (endsAt && endsAt < now + 7 * dayMs) score += 30;
+  if (endsAt && endsAt < now + 30 * dayMs) score += 10;
+  if ((errorRowsForUser || []).length >= 3) score += 20;
+  if ((activityEvents || []).length <= 2) score += 15;
+
+  return Math.min(score, 100);
+}
+
+async function getUserTimeline(env, figmaUserId, limit = 200) {
+  const boundedLimit = Math.max(1, Math.min(toIntegerOrNull(limit) || 200, 500));
+  const [pluginEvents, licenseEvents] = await Promise.all([
+    env.DB.prepare(`
+      SELECT event_type, figma_user_id, figma_user_name, plan, feature, success, error_code, message, created_at
+      FROM plugin_events
+      WHERE figma_user_id = ?1
+      ORDER BY datetime(created_at) DESC
+      LIMIT ?2
+    `).bind(compactString(figmaUserId, 120), boundedLimit).all().catch(() => ({ results: [] })),
+    env.DB.prepare(`
+      SELECT event_type, figma_user_id, figma_user_name, success, message, created_at
+      FROM license_events
+      WHERE figma_user_id = ?1
+      ORDER BY datetime(created_at) DESC
+      LIMIT ?2
+    `).bind(compactString(figmaUserId, 120), boundedLimit).all().catch(() => ({ results: [] }))
+  ]);
+
+  return buildTimelineEvents(pluginEvents.results || [], licenseEvents.results || [], []).slice(0, boundedLimit);
 }
 
 function buildErrorRows(pluginEvents, licenseEvents) {
@@ -1657,7 +2117,18 @@ function buildSmartAlerts({ failedEvents, gumroadSales, gumroadOnlySales, plugin
   return alerts.slice(0, 8);
 }
 
-function buildAdminDashboardPayload(bindings, licenseEvents, pluginEvents, gumroadSales = [], pluginUsers = [], diagnostics = null, stats = {}) {
+function buildAdminDashboardPayload(
+  bindings,
+  licenseEvents,
+  pluginEvents,
+  gumroadSales = [],
+  pluginUsers = [],
+  diagnostics = null,
+  stats = {},
+  adminNotes = new Map(),
+  auditLog = [],
+  savedViews = []
+) {
   const linkedCount = Number.isFinite(stats.total) ? stats.total : bindings.length;
   const gumroadOnlySales = gumroadSales.filter((sale) => !bindings.some((binding) => binding.license_key && binding.license_key === sale.license_key));
   const now = new Date();
@@ -1692,11 +2163,28 @@ function buildAdminDashboardPayload(bindings, licenseEvents, pluginEvents, gumro
   const trialExhaustedCount = pluginEvents.filter((event) => event.event_type === 'trial_exhausted').length;
   const upgradeOpenedCount = pluginEvents.filter((event) => event.event_type === 'upgrade_opened').length;
   const gumroadClickedCount = pluginEvents.filter((event) => event.event_type === 'gumroad_clicked').length;
-  const users = buildUserRows(bindings, pluginEvents, gumroadSales);
+  const activityEvents = buildActivityEvents(pluginEvents, licenseEvents);
+  const users = buildUserRows(bindings, pluginEvents, gumroadSales, pluginUsers, adminNotes, activityEvents);
   const featurePerformance = buildFeaturePerformance(pluginEvents);
   const errorRows = buildErrorRows(pluginEvents, licenseEvents);
   const retention = buildRetentionSummary(pluginUsers, users, pluginEvents);
-  const activityEvents = buildActivityEvents(pluginEvents, licenseEvents);
+  const subscriptionAlerts = buildSubscriptionAlerts(users);
+  const revenue = buildRevenueView(users, gumroadSales);
+  const cohort = buildCohortConversion(pluginEvents, bindings);
+  const topFeaturesByPlan = buildTopFeaturesByPlan(pluginEvents);
+  const reports = buildDailyWeeklyReports(pluginEvents, licenseEvents, users, subscriptionAlerts);
+  const timeline = buildTimelineEvents(pluginEvents, licenseEvents, bindings).slice(0, 200);
+  const systemHealth = {
+    worker: 'Live',
+    d1: diagnostics && diagnostics.migrationRequired ? 'Migration required' : 'Healthy',
+    lastGumroadImportAt: gumroadSales.reduce((latest, sale) => {
+      const timestamp = parseDateValue(sale.imported_at || sale.updated_at);
+      return timestamp > parseDateValue(latest) ? (sale.imported_at || sale.updated_at || latest) : latest;
+    }, ''),
+    errors24h: errorRows.reduce((sum, row) => {
+      return parseDateValue(row.latest) >= Date.now() - 24 * 60 * 60 * 1000 ? sum + Number(row.count || 0) : sum;
+    }, 0)
+  };
 
   const licenses = bindings.map((binding) => ({
     key: binding.license_key,
@@ -1727,27 +2215,6 @@ function buildAdminDashboardPayload(bindings, licenseEvents, pluginEvents, gumro
     state: 'Gumroad',
     updated: sale.updated_at || 'Unknown'
   })));
-
-  const timelineSource = pluginEvents.length
-    ? pluginEvents.slice(0, 8)
-    : licenseEvents.length
-      ? licenseEvents.slice(0, 8)
-      : bindings.slice(0, 8);
-  const timeline = timelineSource.map((item) => {
-    if (item.event_type) {
-      return {
-        title: item.feature ? `${labelFromEventType(item.event_type)}: ${labelFromFeature(item.feature)}` : labelFromEventType(item.event_type),
-        copy: item.message || `${item.figma_user_name || item.figma_user_id || 'Unknown user'} ${item.success ? 'succeeded' : 'failed'}.`,
-        time: item.created_at
-      };
-    }
-
-    return {
-      title: 'License linked',
-      copy: `${item.figma_user_name || item.figma_user_id || 'Unknown user'} has an active D1 binding.`,
-      time: item.updated_at
-    };
-  });
 
   return {
     metrics: [
@@ -1818,6 +2285,14 @@ function buildAdminDashboardPayload(bindings, licenseEvents, pluginEvents, gumro
     errorRows,
     retention,
     featurePerformance,
+    subscriptionAlerts,
+    revenue,
+    cohort,
+    topFeaturesByPlan,
+    reports,
+    systemHealth,
+    auditLog,
+    savedViews,
     alerts: buildSmartAlerts({
       failedEvents,
       gumroadSales,
@@ -1882,6 +2357,12 @@ export default {
         const sessionCookie = await createAdminSessionCookie(env, {
           username: getAdminUsername(env)
         });
+        schedule(ctx, recordAdminAudit(env, {
+          adminUsername: getAdminUsername(env),
+          action: 'login',
+          targetType: 'admin_session',
+          status: 'ok'
+        }));
         return json(
           { success: true, authenticated: true, username: getAdminUsername(env) },
           200,
@@ -1891,6 +2372,13 @@ export default {
       }
 
       if (url.pathname === '/api/admin/logout') {
+        const session = await readAdminSession(request, env);
+        schedule(ctx, recordAdminAudit(env, {
+          adminUsername: session?.username || getAdminUsername(env),
+          action: 'logout',
+          targetType: 'admin_session',
+          status: 'ok'
+        }));
         return json(
           { success: true, authenticated: false },
           200,
@@ -2011,20 +2499,25 @@ export default {
         if (!authorized) {
           return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
         }
+        const session = await readAdminSession(request, env);
+        await ensureAdminTables(env);
 
-        const [bindingsResult, events, pluginEvents, gumroadSales, pluginUsers, diagnostics, licenseStats] = await Promise.all([
+        const [bindingsResult, events, pluginEvents, gumroadSales, pluginUsers, diagnostics, licenseStats, adminNotes, auditLog, savedViews] = await Promise.all([
           getLicenseBindingsForAdmin(env),
           getRecentEvents(env),
           getRecentPluginEvents(env),
           getGumroadSalesForAdmin(env),
           getPluginUsersForAdmin(env),
           getDatabaseDiagnostics(env),
-          getLicenseBindingStats(env)
+          getLicenseBindingStats(env),
+          getAdminNotesMap(env),
+          getAuditLogForAdmin(env, 120),
+          getSavedViewsForAdmin(env, session?.username || getAdminUsername(env))
         ]);
         const payload = buildAdminDashboardPayload(bindingsResult.rows || [], events, pluginEvents, gumroadSales, pluginUsers, {
           ...diagnostics,
           missingPurchaseFields: bindingsResult.missingPurchaseFields
-        }, licenseStats);
+        }, licenseStats, adminNotes, auditLog, savedViews);
 
         return json({
           success: true,
@@ -2086,17 +2579,148 @@ export default {
         if (!authorized) {
           return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
         }
+        const session = await readAdminSession(request, env);
 
         const body = await request.json().catch(() => ({}));
         const result = await importGumroadSales(env, {
           limit: body.limit,
           allProducts: body.allProducts !== false
         });
+        schedule(ctx, recordAdminAudit(env, {
+          adminUsername: session?.username || getAdminUsername(env),
+          action: 'import_gumroad_sales',
+          targetType: 'gumroad_sales',
+          status: result.failed ? 'partial' : 'ok',
+          details: result
+        }));
 
         return json({
           success: !result.migrationRequired,
           ...result
         }, result.migrationRequired ? 409 : 200, request);
+      }
+
+      if (url.pathname === '/api/admin/user-timeline') {
+        const authorized = await isAdminAuthorized(request, env);
+        if (!authorized) {
+          return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
+        }
+        const { figmaUserId, limit } = await request.json().catch(() => ({}));
+        if (!compactString(figmaUserId, 120)) {
+          return json({ success: false, message: 'Missing figmaUserId.' }, 400, request);
+        }
+
+        return json({
+          success: true,
+          timeline: await getUserTimeline(env, figmaUserId, limit)
+        }, 200, request);
+      }
+
+      if (url.pathname === '/api/admin/save-note') {
+        const session = await readAdminSession(request, env);
+        if (!session) {
+          return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
+        }
+        const { figmaUserId, note } = await request.json().catch(() => ({}));
+        const saved = await upsertAdminNote(env, {
+          figmaUserId,
+          note,
+          adminUsername: session.username || getAdminUsername(env)
+        });
+        schedule(ctx, recordAdminAudit(env, {
+          adminUsername: session.username || getAdminUsername(env),
+          action: saved ? 'save_note' : 'delete_note',
+          targetType: 'user',
+          targetId: figmaUserId,
+          status: 'ok'
+        }));
+        return json({ success: true, note: saved }, 200, request);
+      }
+
+      if (url.pathname === '/api/admin/save-view') {
+        const session = await readAdminSession(request, env);
+        if (!session) {
+          return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
+        }
+        const { id, name, viewType, filters } = await request.json().catch(() => ({}));
+        const savedId = await saveAdminView(env, {
+          adminUsername: session.username || getAdminUsername(env),
+          id,
+          name,
+          viewType,
+          filters
+        });
+        schedule(ctx, recordAdminAudit(env, {
+          adminUsername: session.username || getAdminUsername(env),
+          action: 'save_view',
+          targetType: viewType,
+          targetId: savedId,
+          status: 'ok'
+        }));
+        return json({
+          success: true,
+          id: savedId,
+          views: await getSavedViewsForAdmin(env, session.username || getAdminUsername(env))
+        }, 200, request);
+      }
+
+      if (url.pathname === '/api/admin/delete-view') {
+        const session = await readAdminSession(request, env);
+        if (!session) {
+          return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
+        }
+        const { id } = await request.json().catch(() => ({}));
+        await deleteAdminView(env, id);
+        schedule(ctx, recordAdminAudit(env, {
+          adminUsername: session.username || getAdminUsername(env),
+          action: 'delete_view',
+          targetType: 'saved_view',
+          targetId: id,
+          status: 'ok'
+        }));
+        return json({
+          success: true,
+          views: await getSavedViewsForAdmin(env, session.username || getAdminUsername(env))
+        }, 200, request);
+      }
+
+      if (url.pathname === '/api/admin/bulk-action') {
+        const session = await readAdminSession(request, env);
+        if (!session) {
+          return json({ success: false, message: 'Unauthorized admin request' }, 401, request);
+        }
+        const { action, figmaUserIds = [], note = '' } = await request.json().catch(() => ({}));
+        const ids = Array.from(new Set((Array.isArray(figmaUserIds) ? figmaUserIds : []).map((item) => compactString(item, 120)).filter(Boolean))).slice(0, 100);
+        if (!ids.length) {
+          return json({ success: false, message: 'No users selected.' }, 400, request);
+        }
+
+        let processed = 0;
+        for (const figmaUserId of ids) {
+          if (action === 'refresh_license') {
+            const response = await handleLicenseStatus(env, ctx, figmaUserId);
+            if (response.ok) processed += 1;
+          } else if (action === 'unlink_license') {
+            const response = await handleUnlinkLicense(env, ctx, figmaUserId);
+            if (response.ok) processed += 1;
+          } else if (action === 'save_note') {
+            await upsertAdminNote(env, {
+              figmaUserId,
+              note,
+              adminUsername: session.username || getAdminUsername(env)
+            });
+            processed += 1;
+          }
+        }
+
+        schedule(ctx, recordAdminAudit(env, {
+          adminUsername: session.username || getAdminUsername(env),
+          action: `bulk_${action || 'unknown'}`,
+          targetType: 'users',
+          status: 'ok',
+          details: { processed, total: ids.length }
+        }));
+        return json({ success: true, processed, total: ids.length }, 200, request);
       }
 
       if (url.pathname === '/api/admin/license-status') {
@@ -2106,6 +2730,14 @@ export default {
         }
 
         const { figmaUserId } = await request.json();
+        const session = await readAdminSession(request, env);
+        schedule(ctx, recordAdminAudit(env, {
+          adminUsername: session?.username || getAdminUsername(env),
+          action: 'refresh_license',
+          targetType: 'user',
+          targetId: figmaUserId,
+          status: 'ok'
+        }));
         const response = await handleLicenseStatus(env, ctx, figmaUserId);
         return new Response(response.body, {
           status: response.status,
@@ -2123,6 +2755,14 @@ export default {
         }
 
         const { figmaUserId } = await request.json();
+        const session = await readAdminSession(request, env);
+        schedule(ctx, recordAdminAudit(env, {
+          adminUsername: session?.username || getAdminUsername(env),
+          action: 'unlink_license',
+          targetType: 'user',
+          targetId: figmaUserId,
+          status: 'ok'
+        }));
         const response = await handleUnlinkLicense(env, ctx, figmaUserId);
         return new Response(response.body, {
           status: response.status,

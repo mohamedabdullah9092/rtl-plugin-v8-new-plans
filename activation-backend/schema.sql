@@ -106,3 +106,43 @@ ON plugin_users (last_seen_at);
 
 CREATE INDEX IF NOT EXISTS idx_plugin_users_plan
 ON plugin_users (plan);
+
+CREATE TABLE IF NOT EXISTS admin_notes (
+  figma_user_id TEXT PRIMARY KEY,
+  note TEXT NOT NULL,
+  updated_by TEXT,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_notes_updated_at
+ON admin_notes (updated_at);
+
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+  id TEXT PRIMARY KEY,
+  admin_username TEXT,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id TEXT,
+  status TEXT,
+  details_json TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created_at
+ON admin_audit_log (created_at);
+
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_action
+ON admin_audit_log (action);
+
+CREATE TABLE IF NOT EXISTS admin_saved_views (
+  id TEXT PRIMARY KEY,
+  admin_username TEXT,
+  name TEXT NOT NULL,
+  view_type TEXT NOT NULL,
+  filters_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_saved_views_type
+ON admin_saved_views (view_type);
