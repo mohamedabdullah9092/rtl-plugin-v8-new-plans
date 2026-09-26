@@ -897,6 +897,8 @@
       const [toLanguage, setToLanguage] = useState('ar');
       const [mirrorInstances, setMirrorInstances] = useState(false);
       const [createVariant, setCreateVariant] = useState(false);
+      const [variableModes, setVariableModes] = useState([]); // Figma variable modes with font info
+      const [selectedFontGroup, setSelectedFontGroup] = useState(''); // e.g. 'Heading', 'Paragraph'
 
       const [isLoading, setIsLoading] = useState(false);
       const [statusMessage, setStatusMessage] = useState('');
@@ -1016,7 +1018,7 @@
                 const apiKeys = apiKeysDataRef.current;
                 const translations = await translateBatch(texts.map(t => t.characters), from, to, apiKeys, onProgressCallback);
                 const translationsPayload = texts.map((textNode, index) => ({ id: textNode.id, newCharacters: translations[index] || textNode.characters }));
-                parent.postMessage({ pluginMessage: { type: 'apply-translations', payload: { translations: translationsPayload } } }, '*');
+                parent.postMessage({ pluginMessage: { type: 'apply-translations', payload: { translations: translationsPayload, toLanguage: to } } }, '*');
               } catch (error) {
                 console.error('Translation batch failed:', error);
                 parent.postMessage({
@@ -1092,6 +1094,13 @@
             case 'text-layers-count':
               setTextLayersCount(payload.count || 0);
               break;
+            case 'available-fonts-for-translate':
+              // Keep for backward compat, but we now prefer variable modes.
+              setVariableModes(prev => prev.length ? prev : []);
+              break;
+            case 'variable-modes':
+              setVariableModes(payload.modes || []);
+              break;
             case 'plugin-error':
               setIsError(true);
               setStatusMessage(payload.message);
@@ -1110,6 +1119,8 @@
         parent.postMessage({ pluginMessage: { type: 'get-user-status' } }, '*');
         parent.postMessage({ pluginMessage: { type: 'get-onboarding-status' } }, '*');
         parent.postMessage({ pluginMessage: { type: 'get-api-keys' } }, '*');
+        parent.postMessage({ pluginMessage: { type: 'get-available-fonts-for-translate' } }, '*');
+        parent.postMessage({ pluginMessage: { type: 'get-variable-modes' } }, '*');
 
         // Safety timeout: if backend doesn't respond in 4s, force-clear all loading states
         const safetyTimeout = setTimeout(() => {

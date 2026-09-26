@@ -2075,6 +2075,10 @@ function formatUserFacingPluginError(error) {
         return 'This component set has broken or invalid variants in Figma. Please fix or recreate the variant set, then try again.';
     }
 
+    if (normalizedMessage.includes('must be in the same page as the parent')) {
+        return 'Could not group the new variant because the components are on different Figma pages. Please move the component to the current page and try again.';
+    }
+
     return `Plugin Error: ${rawMessage}`;
 }
 
@@ -2440,6 +2444,68 @@ figma.ui.onmessage = async (msg) => {
                     figma.ui.postMessage({ type: 'font-styles', payload: { styles } });
                     break;
                 }
+            case 'get-available-fonts-for-translate':
+                {
+                    try {
+                        if (!availableFontsCache) {
+                            availableFontsCache = await figma.listAvailableFontsAsync();
+                        }
+                        const families = new Map();
+                        for (const f of availableFontsCache) {
+                            if (!families.has(f.fontName.family)) {
+                                families.set(f.fontName.family, []);
+                            }
+                            families.get(f.fontName.family).push(f.fontName.style);
+                        }
+                        const result = Array.from(families.entries()).map(([family, styles]) => ({
+                            family,
+                            styles,
+                        }));
+                        figma.ui.postMessage({ type: 'available-fonts-for-translate', payload: { fonts: result } });
+                    } catch (e) {
+                        console.warn('Failed to list fonts:', e);
+                        figma.ui.postMessage({ type: 'available-fonts-for-translate', payload: { fonts: [] } });
+                    }
+                    break;
+                }
+            case 'get-variable-modes':
+                {
+                    try {
+                        const collections = await figma.variables.getLocalVariableCollectionsAsync();
+                        const allModes = [];
+                        const seen = new Set();
+                        for (const col of collections) {
+                            for (const mode of col.modes) {
+                                const fonts = [];
+                                for (const vid of col.variableIds) {
+                                    try {
+                                        const v = figma.variables.getVariableById(vid);
+                                        if (!v) continue;
+                                        const raw = v.valuesByMode[mode.modeId];
+                                        // Only collect string values that look like font family names.
+                                        if (typeof raw === 'string' && raw.trim().length > 0) {
+                                            fonts.push(raw);
+                                        }
+                                    } catch (e) { /* skip */ }
+                                }
+                                const key = `${col.name}::${mode.name}`;
+                                if (seen.has(key)) continue;
+                                seen.add(key);
+                                allModes.push({
+                                    collectionName: col.name,
+                                    modeId: mode.modeId,
+                                    modeName: mode.name,
+                                    fonts: [...new Set(fonts)],
+                                });
+                            }
+                        }
+                        figma.ui.postMessage({ type: 'variable-modes', payload: { modes: allModes } });
+                    } catch (e) {
+                        console.warn('Failed to get variable modes:', e);
+                        figma.ui.postMessage({ type: 'variable-modes', payload: { modes: [] } });
+                    }
+                    break;
+                }
             case 'count-text-layers':
                 {
                     const count = await countTextLayersInSelection();
@@ -2799,7 +2865,8 @@ async function handleCreateVariant(payload) {
         resetMirrorMarker(newVariant);
         newVariant.name = variantPropsToName(targetPropsObject);
 
-        componentSet = figma.combineAsVariants([sourceComponentOrSet, newVariant], sourceParent);
+        const parentAfterPlace = placeCloneForVariantCombine(sourceComponentOrSet, newVariant, sourceParent);
+        componentSet = figma.combineAsVariants([sourceComponentOrSet, newVariant], parentAfterPlace);
         componentSet.layoutMode = 'NONE';
 
         if (!hasVariantsAlready) componentSet.name = originalNodeName;
@@ -3846,6 +3913,30 @@ function resetMirrorMarker(node) {
     node.setPluginData('rtl-master-mirrored', '');
 }
 
+// Figma's combineAsVariants requires every grouped node to live on the same
+// page as the destination parent. clone() can leave the new node on the
+// page root (or another page), so move it next to the source node first.
+function placeCloneForVariantCombine(sourceNode, cloneNode, parentNode) {
+    if (!sourceNode || !cloneNode || !parentNode) return parentNode;
+    const sourcePage = sourceNode.type === 'PAGE' ? sourceNode : getNodePage(sourceNode);
+    const parentPage = parentNode.type === 'PAGE' ? parentNode : getNodePage(parentNode);
+    const targetParent = (sourcePage && parentPage && sourcePage.id === parentPage.id)
+        ? parentNode
+        : (sourceNode.parent || parentNode);
+    if (targetParent && cloneNode.parent !== targetParent && typeof targetParent.appendChild === 'function') {
+        targetParent.appendChild(cloneNode);
+    }
+    return targetParent;
+}
+
+function getNodePage(node) {
+    let current = node;
+    while (current && current.type !== 'PAGE') {
+        current = current.parent;
+    }
+    return current || null;
+}
+
 function fitComponentSetToChildren(componentSet, padding = 24) {
     if (!componentSet || componentSet.type !== 'COMPONENT_SET' || componentSet.children.length === 0) return;
 
@@ -3979,7 +4070,8 @@ async function ensureTargetVariant(mainComponent, mirrorContext) {
             newVariant = mainComponent.clone();
             resetMirrorMarker(newVariant);
             newVariant.name = variantPropsToName(targetProps);
-            targetComponentSet = figma.combineAsVariants([mainComponent, newVariant], componentParent);
+            const parentAfterPlace = placeCloneForVariantCombine(mainComponent, newVariant, componentParent);
+            targetComponentSet = figma.combineAsVariants([mainComponent, newVariant], parentAfterPlace);
         } else {
             // Figma can return a local main component with no exposed parent (for example,
             // a soft-deleted source). Keep that source untouched and create a usable pair
