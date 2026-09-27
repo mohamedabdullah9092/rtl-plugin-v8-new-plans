@@ -207,6 +207,43 @@
       return null;
     }
 
+    // Turns provider payloads ({"error":{"code":503,...}}) into one short line a
+    // person can act on. Raw JSON stays in the console, never on screen.
+    function humanizeApiError(error) {
+      const text = typeof error === 'string' ? error : (error && error.message) || String(error || '');
+      console.warn('[translation] raw provider error:', error);
+
+      if (/Failed to fetch|NetworkError|ERR_INTERNET|ERR_NETWORK|Load failed|ECONNREFUSED/i.test(text)) {
+        return 'No internet connection. Check your network and try again.';
+      }
+      if (/timed? ?out|TimeoutError/i.test(text)) return 'The request timed out. Please try again.';
+      if (/503|UNAVAILABLE|high demand|overloaded|try again later/i.test(text)) {
+        return 'The model is busy right now — please try again in a moment.';
+      }
+      if (/limit:\s*0|quota is 0 for every model/i.test(text)) {
+        return 'This key has no available quota. Check your plan and billing.';
+      }
+      const retry = text.match(/retry in ~?(\d+)\s*s/i);
+      if (retry) return `Rate limit reached — try again in ~${retry[1]}s.`;
+      if (/429|RESOURCE_EXHAUSTED|rate limit/i.test(text)) return 'Rate limit reached — please try again shortly.';
+      if (/no credits|insufficient.?credit|billing/i.test(text)) return 'This OpenAI account has no credits left.';
+      if (/does not look like an OpenAI key/i.test(text)) return 'This is not an OpenAI key — OpenAI keys start with "sk-".';
+      if (/401|403|API key not valid|API_KEY_INVALID|PERMISSION_DENIED|Incorrect API key/i.test(text)) {
+        return 'Invalid API key. Re-copy it from your provider and save again.';
+      }
+      if (/404|NOT_FOUND|no longer available|is not found/i.test(text)) {
+        return 'This model is not available for your key.';
+      }
+      if (/Could not parse JSON|invalid JSON|Mismatch in translation count|not an array|empty response/i.test(text)) {
+        return 'Unexpected response from the model. Please try again.';
+      }
+
+      // Last resort: drop any embedded payload and keep a short sentence.
+      const short = text.replace(/\{[\s\S]*\}/g, '').replace(/\s+/g, ' ').trim();
+      const sentence = short || text;
+      return sentence.length > 150 ? `${sentence.slice(0, 150)}…` : sentence;
+    }
+
     function parseJsonArray(resultText, provider) {
       let cleaned = (resultText || '').trim();
       if (!cleaned) throw new Error(`${provider} returned an empty response.`);
@@ -386,7 +423,7 @@
         if (!result[0] || !result[0].trim()) throw new Error('Empty translation returned.');
         return { ok: true, ms: Date.now() - started, detail: provider === 'gemini' ? geminiWorkingModel : 'gpt-4o-mini' };
       } catch (e) {
-        return { ok: false, error: e.message || String(e) };
+        return { ok: false, error: humanizeApiError(e) };
       }
     }
 
@@ -528,9 +565,8 @@
       }
 
       let processedCount = 0;
-      const providerName = providerErrors.length > 0
-        ? 'Google Translate (fallback)'
-        : 'Google Translate';
+      // The user sees a plain engine name — no "(fallback)" wording.
+      const providerName = 'Google Translate';
       if (onProgress) onProgress(0, totalTexts, providerName);
       console.log('Falling back to Google Translate.');
       let unchangedCount = 0;
@@ -1231,7 +1267,6 @@
       const mainActionRef = useRef(null);
       const completionTimerRef = useRef(null);
       const translateMetaRef = useRef(null);
-      const [providerWarning, setProviderWarning] = useState('');
 
       // Shown for a moment on success so the user feels the task reaching 100%
       const showCompletion = (message) => {
@@ -1363,10 +1398,10 @@
                   ...(translateMetaRef.current || {}),
                   api: result.provider
                 };
-                // A configured key that failed must be visible, not swallowed.
+                // A key that failed never reaches the user — it is logged for
+                // debugging and we quietly fall back to the free translator.
                 if (result.errors.length > 0) {
-                  console.warn('Translation provider issues:', result.errors);
-                  setProviderWarning(`${result.errors[0]} → fell back to ${result.provider}.`);
+                  console.warn('Translation provider issues (not shown to the user):', result.errors);
                 }
                 const translationsPayload = texts.map((textNode, index) => ({ id: textNode.id, newCharacters: result.texts[index] || textNode.characters }));
                 parent.postMessage({ pluginMessage: { type: 'apply-translations', payload: { translations: translationsPayload, toLanguage: to, provider: result.provider } } }, '*');
@@ -1389,7 +1424,8 @@
                   }
                 }, '*');
                 setIsLoading(false);
-                setStatusMessage(`Translation failed: ${error.message}. Check keys or network.`);
+                // Never echo raw provider payloads back to the canvas.
+                setStatusMessage('Translation failed. Check your connection and try again.');
                 setIsError(true);
                 setProgress(null);
                 setCurrentStep(null);
@@ -1538,7 +1574,6 @@
           completionTimerRef.current = null;
         }
         translateMetaRef.current = null;
-        setProviderWarning('');
         setIsLoading(true);
         setStatusMessage('Processing selection...');
         setIsError(false);
@@ -1883,11 +1918,6 @@
                     <span className="text-xs text-brand-text-muted">{progress.processed} of {progress.total}</span>
                   )}
                 </div>
-              </div>
-            )}
-            {providerWarning && (
-              <div className="mb-4 px-3 py-2 text-xs leading-relaxed text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                <span className="font-semibold">Translation fallback:</span> {providerWarning}
               </div>
             )}
             <div ref={mainActionRef} className="space-y-3">
