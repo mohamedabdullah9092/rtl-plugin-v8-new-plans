@@ -2084,6 +2084,22 @@ function formatUserFacingPluginError(error) {
 
 figma.showUI(__html__, { width: 400, height: 650, title: "RTL Master" });
 
+// Warm the expensive font list while the user is still reading the UI, so the
+// first action doesn't pay listAvailableFontsAsync() latency up front.
+// setTimeout(0) so the caches exist by the time this actually runs.
+setTimeout(() => {
+    void (async () => {
+        try {
+            if (!availableFontsCache) {
+                availableFontsCache = await figma.listAvailableFontsAsync();
+                console.log(`Warmed font cache (${availableFontsCache.length} fonts).`);
+            }
+        } catch (e) {
+            console.warn('Font cache warm-up failed:', e && e.message);
+        }
+    })();
+}, 0);
+
 figma.ui.onmessage = async (msg) => {
     try {
         switch (msg.type) {
@@ -2592,6 +2608,9 @@ async function handleRunAction(payload) {
 async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguage, currentStep, totalSteps) {
     const textsForApi = [];
     const translationsFromDict = [];
+    // Every sendProgress() serialises a message and forces a re-render in the
+    // UI, so only emit one when the label could actually have changed (~8/s).
+    let lastProgressAt = 0;
 
     for (let i = 0; i < textNodes.length; i++) {
         const node = textNodes[i];
@@ -2599,7 +2618,9 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
         let lookupKey = originalText.trim().replace(/\s+/g, ' ').toLowerCase();
         let dictionaryTranslation = undefined;
 
-        if (i % 2 === 0 || i === textNodes.length - 1) {
+        const now = Date.now();
+        if (i === 0 || i === textNodes.length - 1 || now - lastProgressAt > 120) {
+            lastProgressAt = now;
             sendProgress(currentStep, 'Checking dictionary', i + 1, textNodes.length, `Checking text ${i + 1} of ${textNodes.length}...`, totalSteps);
         }
 
@@ -3110,7 +3131,7 @@ function getFontsInFamily(family) {
         return fontsByFamilyCache.get(family);
     }
 
-    const fontsInFamily = availableFontsCache.filter(f => f.fontName.family === family);
+    const fontsInFamily = availableFontsCache ? availableFontsCache.filter(f => f.fontName.family === family) : [];
     fontsByFamilyCache.set(family, fontsInFamily);
     return fontsInFamily;
 }
@@ -3285,10 +3306,11 @@ async function applyTranslationsToNodes(translations, onProgress) {
             onProgress(i + 1, total);
         }
     }
-    availableFontsCache = null; // Clear cache after the operation completes.
-    fontLoadStatusCache.clear();
-    fallbackFontCache.clear();
-    fontsByFamilyCache.clear();
+
+    // Deliberately keep every font cache warm for the rest of the session.
+    // Clearing them here meant each action re-ran listAvailableFontsAsync()
+    // (thousands of entries) and re-loaded fonts it had already loaded — the
+    // dictionary pass and the apply pass each paid for it.
     return { successCount, failedCount, missingFonts, fontReplacements };
 }
 

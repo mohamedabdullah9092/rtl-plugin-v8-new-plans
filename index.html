@@ -424,9 +424,13 @@
 
     async function translateWithGoogle(text, fromLang, toLang) {
       if (!text || !text.trim()) return "";
+      // A hung request must never stall the whole run — give up after 8s and
+      // let the caller keep the original text.
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timeoutId = controller ? setTimeout(() => controller.abort(), 8000) : null;
       try {
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${fromLang}&tl=${toLang}&dt=t&q=${encodeURIComponent(text)}`;
-        const response = await fetch(url);
+        const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
         if (!response.ok) throw new Error(`Google Translate API error: ${response.status}`);
         const data = await response.json();
         if (Array.isArray(data) && Array.isArray(data[0]) && Array.isArray(data[0][0])) {
@@ -437,30 +441,55 @@
       } catch (e) {
         console.error("Google Translate fetch failed:", e.message);
         return text; // Return original text on failure
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+    }
+
+    // Translations reused across actions in this session, keyed by language
+    // direction so a different pair never picks up the wrong entry. Re-running
+    // on the same frame costs nothing the second time.
+    const SESSION_TRANSLATION_CACHE = new Map();
+    const SESSION_TRANSLATION_CACHE_LIMIT = 2000;
+
+    function rememberTranslation(cachePrefix, text, translated) {
+      // A result equal to the source is usually a failed call that returned the
+      // original text — never worth caching.
+      if (!translated || translated === text) return;
+      const key = cachePrefix + text;
+      SESSION_TRANSLATION_CACHE.delete(key);
+      SESSION_TRANSLATION_CACHE.set(key, translated);
+      if (SESSION_TRANSLATION_CACHE.size > SESSION_TRANSLATION_CACHE_LIMIT) {
+        const oldest = SESSION_TRANSLATION_CACHE.keys().next().value;
+        SESSION_TRANSLATION_CACHE.delete(oldest);
       }
     }
 
     async function translateBatch(texts, from, to, apiKeys, onProgress) {
       const CHUNK_SIZE = 25;
       const MAX_PARALLEL_CHUNKS = 3;
-      const GOOGLE_PARALLEL_LIMIT = 6;
+      const GOOGLE_PARALLEL_LIMIT = 8;
+      const cachePrefix = `${from}→${to}::`;
       const translationCache = new Map();
       const uniqueTexts = [];
 
       for (const text of texts) {
-        if (!translationCache.has(text)) {
-          translationCache.set(text, null);
-          uniqueTexts.push(text);
-        }
+        if (translationCache.has(text)) continue;
+        const cached = SESSION_TRANSLATION_CACHE.get(cachePrefix + text);
+        translationCache.set(text, cached == null ? null : cached);
+        if (cached == null) uniqueTexts.push(text);
       }
-
-      const totalTexts = uniqueTexts.length;
-      if (totalTexts === 0) return { texts: [], provider: null, errors: [] };
 
       const mapTranslationsToOriginalOrder = () => texts.map(text => {
         const translated = translationCache.get(text);
-        return translated == null ? text : translated;
+        if (translated == null) return text;
+        rememberTranslation(cachePrefix, text, translated);
+        return translated;
       });
+
+      const totalTexts = uniqueTexts.length;
+      // Every string was already translated this session — nothing to send.
+      if (totalTexts === 0) return { texts: mapTranslationsToOriginalOrder(), provider: null, errors: [] };
 
       const runParallel = async (items, limit, worker) => {
         const results = new Array(items.length);
@@ -1325,6 +1354,22 @@
               // retry lazily during translation and the error will be surfaced.
               geminiAI = null;
               geminiAIKey = null;
+              geminiModelListCache = null;
+              geminiModelCacheKey = null;
+              geminiWorkingModel = null;
+              // Warm the model list in the background: discovery is an extra
+              // round trip we don't want sitting in front of the first
+              // translation. If it fails we simply discover on first use.
+              if (payload.gemini) {
+                try {
+                  const client = getGeminiClient(payload.gemini);
+                  resolveGeminiModels(client, payload.gemini).catch((e) => {
+                    console.warn('Gemini model prefetch failed (will retry on first use):', e && e.message);
+                  });
+                } catch (e) {
+                  console.warn('Gemini model prefetch skipped:', e && e.message);
+                }
+              }
               break;
 
             case 'api-keys-set':
