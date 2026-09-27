@@ -2635,10 +2635,6 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
     sendProgress(currentStep, 'Checking dictionary', textNodes.length, textNodes.length, `${translationsFromDict.length} found in dictionary, ${textsForApi.length} need API`, totalSteps);
 
     if (translationsFromDict.length > 0) {
-        figma.ui.postMessage({
-            type: 'dictionary-info',
-            payload: { count: translationsFromDict.length, total: textNodes.length }
-        });
         const { successCount, failedCount, missingFonts, fontReplacements } = await applyTranslationsToNodes(translationsFromDict, null);
         let notif = `Translated ${successCount} text layer(s) from dictionary.`;
         if (failedCount > 0) notif += ` ${failedCount} failed.`;

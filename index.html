@@ -421,7 +421,7 @@
       try {
         const result = await translateBatchWithAI(['Hello world'], 'auto', 'ar', provider, apiKey);
         if (!result[0] || !result[0].trim()) throw new Error('Empty translation returned.');
-        return { ok: true, ms: Date.now() - started, detail: provider === 'gemini' ? geminiWorkingModel : 'gpt-4o-mini' };
+        return { ok: true, ms: Date.now() - started };
       } catch (e) {
         return { ok: false, error: humanizeApiError(e) };
       }
@@ -836,7 +836,7 @@
                       <span className="flex-shrink-0">{result.ok ? '✓' : '✗'}</span>
                       <span className="min-w-0">
                         {result.ok
-                          ? `${result.provider}: OK (${result.ms}ms)${result.detail ? ` · ${result.detail}` : ''}`
+                          ? `${result.provider}: OK (${result.ms}ms)`
                           : `${result.provider}: ${result.error}`}
                       </span>
                     </div>
@@ -1266,29 +1266,15 @@
       const langSelectorRef = useRef(null);
       const mainActionRef = useRef(null);
       const completionTimerRef = useRef(null);
-      const translateMetaRef = useRef(null);
 
       // Shown for a moment on success so the user feels the task reaching 100%
       const showCompletion = (message) => {
         if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
-        const meta = translateMetaRef.current;
-        translateMetaRef.current = null;
         setIsLoading(false);
         setIsError(false);
         setCurrentStep(null);
         setProgress({ processed: 1, total: 1 }); // forces 100%
-
-        // Say exactly where the translation came from, so a silent Google
-        // fallback can never hide behind a plain "Done".
-        let suffix = '';
-        if (meta && meta.api) {
-          suffix = ` · via ${meta.api}`;
-          if (meta.dict && meta.dict.count > 0) suffix += ` + ${meta.dict.count} from dictionary`;
-        } else if (meta && meta.dict && meta.dict.count > 0) {
-          suffix = ' · from local dictionary';
-        }
-        setStatusMessage(`${message}${suffix}`);
-
+        setStatusMessage(message);
         completionTimerRef.current = setTimeout(() => {
           setStatusMessage('');
           setProgress(null);
@@ -1380,12 +1366,12 @@
             case 'text-nodes-found':
               const { texts, fromLanguage: from, toLanguage: to, currentStep: tStep, totalSteps: tTotal } = payload;
               const translatingStep = tStep ? tStep + 1 : 1;
-              const onProgressCallback = (processed, total, provider) => {
+              const onProgressCallback = (processed, total) => {
                 setProgress({ processed, total });
-                setCurrentStep({ step: translatingStep, stepLabel: 'Translating', substep: `Translating ${processed}/${total} via ${provider}...`, totalSteps: tTotal || translatingStep });
+                setCurrentStep({ step: translatingStep, stepLabel: 'Translating', substep: `Translating ${processed}/${total}...`, totalSteps: tTotal || translatingStep });
                 const message = total > 0 && processed < total
-                  ? `Translating ${processed}/${total} via ${provider}...`
-                  : `Translating via ${provider}...`;
+                  ? `Translating ${processed}/${total}...`
+                  : 'Translating...';
                 setStatusMessage(message);
               };
               try {
@@ -1394,17 +1380,13 @@
                   console.warn('No API keys configured — using the free Google Translate fallback.');
                 }
                 const result = await translateBatch(texts.map(t => t.characters), from, to, apiKeys, onProgressCallback);
-                translateMetaRef.current = {
-                  ...(translateMetaRef.current || {}),
-                  api: result.provider
-                };
                 // A key that failed never reaches the user — it is logged for
                 // debugging and we quietly fall back to the free translator.
                 if (result.errors.length > 0) {
                   console.warn('Translation provider issues (not shown to the user):', result.errors);
                 }
                 const translationsPayload = texts.map((textNode, index) => ({ id: textNode.id, newCharacters: result.texts[index] || textNode.characters }));
-                parent.postMessage({ pluginMessage: { type: 'apply-translations', payload: { translations: translationsPayload, toLanguage: to, provider: result.provider } } }, '*');
+                parent.postMessage({ pluginMessage: { type: 'apply-translations', payload: { translations: translationsPayload, toLanguage: to } } }, '*');
               } catch (error) {
                 console.error('Translation batch failed:', error);
                 parent.postMessage({
@@ -1430,13 +1412,6 @@
                 setProgress(null);
                 setCurrentStep(null);
               }
-              break;
-
-            case 'dictionary-info':
-              translateMetaRef.current = {
-                ...(translateMetaRef.current || {}),
-                dict: { count: payload.count, total: payload.total }
-              };
               break;
 
             case 'translation-progress':
@@ -1573,7 +1548,6 @@
           clearTimeout(completionTimerRef.current);
           completionTimerRef.current = null;
         }
-        translateMetaRef.current = null;
         setIsLoading(true);
         setStatusMessage('Processing selection...');
         setIsError(false);
