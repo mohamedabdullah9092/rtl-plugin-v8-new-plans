@@ -2593,10 +2593,15 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
     const textsForApi = [];
     const translationsFromDict = [];
 
-    for (const node of textNodes) {
+    for (let i = 0; i < textNodes.length; i++) {
+        const node = textNodes[i];
         const originalText = node.characters;
         let lookupKey = originalText.trim().replace(/\s+/g, ' ').toLowerCase();
         let dictionaryTranslation = undefined;
+
+        if (i % 2 === 0 || i === textNodes.length - 1) {
+            sendProgress(currentStep, 'Checking dictionary', i + 1, textNodes.length, `Checking text ${i + 1} of ${textNodes.length}...`, totalSteps);
+        }
 
         if (fromLanguage === 'auto') {
             if (enToLangLookup[toLanguage] && enToLangLookup[toLanguage][lookupKey]) {
@@ -2627,7 +2632,7 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
         }
     }
 
-    sendProgress(currentStep, 'Checking dictionary', 0, 0, `${translationsFromDict.length} found in dictionary, ${textsForApi.length} need API`, totalSteps);
+    sendProgress(currentStep, 'Checking dictionary', textNodes.length, textNodes.length, `${translationsFromDict.length} found in dictionary, ${textsForApi.length} need API`, totalSteps);
 
     if (translationsFromDict.length > 0) {
         const { successCount, failedCount, missingFonts, fontReplacements } = await applyTranslationsToNodes(translationsFromDict, null);
