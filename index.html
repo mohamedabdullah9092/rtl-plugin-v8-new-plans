@@ -107,6 +107,8 @@
     // --- New Batch Translation Logic ---
 
     let geminiAIKey = null;
+    let geminiModelCache = null;
+    let geminiModelCacheKey = null;
 
     function getGeminiClient(apiKey) {
       if (!apiKey) throw new Error("Gemini API key is not set.");
@@ -114,8 +116,60 @@
       if (!geminiAI || geminiAIKey !== apiKey) {
         geminiAI = new GoogleGenAI({ apiKey });
         geminiAIKey = apiKey;
+        geminiModelCache = null;
+        geminiModelCacheKey = null;
       }
       return geminiAI;
+    }
+
+    const GEMINI_MODEL_FALLBACKS = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash'];
+
+    function isModelUnavailableError(error) {
+      const message = (error && (error.message || String(error))) || '';
+      const status = String((error && error.status) || '');
+      return error?.status === 404 || /NOT_FOUND|no longer available|is not found|404/i.test(`${status} ${message}`);
+    }
+
+    // Resolves the newest flash model actually available to this key. Google
+    // retires models regularly (gemini-2.5-flash -> 404), so we never hardcode
+    // a single model name as the only option.
+    async function resolveGeminiModel(client, apiKey, forceRefresh = false) {
+      if (!forceRefresh && geminiModelCache && geminiModelCacheKey === apiKey) {
+        return geminiModelCache;
+      }
+
+      let discovered = [];
+      try {
+        const pager = await client.models.list();
+        for await (const model of pager) {
+          const name = String((model && model.name) || '').replace(/^models\//, '');
+          if (!name) continue;
+          const methods = model.supportedGenerationMethods || model.supported_generation_methods || [];
+          if (Array.isArray(methods) && methods.length > 0 && !methods.includes('generateContent')) continue;
+          if (!/flash/i.test(name)) continue;
+          if (/image|video|audio|embed|tts|lite|aqa|thinking/i.test(name)) continue;
+          discovered.push(name);
+        }
+        // "gemini-3.8-flash" sorts above "gemini-2.5-flash".
+        discovered.sort();
+        discovered.reverse();
+      } catch (e) {
+        console.warn('Could not list Gemini models, using the fallback list:', e.message);
+      }
+
+      const model = discovered[0] || GEMINI_MODEL_FALLBACKS[0];
+      geminiModelCache = model;
+      geminiModelCacheKey = apiKey;
+      console.log('Gemini model in use:', model, discovered.length ? '' : '(fallback list)');
+      return model;
+    }
+
+    // Validates an OpenAI key shape before spending a request on it.
+    function openaiKeyShapeError(apiKey) {
+      if (!/^sk-/.test(apiKey)) {
+        return 'This does not look like an OpenAI key — OpenAI keys start with "sk-". Make sure you pasted the OpenAI key and not another one.';
+      }
+      return null;
     }
 
     function parseJsonArray(resultText, provider) {
@@ -161,8 +215,8 @@
 
       if (provider === 'gemini') {
         const client = getGeminiClient(apiKey);
-        const response = await client.models.generateContent({
-          model: 'gemini-2.5-flash',
+        const callGemini = async (model) => client.models.generateContent({
+          model,
           contents: prompt,
           config: {
             temperature: 0.2,
@@ -179,9 +233,25 @@
             }
           }
         });
+
+        let model = await resolveGeminiModel(client, apiKey);
+        let response;
+        try {
+          response = await callGemini(model);
+        } catch (e) {
+          // The cached model was retired upstream: rediscover and retry once.
+          if (!isModelUnavailableError(e)) throw e;
+          const freshModel = await resolveGeminiModel(client, apiKey, true);
+          if (freshModel === model) throw e;
+          console.warn(`Gemini model "${model}" unavailable, retrying with "${freshModel}":`, e.message);
+          model = freshModel;
+          response = await callGemini(model);
+        }
         resultText = response.text;
       } else if (provider === 'openai') {
         if (!apiKey) throw new Error("OpenAI API key is not set.");
+        const shapeError = openaiKeyShapeError(apiKey);
+        if (shapeError) throw new Error(shapeError);
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
@@ -215,7 +285,7 @@
       try {
         const result = await translateBatchWithAI(['Hello world'], 'auto', 'ar', provider, apiKey);
         if (!result[0] || !result[0].trim()) throw new Error('Empty translation returned.');
-        return { ok: true, ms: Date.now() - started };
+        return { ok: true, ms: Date.now() - started, detail: provider === 'gemini' ? geminiModelCache : 'gpt-4o-mini' };
       } catch (e) {
         return { ok: false, error: e.message || String(e) };
       }
@@ -629,7 +699,7 @@
                       <span className="flex-shrink-0">{result.ok ? '✓' : '✗'}</span>
                       <span className="min-w-0">
                         {result.ok
-                          ? `${result.provider}: OK (${result.ms}ms)`
+                          ? `${result.provider}: OK (${result.ms}ms)${result.detail ? ` · ${result.detail}` : ''}`
                           : `${result.provider}: ${result.error}`}
                       </span>
                     </div>
