@@ -937,6 +937,22 @@
       // --- Refs for Onboarding Tour ---
       const langSelectorRef = useRef(null);
       const mainActionRef = useRef(null);
+      const completionTimerRef = useRef(null);
+
+      // Shown for a moment on success so the user feels the task reaching 100%
+      const showCompletion = (message) => {
+        if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
+        setIsLoading(false);
+        setIsError(false);
+        setCurrentStep(null);
+        setProgress({ processed: 1, total: 1 }); // forces 100%
+        setStatusMessage(message);
+        completionTimerRef.current = setTimeout(() => {
+          setStatusMessage('');
+          setProgress(null);
+          completionTimerRef.current = null;
+        }, 2200);
+      };
       const variantRef = useRef(null);
       const apiKeysRef = useRef(null);
       const menuButtonRef = useRef(null);
@@ -1073,10 +1089,7 @@
               break;
 
             case 'action-complete':
-              setIsLoading(false);
-              setStatusMessage('');
-              setProgress(null);
-              setCurrentStep(null);
+              showCompletion('Completed successfully');
               break;
 
             case 'available-fonts':
@@ -1094,10 +1107,7 @@
               break;
             case 'font-change-complete':
               setIsFontChanging(false);
-              setStatusMessage(payload.message || 'Font changed successfully!');
-              setIsError(false);
-              setProgress(null); // Clear progress bar
-              setCurrentStep(null);
+              showCompletion(payload.message || 'Font changed successfully!');
 
               // [NEW] Update recent fonts
               if (selectedFont) {
@@ -1109,12 +1119,13 @@
                 });
               }
 
-              setTimeout(() => setStatusMessage(''), 3000);
               break;
             case 'font-change-error':
               setIsFontChanging(false);
               setStatusMessage(payload.message || 'Failed to change font');
               setIsError(true);
+              setProgress(null);
+              setCurrentStep(null);
               break;
             case 'text-layers-count':
               setTextLayersCount(payload.count || 0);
@@ -1130,6 +1141,8 @@
               setIsError(true);
               setStatusMessage(payload.message);
               setIsLoading(false);
+              setProgress(null);
+              setCurrentStep(null);
               break;
             case 'text-nodes-found':
             case 'action-complete':
@@ -1200,6 +1213,10 @@
           return;
         }
 
+        if (completionTimerRef.current) {
+          clearTimeout(completionTimerRef.current);
+          completionTimerRef.current = null;
+        }
         setIsLoading(true);
         setStatusMessage('Processing selection...');
         setIsError(false);
