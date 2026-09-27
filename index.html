@@ -218,47 +218,6 @@
       return null;
     }
 
-    // Turns provider payloads ({"error":{"code":503,...}}) into one short line a
-    // person can act on. Raw JSON stays in the console, never on screen.
-    function humanizeApiError(error) {
-      const text = typeof error === 'string' ? error : (error && error.message) || String(error || '');
-      console.warn('[translation] raw provider error:', error);
-
-      if (/Failed to fetch|NetworkError|ERR_INTERNET|ERR_NETWORK|Load failed|ECONNREFUSED/i.test(text)) {
-        return 'No internet connection. Check your network and try again.';
-      }
-      if (/timed? ?out|TimeoutError/i.test(text)) return 'The request timed out. Please try again.';
-      if (/503|UNAVAILABLE|high demand|overloaded|try again later/i.test(text)) {
-        return 'The model is busy right now — please try again in a moment.';
-      }
-      // OpenAI returns "no credits" as a 429, so this must be checked before
-      // the generic rate-limit branch or it gets mislabeled as one.
-      if (/insufficient_quota|no credits|add credits|exceeded your balance/i.test(text)) {
-        return 'Your OpenAI account has no credits left. Add billing credits, or clear this key — Gemini can translate on its own.';
-      }
-      if (/limit:\s*0|quota is 0 for every model/i.test(text)) {
-        return 'This key has no available quota. Check your plan and billing.';
-      }
-      const retry = text.match(/retry in ~?(\d+)\s*s/i);
-      if (retry) return `Rate limit reached — try again in ~${retry[1]}s.`;
-      if (/429|RESOURCE_EXHAUSTED|rate limit/i.test(text)) return 'Rate limit reached — please try again shortly.';
-      if (/does not look like an OpenAI key/i.test(text)) return 'This is not an OpenAI key — OpenAI keys start with "sk-".';
-      if (/401|403|API key not valid|API_KEY_INVALID|PERMISSION_DENIED|Incorrect API key/i.test(text)) {
-        return 'Invalid API key. Re-copy it from your provider and save again.';
-      }
-      if (/404|NOT_FOUND|no longer available|is not found/i.test(text)) {
-        return 'This model is not available for your key.';
-      }
-      if (/Could not parse JSON|invalid JSON|Mismatch in translation count|not an array|empty response/i.test(text)) {
-        return 'Unexpected response from the model. Please try again.';
-      }
-
-      // Last resort: drop any embedded payload and keep a short sentence.
-      const short = text.replace(/\{[\s\S]*\}/g, '').replace(/\s+/g, ' ').trim();
-      const sentence = short || text;
-      return sentence.length > 150 ? `${sentence.slice(0, 150)}…` : sentence;
-    }
-
     function parseJsonArray(resultText, provider) {
       let cleaned = (resultText || '').trim();
       if (!cleaned) throw new Error(`${provider} returned an empty response.`);
@@ -461,21 +420,6 @@
         throw new Error(`Mismatch in translation count. Expected ${texts.length}, got ${translatedArray.length}.`);
       }
       return translatedArray.map(value => (typeof value === 'string' ? value : String(value ?? '')));
-    }
-
-    // Verifies a key with a single tiny request. Used by the API manager screen.
-    async function testApiKey(provider, apiKey) {
-      // An explicit test always gets a fresh chance, even if the provider was
-      // ruled out earlier in this session.
-      delete blockedProviders[provider];
-      const started = Date.now();
-      try {
-        const result = await translateBatchWithAI(['Hello world'], 'auto', 'ar', provider, apiKey);
-        if (!result[0] || !result[0].trim()) throw new Error('Empty translation returned.');
-        return { ok: true, ms: Date.now() - started };
-      } catch (e) {
-        return { ok: false, error: humanizeApiError(e) };
-      }
     }
 
     async function translateWithGoogle(text, fromLang, toLang) {
@@ -846,32 +790,9 @@
     const ApiKeysManager = ({ initialGeminiKey, initialOpenAIKey, onSave, onCancel, isSaving }) => {
       const [geminiKey, setGeminiKey] = useState(initialGeminiKey || '');
       const [openaiKey, setOpenaiKey] = useState(initialOpenAIKey || '');
-      const [isTesting, setIsTesting] = useState(false);
-      const [testResults, setTestResults] = useState([]);
 
       const handleSave = async () => {
         await onSave({ gemini: geminiKey, openai: openaiKey });
-      };
-
-      const handleTest = async () => {
-        const gemini = geminiKey.trim();
-        const openai = openaiKey.trim();
-        if (!gemini && !openai) {
-          setTestResults([{ provider: 'Keys', ok: false, error: 'Enter a key to test.' }]);
-          return;
-        }
-        setIsTesting(true);
-        setTestResults([]);
-        const results = [];
-        if (gemini) {
-          results.push({ provider: 'Gemini', ...(await testApiKey('gemini', gemini)) });
-          setTestResults([...results]);
-        }
-        if (openai) {
-          results.push({ provider: 'OpenAI', ...(await testApiKey('openai', openai)) });
-          setTestResults([...results]);
-        }
-        setIsTesting(false);
       };
 
       return (
@@ -896,24 +817,7 @@
 
             <div className="space-y-3 pt-2">
               <Button onClick={handleSave} disabled={isSaving} isLoading={isSaving}>{isSaving ? 'Saving...' : 'Save Keys'}</Button>
-              <Button onClick={handleTest} disabled={isTesting} isLoading={isTesting} variant="secondary">
-                {isTesting ? 'Testing...' : 'Test Keys'}
-              </Button>
-              {testResults.length > 0 && (
-                <div className="space-y-1.5 text-left bg-brand-surface border border-brand-border rounded-lg p-3">
-                  {testResults.map((result) => (
-                    <div key={result.provider} className={`text-xs flex items-start gap-2 ${result.ok ? 'text-green-400' : 'text-red-400'}`}>
-                      <span className="flex-shrink-0">{result.ok ? '✓' : '✗'}</span>
-                      <span className="min-w-0">
-                        {result.ok
-                          ? `${result.provider}: OK (${result.ms}ms)`
-                          : `${result.provider}: ${result.error}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <Button onClick={onCancel} disabled={isSaving || isTesting} variant="secondary">Cancel</Button>
+              <Button onClick={onCancel} disabled={isSaving} variant="secondary">Cancel</Button>
             </div>
           </div>
 
