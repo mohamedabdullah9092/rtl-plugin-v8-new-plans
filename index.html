@@ -106,6 +106,51 @@
 
     // --- New Batch Translation Logic ---
 
+    let geminiAIKey = null;
+
+    function getGeminiClient(apiKey) {
+      if (!apiKey) throw new Error("Gemini API key is not set.");
+      // Rebuild the client whenever the stored key changes.
+      if (!geminiAI || geminiAIKey !== apiKey) {
+        geminiAI = new GoogleGenAI({ apiKey });
+        geminiAIKey = apiKey;
+      }
+      return geminiAI;
+    }
+
+    function parseJsonArray(resultText, provider) {
+      let cleaned = (resultText || '').trim();
+      if (!cleaned) throw new Error(`${provider} returned an empty response.`);
+
+      const attempt = (raw) => {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) throw new Error("Response is not an array.");
+        return parsed;
+      };
+
+      // Strip markdown fences if the model added them anyway.
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+      }
+
+      try {
+        return attempt(cleaned);
+      } catch (firstError) {
+        // Salvage a truncated/garbled response by pulling out the array itself.
+        const startIndex = cleaned.indexOf('[');
+        const endIndex = cleaned.lastIndexOf(']');
+        if (startIndex !== -1 && endIndex > startIndex) {
+          try {
+            return attempt(cleaned.substring(startIndex, endIndex + 1));
+          } catch (secondError) {
+            /* fall through to the original error */
+          }
+        }
+        const tail = cleaned.length > 220 ? `…${cleaned.slice(-220)}` : cleaned;
+        throw new Error(`${provider} returned invalid JSON (${firstError.message}). Response: ${tail}`);
+      }
+    }
+
     async function translateBatchWithAI(texts, from, to, provider, apiKey) {
       if (!texts || texts.length === 0) return [];
 
@@ -115,13 +160,15 @@
       let resultText;
 
       if (provider === 'gemini') {
-        if (!geminiAI) throw new Error("Gemini AI client is not initialized.");
-        const response = await geminiAI.models.generateContent({
+        const client = getGeminiClient(apiKey);
+        const response = await client.models.generateContent({
           model: 'gemini-2.5-flash',
           contents: prompt,
           config: {
             temperature: 0.2,
-            maxOutputTokens: 2000,
+            // A chunk holds up to 25 strings; 2000 tokens used to cut the JSON in
+            // half and silently drop us back to Google Translate.
+            maxOutputTokens: 8192,
             responseMimeType: "application/json",
             responseSchema: {
               type: Type.ARRAY,
@@ -141,12 +188,12 @@
           body: JSON.stringify({
             model: "gpt-4o-mini",
             messages: [{ role: "user", content: prompt }],
-            max_tokens: 2000,
+            max_tokens: 4096,
             temperature: 0.1,
           }),
         });
         if (!response.ok) {
-          const errorData = await response.json();
+          const errorData = await response.json().catch(() => ({}));
           throw new Error(`OpenAI API error (${response.status}): ${(errorData.error && errorData.error.message) || 'Unknown error'}`);
         }
         const data = await response.json();
@@ -155,29 +202,22 @@
         throw new Error("Unsupported AI provider for batch translation.");
       }
 
-      if (!resultText) throw new Error(`${provider} returned an empty response.`);
-
-      let cleanedText = resultText.trim();
-      // With responseSchema, Gemini should return clean JSON. We keep the robust parsing for OpenAI as a fallback.
-      if (provider !== 'gemini') {
-        if (cleanedText.startsWith('```json')) cleanedText = cleanedText.slice(7);
-        if (cleanedText.endsWith('```')) cleanedText = cleanedText.slice(0, -3);
-
-        const startIndex = cleanedText.indexOf('[');
-        const endIndex = cleanedText.lastIndexOf(']');
-        if (startIndex === -1 || endIndex === -1) throw new Error(`Failed to parse JSON array from ${provider}. Response: ${cleanedText}`);
-
-        cleanedText = cleanedText.substring(startIndex, endIndex + 1);
+      const translatedArray = parseJsonArray(resultText, provider === 'gemini' ? 'Gemini' : 'OpenAI');
+      if (translatedArray.length !== texts.length) {
+        throw new Error(`Mismatch in translation count. Expected ${texts.length}, got ${translatedArray.length}.`);
       }
+      return translatedArray.map(value => (typeof value === 'string' ? value : String(value ?? '')));
+    }
 
+    // Verifies a key with a single tiny request. Used by the API manager screen.
+    async function testApiKey(provider, apiKey) {
+      const started = Date.now();
       try {
-        const translatedArray = JSON.parse(cleanedText);
-        if (!Array.isArray(translatedArray)) throw new Error("Parsed response is not an array.");
-        if (translatedArray.length !== texts.length) throw new Error(`Mismatch in translation count. Expected ${texts.length}, got ${translatedArray.length}.`);
-        return translatedArray;
+        const result = await translateBatchWithAI(['Hello world'], 'auto', 'ar', provider, apiKey);
+        if (!result[0] || !result[0].trim()) throw new Error('Empty translation returned.');
+        return { ok: true, ms: Date.now() - started };
       } catch (e) {
-        console.error(`Failed to parse JSON from ${provider}:`, e.message, "Response:", cleanedText);
-        throw new Error(`Could not parse JSON from ${provider}.`);
+        return { ok: false, error: e.message || String(e) };
       }
     }
 
@@ -214,7 +254,7 @@
       }
 
       const totalTexts = uniqueTexts.length;
-      if (totalTexts === 0) return [];
+      if (totalTexts === 0) return { texts: [], provider: null, errors: [] };
 
       const mapTranslationsToOriginalOrder = () => texts.map(text => {
         const translated = translationCache.get(text);
@@ -250,11 +290,33 @@
 
         if (onProgress) onProgress(0, totalTexts, providerName);
 
-        const chunkResults = await runParallel(chunks, MAX_PARALLEL_CHUNKS, async (chunk) => {
-          const chunkTranslations = await translateBatchWithAI(chunk.texts, from, to, provider, apiKey);
-          if (chunkTranslations.length !== chunk.texts.length) {
+        // On a bad response, split the chunk and retry so one oversized batch
+        // never fails the whole run.
+        const translateChunk = async (chunkTexts, depth = 0) => {
+          const chunkTranslations = await translateBatchWithAI(chunkTexts, from, to, provider, apiKey);
+          if (chunkTranslations.length !== chunkTexts.length) {
             throw new Error(`Translation count mismatch from ${providerName}.`);
           }
+          return chunkTranslations;
+        };
+
+        const translateChunkWithRetry = async (chunkTexts, depth = 0) => {
+          try {
+            return await translateChunk(chunkTexts, depth);
+          } catch (e) {
+            if (chunkTexts.length > 1 && depth < 3) {
+              console.warn(`${providerName} chunk failed (${chunkTexts.length} strings), splitting:`, e.message);
+              const mid = Math.ceil(chunkTexts.length / 2);
+              const left = await translateChunkWithRetry(chunkTexts.slice(0, mid), depth + 1);
+              const right = await translateChunkWithRetry(chunkTexts.slice(mid), depth + 1);
+              return left.concat(right);
+            }
+            throw e;
+          }
+        };
+
+        const chunkResults = await runParallel(chunks, MAX_PARALLEL_CHUNKS, async (chunk) => {
+          const chunkTranslations = await translateChunkWithRetry(chunk.texts);
           processedCount += chunk.texts.length;
           if (onProgress) onProgress(processedCount, totalTexts, providerName);
           return chunkTranslations;
@@ -270,13 +332,16 @@
         return mapTranslationsToOriginalOrder();
       };
 
+      const providerErrors = [];
+
       if (apiKeys.gemini) {
         try {
-          const allTranslatedTexts = await translateWithProvider('gemini', null);
+          const allTranslatedTexts = await translateWithProvider('gemini', apiKeys.gemini);
           console.log('Successfully translated with Gemini.');
-          return allTranslatedTexts;
+          return { texts: allTranslatedTexts, provider: 'Gemini', errors: providerErrors };
         } catch (e) {
           console.warn("Gemini chunked translation failed, trying next provider. Error:", e.message);
+          providerErrors.push(`Gemini: ${e.message}`);
         }
       }
 
@@ -284,23 +349,39 @@
         try {
           const allTranslatedTexts = await translateWithProvider('openai', apiKeys.openai);
           console.log('Successfully translated with OpenAI.');
-          return allTranslatedTexts;
+          return { texts: allTranslatedTexts, provider: 'OpenAI', errors: providerErrors };
         } catch (e) {
           console.warn("OpenAI chunked translation failed, falling back. Error:", e.message);
+          providerErrors.push(`OpenAI: ${e.message}`);
         }
       }
 
       let processedCount = 0;
-      const providerName = 'Google Translate';
+      const providerName = providerErrors.length > 0
+        ? 'Google Translate (fallback)'
+        : 'Google Translate';
       if (onProgress) onProgress(0, totalTexts, providerName);
       console.log('Falling back to Google Translate.');
+      let unchangedCount = 0;
       await runParallel(uniqueTexts, GOOGLE_PARALLEL_LIMIT, async (text) => {
         const translatedText = await translateWithGoogle(text, from, to);
+        if (translatedText === text) unchangedCount++;
         translationCache.set(text, translatedText);
         processedCount++;
         if (onProgress) onProgress(processedCount, totalTexts, providerName);
       });
-      return mapTranslationsToOriginalOrder();
+
+      // Google returns the source unchanged when it fails, so a full match means
+      // the request never went through.
+      if (unchangedCount > 0) {
+        providerErrors.push(
+          unchangedCount === totalTexts
+            ? 'Google Translate returned the original text for every string — the request likely failed.'
+            : `${unchangedCount} of ${totalTexts} string(s) came back unchanged from Google Translate.`
+        );
+      }
+
+      return { texts: mapTranslationsToOriginalOrder(), provider: providerName, errors: providerErrors };
     }
 
     // --- Reusable Components ---
@@ -488,9 +569,32 @@
     const ApiKeysManager = ({ initialGeminiKey, initialOpenAIKey, onSave, onCancel, isSaving }) => {
       const [geminiKey, setGeminiKey] = useState(initialGeminiKey || '');
       const [openaiKey, setOpenaiKey] = useState(initialOpenAIKey || '');
+      const [isTesting, setIsTesting] = useState(false);
+      const [testResults, setTestResults] = useState([]);
 
       const handleSave = async () => {
         await onSave({ gemini: geminiKey, openai: openaiKey });
+      };
+
+      const handleTest = async () => {
+        const gemini = geminiKey.trim();
+        const openai = openaiKey.trim();
+        if (!gemini && !openai) {
+          setTestResults([{ provider: 'Keys', ok: false, error: 'Enter a key to test.' }]);
+          return;
+        }
+        setIsTesting(true);
+        setTestResults([]);
+        const results = [];
+        if (gemini) {
+          results.push({ provider: 'Gemini', ...(await testApiKey('gemini', gemini)) });
+          setTestResults([...results]);
+        }
+        if (openai) {
+          results.push({ provider: 'OpenAI', ...(await testApiKey('openai', openai)) });
+          setTestResults([...results]);
+        }
+        setIsTesting(false);
       };
 
       return (
@@ -515,7 +619,24 @@
 
             <div className="space-y-3 pt-2">
               <Button onClick={handleSave} disabled={isSaving} isLoading={isSaving}>{isSaving ? 'Saving...' : 'Save Keys'}</Button>
-              <Button onClick={onCancel} disabled={isSaving} variant="secondary">Cancel</Button>
+              <Button onClick={handleTest} disabled={isTesting} isLoading={isTesting} variant="secondary">
+                {isTesting ? 'Testing...' : 'Test Keys'}
+              </Button>
+              {testResults.length > 0 && (
+                <div className="space-y-1.5 text-left bg-brand-surface border border-brand-border rounded-lg p-3">
+                  {testResults.map((result) => (
+                    <div key={result.provider} className={`text-xs flex items-start gap-2 ${result.ok ? 'text-green-400' : 'text-red-400'}`}>
+                      <span className="flex-shrink-0">{result.ok ? '✓' : '✗'}</span>
+                      <span className="min-w-0">
+                        {result.ok
+                          ? `${result.provider}: OK (${result.ms}ms)`
+                          : `${result.provider}: ${result.error}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Button onClick={onCancel} disabled={isSaving || isTesting} variant="secondary">Cancel</Button>
             </div>
           </div>
 
@@ -938,20 +1059,35 @@
       const langSelectorRef = useRef(null);
       const mainActionRef = useRef(null);
       const completionTimerRef = useRef(null);
+      const translateMetaRef = useRef(null);
+      const [providerWarning, setProviderWarning] = useState('');
 
       // Shown for a moment on success so the user feels the task reaching 100%
       const showCompletion = (message) => {
         if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
+        const meta = translateMetaRef.current;
+        translateMetaRef.current = null;
         setIsLoading(false);
         setIsError(false);
         setCurrentStep(null);
         setProgress({ processed: 1, total: 1 }); // forces 100%
-        setStatusMessage(message);
+
+        // Say exactly where the translation came from, so a silent Google
+        // fallback can never hide behind a plain "Done".
+        let suffix = '';
+        if (meta && meta.api) {
+          suffix = ` · via ${meta.api}`;
+          if (meta.dict && meta.dict.count > 0) suffix += ` + ${meta.dict.count} from dictionary`;
+        } else if (meta && meta.dict && meta.dict.count > 0) {
+          suffix = ' · from local dictionary';
+        }
+        setStatusMessage(`${message}${suffix}`);
+
         completionTimerRef.current = setTimeout(() => {
           setStatusMessage('');
           setProgress(null);
           completionTimerRef.current = null;
-        }, 2200);
+        }, 2600);
       };
       const variantRef = useRef(null);
       const apiKeysRef = useRef(null);
@@ -1017,16 +1153,10 @@
               setAreKeysChecked(true);
               setGeminiApiKey(payload.gemini);
               setOpenaiApiKey(payload.openai);
-              if (payload.gemini) {
-                try {
-                  geminiAI = new GoogleGenAI({ apiKey: payload.gemini });
-                } catch (e) {
-                  console.error("Failed to initialize Gemini AI:", e);
-                  setGeminiApiKey(null);
-                }
-              } else {
-                geminiAI = null;
-              }
+              // Keep the key even if the eager init fails: getGeminiClient() will
+              // retry lazily during translation and the error will be surfaced.
+              geminiAI = null;
+              geminiAIKey = null;
               break;
 
             case 'api-keys-set':
@@ -1054,9 +1184,21 @@
               };
               try {
                 const apiKeys = apiKeysDataRef.current;
-                const translations = await translateBatch(texts.map(t => t.characters), from, to, apiKeys, onProgressCallback);
-                const translationsPayload = texts.map((textNode, index) => ({ id: textNode.id, newCharacters: translations[index] || textNode.characters }));
-                parent.postMessage({ pluginMessage: { type: 'apply-translations', payload: { translations: translationsPayload, toLanguage: to } } }, '*');
+                if (!apiKeys.gemini && !apiKeys.openai) {
+                  console.warn('No API keys configured — using the free Google Translate fallback.');
+                }
+                const result = await translateBatch(texts.map(t => t.characters), from, to, apiKeys, onProgressCallback);
+                translateMetaRef.current = {
+                  ...(translateMetaRef.current || {}),
+                  api: result.provider
+                };
+                // A configured key that failed must be visible, not swallowed.
+                if (result.errors.length > 0) {
+                  console.warn('Translation provider issues:', result.errors);
+                  setProviderWarning(`${result.errors[0]} → fell back to ${result.provider}.`);
+                }
+                const translationsPayload = texts.map((textNode, index) => ({ id: textNode.id, newCharacters: result.texts[index] || textNode.characters }));
+                parent.postMessage({ pluginMessage: { type: 'apply-translations', payload: { translations: translationsPayload, toLanguage: to, provider: result.provider } } }, '*');
               } catch (error) {
                 console.error('Translation batch failed:', error);
                 parent.postMessage({
@@ -1081,6 +1223,13 @@
                 setProgress(null);
                 setCurrentStep(null);
               }
+              break;
+
+            case 'dictionary-info':
+              translateMetaRef.current = {
+                ...(translateMetaRef.current || {}),
+                dict: { count: payload.count, total: payload.total }
+              };
               break;
 
             case 'translation-progress':
@@ -1217,6 +1366,8 @@
           clearTimeout(completionTimerRef.current);
           completionTimerRef.current = null;
         }
+        translateMetaRef.current = null;
+        setProviderWarning('');
         setIsLoading(true);
         setStatusMessage('Processing selection...');
         setIsError(false);
@@ -1561,6 +1712,11 @@
                     <span className="text-xs text-brand-text-muted">{progress.processed} of {progress.total}</span>
                   )}
                 </div>
+              </div>
+            )}
+            {providerWarning && (
+              <div className="mb-4 px-3 py-2 text-xs leading-relaxed text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                <span className="font-semibold">Translation fallback:</span> {providerWarning}
               </div>
             )}
             <div ref={mainActionRef} className="space-y-3">
