@@ -3531,6 +3531,42 @@ async function mirrorNode(node, isInsideInstance = false, mirrorContext = create
                         reversedChildren.forEach((child, index) => {
                             node.insertChild(index, child);
                         });
+
+                        // Mirror absolute-positioned children (ignore auto layout)
+                        const parentWidth = node.width;
+                        for (const child of node.children) {
+                            if (child.layoutPositioning === 'ABSOLUTE') {
+                                if ('x' in child && 'width' in child) {
+                                    child.x = parentWidth - (child.x + child.width);
+                                }
+                                if ('constraints' in child) {
+                                    const { horizontal, vertical } = child.constraints;
+                                    if (horizontal === 'LEFT') {
+                                        child.constraints = { horizontal: 'RIGHT', vertical };
+                                    } else if (horizontal === 'RIGHT') {
+                                        child.constraints = { horizontal: 'LEFT', vertical };
+                                    }
+                                }
+                            }
+                        }
+                    } else if (node.layoutMode === 'VERTICAL') {
+                        // Mirror absolute-positioned children (ignore auto layout) in vertical frames
+                        const parentWidth = node.width;
+                        for (const child of node.children) {
+                            if (child.layoutPositioning === 'ABSOLUTE') {
+                                if ('x' in child && 'width' in child) {
+                                    child.x = parentWidth - (child.x + child.width);
+                                }
+                                if ('constraints' in child) {
+                                    const { horizontal, vertical } = child.constraints;
+                                    if (horizontal === 'LEFT') {
+                                        child.constraints = { horizontal: 'RIGHT', vertical };
+                                    } else if (horizontal === 'RIGHT') {
+                                        child.constraints = { horizontal: 'LEFT', vertical };
+                                    }
+                                }
+                            }
+                        }
                     } else if (node.layoutMode === 'NONE' || typeof node.layoutMode === 'undefined') {
                         const parentWidth = node.width;
                         for (const child of node.children) {
