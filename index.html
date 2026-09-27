@@ -1515,14 +1515,12 @@
                     <span className="text-3xl font-bold text-brand-teal">
                       {progress && progress.total > 0 && progress.processed < progress.total
                         ? `${Math.round((progress.processed / progress.total) * 100)}%`
-                        : currentStep
-                          ? `Step ${currentStep.step}/${currentStep.totalSteps}`
-                          : '0%'}
+                        : '0%'}
                     </span>
                     <span className="text-xs text-brand-text-secondary">Progress</span>
                   </div>
                   <span className={`text-xs font-medium px-2 py-1 rounded-full ${isError ? 'bg-red-500/10 text-red-400' : isLoading ? 'bg-brand-teal/10 text-brand-teal' : 'bg-green-500/10 text-green-400'}`}>
-                    {isError ? 'Error' : isLoading ? 'Processing' : 'Done'}
+                    {isError ? 'Error' : isLoading ? (currentStep ? currentStep.stepLabel : 'Processing') : 'Done'}
                   </span>
                 </div>
                 {(progress && progress.total > 0) || currentStep ? (
@@ -1546,9 +1544,6 @@
                     <span className="text-xs text-brand-text-muted">{progress.processed} of {progress.total}</span>
                   )}
                 </div>
-                {currentStep && (
-                  <p className="text-[10px] text-brand-text-muted mt-1">{currentStep.stepLabel}</p>
-                )}
               </div>
             )}
             <div ref={mainActionRef} className="space-y-3">
