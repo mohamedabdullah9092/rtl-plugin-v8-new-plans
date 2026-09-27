@@ -352,10 +352,16 @@
         });
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          const err = new Error(`OpenAI API error (${response.status}): ${(errorData.error && errorData.error.message) || 'Unknown error'}`);
+          const apiMessage = (errorData.error && errorData.error.message) || 'Unknown error';
+          const err = new Error(`OpenAI API error (${response.status}): ${apiMessage}`);
           // Auth/rate-limit failures will fail identically on every split.
           if (response.status === 401 || response.status === 403 || response.status === 429 || response.status === 400) {
             err.__noRetry = true;
+          }
+          if (response.status === 401 || response.status === 403) {
+            err.message += ' → Clear the OpenAI key or replace it with a valid one (it is never used while Gemini works).';
+          } else if (/no credits|billing|insufficient/i.test(apiMessage)) {
+            err.message += ' → Your OpenAI account has no credits. Clear this field if you only plan to use Gemini.';
           }
           throw err;
         }
