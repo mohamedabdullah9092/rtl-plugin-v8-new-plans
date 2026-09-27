@@ -2589,7 +2589,7 @@ async function handleRunAction(payload) {
     }
 }
 
-async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguage) {
+async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguage, currentStep, totalSteps) {
     const textsForApi = [];
     const translationsFromDict = [];
 
@@ -2627,6 +2627,8 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
         }
     }
 
+    sendProgress(currentStep, 'Checking dictionary', 0, 0, `${translationsFromDict.length} found in dictionary, ${textsForApi.length} need API`, totalSteps);
+
     if (translationsFromDict.length > 0) {
         const { successCount, failedCount, missingFonts, fontReplacements } = await applyTranslationsToNodes(translationsFromDict, null);
         let notif = `Translated ${successCount} text layer(s) from dictionary.`;
@@ -2644,7 +2646,7 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
     }
 
     if (textsForApi.length > 0) {
-        figma.ui.postMessage({ type: 'text-nodes-found', payload: { texts: textsForApi, fromLanguage, toLanguage } });
+        figma.ui.postMessage({ type: 'text-nodes-found', payload: { texts: textsForApi, fromLanguage, toLanguage, currentStep, totalSteps } });
     } else {
         if (!pendingVariantCreation) {
             figma.ui.postMessage({ type: 'action-complete' });
@@ -2654,6 +2656,17 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
             finishActiveFeatureTelemetry();
         }
     }
+}
+
+function sendProgress(step, stepLabel, processed, total, substep, totalSteps) {
+    figma.ui.postMessage({ type: 'progress-update', payload: { step, stepLabel, processed, total, substep, totalSteps } });
+}
+
+function countTotalSteps(shouldMirror, translateText) {
+    let steps = 0;
+    if (shouldMirror) steps++;
+    if (translateText) steps += 3;
+    return steps;
 }
 
 async function processNodesInPlace(payload, shouldMirror) {
@@ -2666,10 +2679,15 @@ async function processNodesInPlace(payload, shouldMirror) {
         return;
     }
 
+    const totalSteps = countTotalSteps(shouldMirror, translateText);
+    let currentStep = 0;
+
     if (shouldMirror) {
-        figma.notify('Mirroring selection...');
-        for (const node of selection) {
-            await mirrorNode(node, false, mirrorContext, mirrorInstances);
+        currentStep++;
+        sendProgress(currentStep, 'Mirroring layout', 0, selection.length, `Processing ${selection.length} node(s)...`, totalSteps);
+        for (let i = 0; i < selection.length; i++) {
+            await mirrorNode(selection[i], false, mirrorContext, mirrorInstances);
+            sendProgress(currentStep, 'Mirroring layout', i + 1, selection.length, `Mirroring node ${i + 1} of ${selection.length}`, totalSteps);
         }
     }
 
@@ -2679,13 +2697,17 @@ async function processNodesInPlace(payload, shouldMirror) {
             nodesForTranslation.push(...mirrorContext.createdVariants.values());
         }
 
+        currentStep++;
+        sendProgress(currentStep, 'Finding text layers', 0, 0, 'Scanning selected nodes...', totalSteps);
         const textNodes = findTextNodes(nodesForTranslation);
         if (textNodes.length === 0) {
             figma.notify(shouldMirror ? 'Selection mirrored. No text found to translate.' : 'No text layers found in selection.');
             figma.ui.postMessage({ type: 'action-complete' });
             return;
         }
-        await processTextNodesForTranslation(textNodes, fromLanguage, toLanguage);
+        sendProgress(currentStep, 'Finding text layers', textNodes.length, textNodes.length, `Found ${textNodes.length} text layer(s)`, totalSteps);
+
+        await processTextNodesForTranslation(textNodes, fromLanguage, toLanguage, currentStep, totalSteps);
     } else {
         if (shouldMirror) figma.notify('Selection mirrored successfully!');
         figma.ui.postMessage({ type: 'action-complete' });

@@ -909,6 +909,7 @@
       const [statusMessage, setStatusMessage] = useState('');
       const [isError, setIsError] = useState(false);
       const [progress, setProgress] = useState(null);
+      const [currentStep, setCurrentStep] = useState(null);
 
       const [showSubscriptionManager, setShowSubscriptionManager] = useState(false);
       const [showUnsubscribeConfirm, setShowUnsubscribeConfirm] = useState(false);
@@ -1010,10 +1011,18 @@
               setIsSaving(false);
               break;
 
+            case 'progress-update':
+              setProgress({ processed: payload.processed, total: payload.total });
+              setCurrentStep({ step: payload.step, stepLabel: payload.stepLabel, substep: payload.substep, totalSteps: payload.totalSteps });
+              setStatusMessage(payload.substep || payload.stepLabel);
+              break;
+
             case 'text-nodes-found':
-              const { texts, fromLanguage: from, toLanguage: to } = payload;
+              const { texts, fromLanguage: from, toLanguage: to, currentStep: tStep, totalSteps: tTotal } = payload;
+              const translatingStep = tStep ? tStep + 1 : 1;
               const onProgressCallback = (processed, total, provider) => {
                 setProgress({ processed, total });
+                setCurrentStep({ step: translatingStep, stepLabel: 'Translating', substep: `Translating ${processed}/${total} via ${provider}...`, totalSteps: tTotal || translatingStep });
                 const message = total > 0 && processed < total
                   ? `Translating ${processed}/${total} via ${provider}...`
                   : `Translating via ${provider}...`;
@@ -1046,6 +1055,7 @@
                 setStatusMessage(`Translation failed: ${error.message}. Check keys or network.`);
                 setIsError(true);
                 setProgress(null);
+                setCurrentStep(null);
               }
               break;
 
@@ -1058,6 +1068,7 @@
               setIsLoading(false);
               setStatusMessage('');
               setProgress(null);
+              setCurrentStep(null);
               break;
 
             case 'available-fonts':
@@ -1078,6 +1089,7 @@
               setStatusMessage(payload.message || 'Font changed successfully!');
               setIsError(false);
               setProgress(null); // Clear progress bar
+              setCurrentStep(null);
 
               // [NEW] Update recent fonts
               if (selectedFont) {
@@ -1184,6 +1196,7 @@
         setStatusMessage('Processing selection...');
         setIsError(false);
         setProgress(null);
+        setCurrentStep(null);
 
         const finalActionType = createVariant ? 'create-variant' : actionType;
         const shouldMirrorPayload = actionType === 'mirror-translate';
@@ -1496,12 +1509,45 @@
 
           <footer className="flex-shrink-0 px-4 pt-4 pb-6 border-t border-brand-border">
             {(isLoading || statusMessage) && (
-              <div className="mb-3 space-y-2">
-                <p className={`text-center text-xs ${isError ? 'text-red-400 font-semibold' : 'text-brand-text-secondary'}`}>{statusMessage}</p>
-                {progress && progress.total > 0 && (
-                  <div className="w-full bg-brand-surface rounded-full h-1.5 border border-brand-border">
-                    <div className="bg-brand-teal h-1.5 rounded-full transition-all duration-200 ease-linear" style={{ width: `${(progress.processed / progress.total) * 100}%` }}></div>
+              <div className="mb-4 p-3 bg-brand-surface rounded-2xl border border-brand-border">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-brand-teal">
+                      {progress && progress.total > 0 && progress.processed < progress.total
+                        ? `${Math.round((progress.processed / progress.total) * 100)}%`
+                        : currentStep
+                          ? `Step ${currentStep.step}/${currentStep.totalSteps}`
+                          : '0%'}
+                    </span>
+                    <span className="text-xs text-brand-text-secondary">Progress</span>
                   </div>
+                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${isError ? 'bg-red-500/10 text-red-400' : isLoading ? 'bg-brand-teal/10 text-brand-teal' : 'bg-green-500/10 text-green-400'}`}>
+                    {isError ? 'Error' : isLoading ? 'Processing' : 'Done'}
+                  </span>
+                </div>
+                {(progress && progress.total > 0) || currentStep ? (
+                  <div className="w-full bg-brand-dark rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="h-2.5 rounded-full transition-all duration-300 ease-out"
+                      style={{
+                        width: progress && progress.total > 0 && progress.processed < progress.total
+                          ? `${(progress.processed / progress.total) * 100}%`
+                          : currentStep
+                            ? `${(currentStep.step / currentStep.totalSteps) * 100}%`
+                            : '0%',
+                        background: 'linear-gradient(90deg, #B8F445 0%, #5CE1E6 100%)'
+                      }}
+                    ></div>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between mt-2">
+                  <p className={`text-xs ${isError ? 'text-red-400' : 'text-brand-text-secondary'}`}>{currentStep ? currentStep.substep : statusMessage}</p>
+                  {progress && progress.total > 0 && progress.processed < progress.total && (
+                    <span className="text-xs text-brand-text-muted">{progress.processed} of {progress.total}</span>
+                  )}
+                </div>
+                {currentStep && (
+                  <p className="text-[10px] text-brand-text-muted mt-1">{currentStep.stepLabel}</p>
                 )}
               </div>
             )}
