@@ -111,6 +111,17 @@
     let geminiModelCacheKey = null;
     let geminiWorkingModel = null;
 
+    // A provider that failed for a reason that repeats on every request (bad
+    // key, empty balance) is skipped for the rest of the session instead of
+    // being re-hit on every chunk. Cleared when the keys change.
+    let blockedProviders = {};
+
+    function blockProvider(provider) { blockedProviders[provider] = true; }
+    function isProviderBlocked(provider) { return !!blockedProviders[provider]; }
+    function clearBlockedProviders() { blockedProviders = {}; }
+
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
     function getGeminiClient(apiKey) {
       if (!apiKey) throw new Error("Gemini API key is not set.");
       // Rebuild the client whenever the stored key changes.
@@ -220,13 +231,17 @@
       if (/503|UNAVAILABLE|high demand|overloaded|try again later/i.test(text)) {
         return 'The model is busy right now — please try again in a moment.';
       }
+      // OpenAI returns "no credits" as a 429, so this must be checked before
+      // the generic rate-limit branch or it gets mislabeled as one.
+      if (/insufficient_quota|no credits|add credits|exceeded your balance/i.test(text)) {
+        return 'Your OpenAI account has no credits left. Add billing credits, or clear this key — Gemini can translate on its own.';
+      }
       if (/limit:\s*0|quota is 0 for every model/i.test(text)) {
         return 'This key has no available quota. Check your plan and billing.';
       }
       const retry = text.match(/retry in ~?(\d+)\s*s/i);
       if (retry) return `Rate limit reached — try again in ~${retry[1]}s.`;
       if (/429|RESOURCE_EXHAUSTED|rate limit/i.test(text)) return 'Rate limit reached — please try again shortly.';
-      if (/no credits|insufficient.?credit|billing/i.test(text)) return 'This OpenAI account has no credits left.';
       if (/does not look like an OpenAI key/i.test(text)) return 'This is not an OpenAI key — OpenAI keys start with "sk-".';
       if (/401|403|API key not valid|API_KEY_INVALID|PERMISSION_DENIED|Incorrect API key/i.test(text)) {
         return 'Invalid API key. Re-copy it from your provider and save again.';
@@ -279,6 +294,15 @@
 
     async function translateBatchWithAI(texts, from, to, provider, apiKey) {
       if (!texts || texts.length === 0) return [];
+
+      // Already ruled out for this key (bad balance / revoked key) — don't
+      // spend another request discovering that again.
+      if (blockedProviders[provider]) {
+        const err = new Error(`${provider === 'gemini' ? 'Gemini' : 'OpenAI'} is ruled out for this key; nothing was sent.`);
+        err.__noRetry = true;
+        err.__permanent = true;
+        throw err;
+      }
 
       const fromLanguageName = from === 'auto' ? 'auto-detect' : from;
       const prompt = `You are an expert UI/UX localizer. I will provide a JSON array of strings to be translated from ${fromLanguageName} to ${to}. Your task is to translate each string and return a JSON array containing the translations in the exact same order. The translation must be natural and context-aware. Translate only the text provided. Do not add any extra words, explanations, or markdown formatting. Your entire response must be ONLY the translated JSON array.\n\nOriginal texts: ${JSON.stringify(texts)}\n\nTranslated texts:`;
@@ -348,7 +372,11 @@
             if (/RESOURCE_EXHAUSTED|429|rate limit|quota/i.test(geminiErrorText(e))) {
               // A real rate limit (retry later), not a zero allowance.
               sawRateLimit = true;
-              rateLimitSeconds = Math.max(rateLimitSeconds, quotaRetrySeconds(e));
+              const seconds = quotaRetrySeconds(e);
+              rateLimitSeconds = Math.max(rateLimitSeconds, seconds);
+              // Free-tier pauses are often 40s+, which is too long to hold the
+              // plugin open — only back off when Google says it's quick.
+              if (seconds <= 10 && !isZeroQuotaError(e)) e.__retryAfterMs = seconds * 1000;
             }
             throw e;
           }
@@ -363,6 +391,9 @@
           if (sawZeroQuota) {
             const err = new Error('Gemini free-tier quota is 0 for every model available to this key. Check your plan and billing: https://ai.google.dev/gemini-api/docs/rate-limits');
             err.__noRetry = true;
+            err.__permanent = true;
+            // Every candidate refused this key — stop asking for the session.
+            blockProvider('gemini');
             throw err;
           }
           const err = lastError || new Error('Gemini returned no usable model for this key.');
@@ -389,16 +420,33 @@
         });
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          const apiMessage = (errorData.error && errorData.error.message) || 'Unknown error';
+          const openaiError = errorData.error || {};
+          const apiMessage = openaiError.message || 'Unknown error';
+          const errCode = openaiError.code || openaiError.type || '';
           const err = new Error(`OpenAI API error (${response.status}): ${apiMessage}`);
-          // Auth/rate-limit failures will fail identically on every split.
-          if (response.status === 401 || response.status === 403 || response.status === 429 || response.status === 400) {
+          err.__httpStatus = response.status;
+          err.__code = errCode;
+
+          const noCredits = errCode === 'insufficient_quota' || /no credits|add credits/i.test(apiMessage);
+          const badKey = response.status === 401 || response.status === 403;
+
+          if (noCredits || badKey) {
+            // Repeats on every request — no point retrying, splitting or
+            // asking again later in this session.
             err.__noRetry = true;
-          }
-          if (response.status === 401 || response.status === 403) {
-            err.message += ' → Clear the OpenAI key or replace it with a valid one (it is never used while Gemini works).';
-          } else if (/no credits|billing|insufficient/i.test(apiMessage)) {
-            err.message += ' → Your OpenAI account has no credits. Clear this field if you only plan to use Gemini.';
+            err.__permanent = true;
+            err.message += noCredits
+              ? ' → Your OpenAI account has no credits. Clear this field if you only plan to use Gemini.'
+              : ' → Clear the OpenAI key or replace it with a valid one.';
+          } else if (response.status === 429) {
+            // Genuine RPM/TPM ceiling: retrying the same chunk is worth it,
+            // splitting it would be pointless.
+            err.__noRetry = true;
+            const retryAfter = parseFloat(response.headers.get('retry-after'));
+            const seconds = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 5;
+            err.__retryAfterMs = Math.min(seconds, 15) * 1000;
+          } else if (response.status === 400 || response.status === 422) {
+            err.__noRetry = true;
           }
           throw err;
         }
@@ -417,6 +465,9 @@
 
     // Verifies a key with a single tiny request. Used by the API manager screen.
     async function testApiKey(provider, apiKey) {
+      // An explicit test always gets a fresh chance, even if the provider was
+      // ruled out earlier in this session.
+      delete blockedProviders[provider];
       const started = Date.now();
       try {
         const result = await translateBatchWithAI(['Hello world'], 'auto', 'ar', provider, apiKey);
@@ -506,10 +557,18 @@
           return chunkTranslations;
         };
 
-        const translateChunkWithRetry = async (chunkTexts, depth = 0) => {
+        const translateChunkWithRetry = async (chunkTexts, depth = 0, waits = 0) => {
           try {
             return await translateChunk(chunkTexts, depth);
           } catch (e) {
+            // A short rate-limit pause is far cheaper than re-splitting the
+            // batch — wait, then send the exact same chunk again.
+            if (e.__retryAfterMs && waits < 2) {
+              const wait = Math.min(e.__retryAfterMs, 20000);
+              console.warn(`${providerName} rate-limited, waiting ${Math.ceil(wait / 1000)}s before retrying (${waits + 1}/2)...`);
+              await sleep(wait);
+              return translateChunkWithRetry(chunkTexts, depth, waits + 1);
+            }
             // Quota/auth/rate-limit failures repeat on every split — splitting
             // would only multiply the wasted requests.
             if (chunkTexts.length > 1 && depth < 3 && !e.__noRetry) {
@@ -542,25 +601,36 @@
 
       const providerErrors = [];
 
-      if (apiKeys.gemini) {
+      const runProvider = async (name, provider, apiKey) => {
         try {
-          const allTranslatedTexts = await translateWithProvider('gemini', apiKeys.gemini);
-          console.log('Successfully translated with Gemini.');
-          return { texts: allTranslatedTexts, provider: 'Gemini', errors: providerErrors };
+          const allTranslatedTexts = await translateWithProvider(provider, apiKey);
+          console.log(`Successfully translated with ${name}.`);
+          return { texts: allTranslatedTexts, provider: name, errors: providerErrors };
         } catch (e) {
-          console.warn("Gemini chunked translation failed, trying next provider. Error:", e.message);
-          providerErrors.push(`Gemini: ${e.message}`);
+          // Bad key / empty balance will fail identically every time — remember
+          // it for the rest of the session so we stop spending requests on it.
+          if (e.__permanent) blockProvider(provider);
+          console.warn(`${name} failed, trying next provider. Error:`, e.message);
+          providerErrors.push(`${name}: ${e.message}`);
+          return null;
+        }
+      };
+
+      if (apiKeys.gemini) {
+        if (isProviderBlocked('gemini')) {
+          console.warn('Gemini skipped: already ruled out for this key.');
+        } else {
+          const translated = await runProvider('Gemini', 'gemini', apiKeys.gemini);
+          if (translated) return translated;
         }
       }
 
       if (apiKeys.openai) {
-        try {
-          const allTranslatedTexts = await translateWithProvider('openai', apiKeys.openai);
-          console.log('Successfully translated with OpenAI.');
-          return { texts: allTranslatedTexts, provider: 'OpenAI', errors: providerErrors };
-        } catch (e) {
-          console.warn("OpenAI chunked translation failed, falling back. Error:", e.message);
-          providerErrors.push(`OpenAI: ${e.message}`);
+        if (isProviderBlocked('openai')) {
+          console.warn('OpenAI skipped: already ruled out for this key.');
+        } else {
+          const translated = await runProvider('OpenAI', 'openai', apiKeys.openai);
+          if (translated) return translated;
         }
       }
 
@@ -1345,6 +1415,8 @@
               setAreKeysChecked(true);
               setGeminiApiKey(payload.gemini);
               setOpenaiApiKey(payload.openai);
+              // Keys changed: forget any provider ruled out under the old ones.
+              clearBlockedProviders();
               // Keep the key even if the eager init fails: getGeminiClient() will
               // retry lazily during translation and the error will be surfaced.
               geminiAI = null;
