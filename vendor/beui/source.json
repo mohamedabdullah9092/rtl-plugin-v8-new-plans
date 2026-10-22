@@ -1,0 +1,32 @@
+{
+  "component": "Select",
+  "documentation": "https://beui.dev/components/motion/select",
+  "registry": "https://beui.dev/r/select.json",
+  "retrieved": "2026-10-22",
+  "files": [
+    {
+      "path": "components/motion/select.tsx",
+      "sha256": "f53e3f754b272bfb7d785f322564a789feabb031c4eaf330cef061f024c14c03"
+    },
+    {
+      "path": "lib/ease.ts",
+      "sha256": "bdfa2814cffaa4d974a5fc8614868ddb89e0310a0ead9e7105f2e8132b219ff3"
+    },
+    {
+      "path": "lib/hooks/use-listbox.ts",
+      "sha256": "7561866df702c9de817a3ccda78083a34806a7e696c7974619b295fb89198b95"
+    },
+    {
+      "path": "lib/utils.ts",
+      "sha256": "7c8c3dfc0cdd370d44932828eb067ef771c8fe7996693221d5d4b90af6d54f2d"
+    },
+    {
+      "path": "lib/hooks/use-on-open.ts",
+      "sha256": "40fe63a564880b119063066621dac972ad01da73481fc26996377565f82c0083"
+    },
+    {
+      "path": "lib/hooks/use-row-cursor.ts",
+      "sha256": "95afe34ad19661c405bbec11da7d32a7a84343e660492f46f578ead2aed8c750"
+    }
+  ]
+}

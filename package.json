@@ -1,6 +1,14 @@
 {
   "scripts": {
-    "build": "node scripts/build-admin-dashboard.mjs"
+    "build": "node scripts/build-admin-dashboard.mjs",
+    "build:plugin-ui": "node scripts/build-plugin-ui.mjs"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "clsx": "^2.1.1",
+    "esbuild": "^0.28.2",
+    "lucide-react": "^1.61.0",
+    "motion": "^14.6.0",
+    "tailwind-merge": "^3.7.0"
+  }
 }

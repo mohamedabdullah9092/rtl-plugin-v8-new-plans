@@ -1,4 +1,5 @@
 const PLUGIN_VERSION = 'tracking-2026-07-25';
+const SMART_SWITCH_ANNOUNCEMENT_KEY = 'rtl-master:announcement:smart-switch-components:v1';
 
 // A local dictionary for common UX terms to provide instant, high-quality translations for them.
 // The structure supports multiple target languages, with English as the source of truth.
@@ -2191,6 +2192,25 @@ figma.ui.onmessage = async (msg) => {
 
                     break;
                 }
+            case 'get-smart-switch-announcement-status':
+                {
+                    try {
+                        const seen = await figma.clientStorage.getAsync(SMART_SWITCH_ANNOUNCEMENT_KEY);
+                        figma.ui.postMessage({ type: 'smart-switch-announcement-status', payload: { seen: !!seen } });
+                    } catch (error) {
+                        console.warn('Could not read Smart Switch announcement status:', error.message);
+                    }
+                    break;
+                }
+            case 'dismiss-smart-switch-announcement':
+                {
+                    try {
+                        await figma.clientStorage.setAsync(SMART_SWITCH_ANNOUNCEMENT_KEY, true);
+                    } catch (error) {
+                        console.warn('Could not save Smart Switch announcement status:', error.message);
+                    }
+                    break;
+                }
             case 'get-onboarding-status':
                 {
                     const hasCompleted = await figma.clientStorage.getAsync('hasCompletedOnboarding');
@@ -2656,7 +2676,7 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
     sendProgress(currentStep, 'Checking dictionary', textNodes.length, textNodes.length, `${translationsFromDict.length} found in dictionary, ${textsForApi.length} need API`, totalSteps);
 
     if (translationsFromDict.length > 0) {
-        const { successCount, failedCount, missingFonts, fontReplacements } = await applyTranslationsToNodes(translationsFromDict, null);
+        const { successCount, failedCount, missingFonts, fontReplacements, localeFontChanges } = await applyTranslationsToNodes(translationsFromDict, null, { toLanguage });
         let notif = `Translated ${successCount} text layer(s) from dictionary.`;
         if (failedCount > 0) notif += ` ${failedCount} failed.`;
         figma.notify(notif);
@@ -2668,6 +2688,9 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
         if (missingFonts.size > 0) {
             const fontList = Array.from(missingFonts).join(', ');
             figma.notify(`Could not find fallback for: ${fontList}. Please install.`, { error: true, timeout: 8000 });
+        }
+        if (localeFontChanges > 0) {
+            figma.notify(`Applied locale font variables to ${localeFontChanges} text layer(s).`, { timeout: 5000 });
         }
     }
 
@@ -2696,9 +2719,9 @@ function countTotalSteps(shouldMirror, translateText) {
 }
 
 async function processNodesInPlace(payload, shouldMirror) {
-    const { fromLanguage, toLanguage, translateText, mirrorInstances } = payload;
+    const { fromLanguage, toLanguage, translateText, mirrorInstances, smartSwitchComponents } = payload;
     const selection = figma.currentPage.selection;
-    const mirrorContext = createMirrorContext({ fromLanguage, toLanguage, translateText });
+    const mirrorContext = createMirrorContext({ fromLanguage, toLanguage, translateText, smartSwitchComponents });
 
     if (selection.length === 0) {
         figma.ui.postMessage({ type: 'plugin-error', payload: { message: 'Please select at least one item to process.' } });
@@ -2707,6 +2730,7 @@ async function processNodesInPlace(payload, shouldMirror) {
 
     const totalSteps = countTotalSteps(shouldMirror, translateText);
     let currentStep = 0;
+    await applyLocalePropertiesToNodes(selection, toLanguage, shouldMirror ? mirrorContext : null);
 
     if (shouldMirror) {
         currentStep++;
@@ -2725,7 +2749,7 @@ async function processNodesInPlace(payload, shouldMirror) {
 
         currentStep++;
         sendProgress(currentStep, 'Finding text layers', 0, 0, 'Scanning selected nodes...', totalSteps);
-        const textNodes = findTextNodes(nodesForTranslation);
+        const textNodes = findTextNodes(nodesForTranslation, mirrorContext.smartSwitchedNodeIds);
         if (textNodes.length === 0) {
             figma.notify(shouldMirror ? 'Selection mirrored. No text found to translate.' : 'No text layers found in selection.');
             figma.ui.postMessage({ type: 'action-complete' });
@@ -2744,12 +2768,14 @@ function createMirrorContext(options = {}) {
     return {
         targetVariants: new Map(),
         createdVariants: new Map(),
+        smartSwitchAttempts: new Set(),
+        smartSwitchedNodeIds: new Set(),
         options
     };
 }
 
 async function handleCreateVariant(payload) {
-    const { fromLanguage, toLanguage, translateText, mirrorInstances, shouldMirror } = payload;
+    const { fromLanguage, toLanguage, translateText, mirrorInstances, shouldMirror, smartSwitchComponents } = payload;
     const selection = figma.currentPage.selection;
 
     if (selection.length !== 1) {
@@ -3014,7 +3040,7 @@ async function handleCreateVariant(payload) {
         originalInstanceId
     };
 
-    const mirrorContext = createMirrorContext({ fromLanguage, toLanguage, translateText });
+    const mirrorContext = createMirrorContext({ fromLanguage, toLanguage, translateText, smartSwitchComponents });
     if (shouldMirror !== false) {
         for (const newVariant of newVariants) {
             await mirrorNode(newVariant, false, mirrorContext, mirrorInstances);
@@ -3032,7 +3058,7 @@ async function handleCreateVariant(payload) {
         const translationRoots = newVariants.concat(Array.from(mirrorContext.createdVariants.values()));
         const seenTextNodeIds = new Set();
         for (const root of translationRoots) {
-            for (const textNode of findTextNodes([root])) {
+            for (const textNode of findTextNodes([root], mirrorContext.smartSwitchedNodeIds)) {
                 if (!seenTextNodeIds.has(textNode.id)) {
                     seenTextNodeIds.add(textNode.id);
                     textNodes.push(textNode);
@@ -3163,7 +3189,7 @@ async function findBestFallbackFont(missingFont) {
             'Italic'
         ];
         for (const style of stylePreferences) {
-            const found = fontsInFamily.find(f => f.fontName.style.toLowerCase() === style.toLowerCase());
+            const found = fontsInFamily.find(f => normalizeName(f && f.fontName && f.fontName.style) === normalizeName(style));
             if (found) {
                 if (cacheKey) fallbackFontCache.set(cacheKey, found.fontName);
                 return found.fontName;
@@ -3178,9 +3204,161 @@ async function findBestFallbackFont(missingFont) {
     return null; // No fallback found in the same family.
 }
 
-async function applyTranslationsToNodes(translations, onProgress) {
+function normalizeName(value) {
+    return String(value || '').trim().toLowerCase().replace(/[\s_-]+/g, ' ');
+}
+
+function getLanguageModeNames(languageCode) {
+    const namesByCode = {
+        ar: ['arabic', 'ar'],
+        en: ['english', 'en'],
+        es: ['spanish', 'es'],
+        fr: ['french', 'fr'],
+        de: ['german', 'de'],
+        ja: ['japanese', 'ja'],
+        ko: ['korean', 'ko'],
+        pt: ['portuguese', 'pt'],
+        ru: ['russian', 'ru'],
+        zh: ['chinese', 'zh'],
+        tr: ['turkish', 'tr']
+    };
+    return namesByCode[languageCode] || [languageCode];
+}
+
+async function getTextStyleName(node) {
+    try {
+        if (!node || node.textStyleId === figma.mixed || !node.textStyleId) return '';
+        const style = await figma.getStyleByIdAsync(node.textStyleId);
+        return style && style.name ? style.name : '';
+    } catch (e) {
+        return '';
+    }
+}
+
+async function getLocaleFontVariables(languageCode) {
+    if (!languageCode || languageCode === 'auto') return [];
+
+    const targetModeNames = getLanguageModeNames(languageCode).map(normalizeName);
+    const collections = await figma.variables.getLocalVariableCollectionsAsync();
+    const entries = [];
+
+    for (const collection of collections) {
+        const targetMode = collection.modes.find((mode) => targetModeNames.includes(normalizeName(mode.name)));
+        if (!targetMode) continue;
+
+        for (const variableId of collection.variableIds) {
+            try {
+                const variable = figma.variables.getVariableById(variableId);
+                if (!variable || variable.resolvedType !== 'STRING') continue;
+
+                const rawFontFamily = variable.valuesByMode[targetMode.modeId];
+                if (typeof rawFontFamily !== 'string' || !rawFontFamily.trim()) continue;
+
+                entries.push({
+                    collectionName: collection.name,
+                    variableName: variable.name,
+                    fontFamily: rawFontFamily.trim()
+                });
+            } catch (e) {
+                // Skip malformed or inaccessible variables and keep the translation flow running.
+            }
+        }
+    }
+
+    return entries;
+}
+
+function resolveAvailableFontFamily(fontFamily) {
+    if (!availableFontsCache) return '';
+    const normalized = normalizeName(fontFamily);
+    const match = availableFontsCache.find((font) => normalizeName(font.fontName.family) === normalized);
+    return match ? match.fontName.family : '';
+}
+
+function findFontStyleForFamily(fontFamily, preferredStyle) {
+    const fontsInFamily = getFontsInFamily(fontFamily);
+    if (!fontsInFamily.length) return null;
+
+    const preferredStyles = [
+        preferredStyle,
+        'Regular',
+        'Normal',
+        'Book',
+        'Medium',
+        'SemiBold',
+        'Semibold',
+        'Bold'
+    ].filter(Boolean);
+
+    for (const style of preferredStyles) {
+        const match = fontsInFamily.find((font) => normalizeName(font.fontName.style) === normalizeName(style));
+        if (match) return match.fontName;
+    }
+
+    return fontsInFamily[0].fontName;
+}
+
+async function pickLocaleFontVariable(node, localeFontVariables, originalSegments) {
+    if (!localeFontVariables.length) return null;
+
+    const nodeHints = [
+        node.name,
+        await getTextStyleName(node)
+    ].map(normalizeName).filter(Boolean);
+
+    for (const hint of nodeHints) {
+        const directMatch = localeFontVariables.find((entry) => {
+            const variableName = normalizeName(entry.variableName);
+            return hint === variableName || hint.includes(variableName) || variableName.includes(hint);
+        });
+        if (directMatch) return directMatch;
+    }
+
+    if (localeFontVariables.length === 1) return localeFontVariables[0];
+
+    const sizes = originalSegments
+        .map((segment) => typeof segment.fontSize === 'number' ? segment.fontSize : null)
+        .filter((size) => size !== null);
+    const largestSize = sizes.length ? Math.max(...sizes) : 0;
+    const wantsHeading = largestSize >= 24 || nodeHints.some((hint) => /heading|title|headline|h[1-6]\b/.test(hint));
+    const preferredNames = wantsHeading
+        ? ['heading', 'title', 'headline', 'h1', 'h2']
+        : ['paragraph', 'body', 'text', 'label'];
+
+    for (const preferredName of preferredNames) {
+        const match = localeFontVariables.find((entry) => normalizeName(entry.variableName).includes(preferredName));
+        if (match) return match;
+    }
+
+    return localeFontVariables[0];
+}
+
+async function applyLocaleFontVariableToNode(node, localeFontVariables, originalSegments) {
+    const localeFontVariable = await pickLocaleFontVariable(node, localeFontVariables, originalSegments);
+    if (!localeFontVariable) return false;
+
+    const resolvedFamily = resolveAvailableFontFamily(localeFontVariable.fontFamily);
+    if (!resolvedFamily) return false;
+
+    const currentFontName = originalSegments[0] && originalSegments[0].fontName && originalSegments[0].fontName !== figma.mixed
+        ? originalSegments[0].fontName
+        : { style: 'Regular' };
+    const targetFontName = findFontStyleForFamily(resolvedFamily, currentFontName.style);
+    if (!targetFontName) return false;
+
+    const loaded = await ensureFontLoaded(targetFontName);
+    if (!loaded) return false;
+
+    node.fontName = targetFontName;
+    node.setPluginData('rtl-master-locale-font-variable', `${localeFontVariable.collectionName}/${localeFontVariable.variableName}`);
+    node.setPluginData('rtl-master-locale-font-family', targetFontName.family);
+    return true;
+}
+
+async function applyTranslationsToNodes(translations, onProgress, options = {}) {
     let successCount = 0;
     let failedCount = 0;
+    let localeFontChanges = 0;
     const total = translations.length;
     const missingFonts = new Set();
     const fontReplacements = new Map();
@@ -3195,13 +3373,20 @@ async function applyTranslationsToNodes(translations, onProgress) {
         }
     }
 
+    let localeFontVariables = [];
+    try {
+        localeFontVariables = await getLocaleFontVariables(options.toLanguage);
+    } catch (e) {
+        console.warn('Could not read locale font variables:', e && e.message);
+    }
+
     for (let i = 0; i < total; i++) {
         const item = translations[i];
         const node = await figma.getNodeByIdAsync(item.id);
 
         if (node && node.type === 'TEXT' && !node.removed) {
             try {
-                const originalSegments = node.getStyledTextSegments(['fontName', 'fills']);
+                const originalSegments = node.getStyledTextSegments(['fontName', 'fontSize', 'fills']);
                 const nodeFontFallbacks = new Map(); // Map from missing FontName object to fallback FontName object
 
                 // Pass 1: Identify all missing fonts in the node and find fallbacks.
@@ -3276,6 +3461,10 @@ async function applyTranslationsToNodes(translations, onProgress) {
                 }
 
                 node.characters = item.newCharacters;
+                if (localeFontVariables.length > 0) {
+                    const changedLocaleFont = await applyLocaleFontVariableToNode(node, localeFontVariables, originalSegments);
+                    if (changedLocaleFont) localeFontChanges++;
+                }
 
                 if (numericStyles.size > 0) {
                     for (const [numberStr, fillStyle] of numericStyles.entries()) {
@@ -3311,7 +3500,7 @@ async function applyTranslationsToNodes(translations, onProgress) {
     // Clearing them here meant each action re-ran listAvailableFontsAsync()
     // (thousands of entries) and re-loaded fonts it had already loaded — the
     // dictionary pass and the apply pass each paid for it.
-    return { successCount, failedCount, missingFonts, fontReplacements };
+    return { successCount, failedCount, missingFonts, fontReplacements, localeFontChanges };
 }
 
 
@@ -3322,7 +3511,7 @@ async function handleApplyTranslations(payload) {
             payload: { processed, total }
         });
     };
-    const { successCount, failedCount, missingFonts, fontReplacements } = await applyTranslationsToNodes(payload.translations, onProgress);
+    const { successCount, failedCount, missingFonts, fontReplacements, localeFontChanges } = await applyTranslationsToNodes(payload.translations, onProgress, { toLanguage: payload.toLanguage });
 
     let notificationMessage = `Translated ${successCount} text layer(s).`;
     if (failedCount > 0) {
@@ -3341,18 +3530,23 @@ async function handleApplyTranslations(payload) {
         figma.notify(message, { error: true, timeout: 8000 });
     }
 
+    if (localeFontChanges > 0) {
+        figma.notify(`Applied locale font variables to ${localeFontChanges} text layer(s).`, { timeout: 5000 });
+    }
+
     if (!pendingVariantCreation) {
         figma.ui.postMessage({ type: 'action-complete' });
     }
 }
 
-function findTextNodes(nodes) {
+function findTextNodes(nodes, excludedNodeIds = null) {
     let textNodes = [];
     for (const node of nodes) {
+        if (excludedNodeIds && excludedNodeIds.has(node.id)) continue;
         if (node.type === 'TEXT') {
             textNodes.push(node);
         } else if ('children' in node) {
-            textNodes = textNodes.concat(findTextNodes(node.children));
+            textNodes = textNodes.concat(findTextNodes(node.children, excludedNodeIds));
         }
     }
     return textNodes;
@@ -3428,6 +3622,8 @@ function isFixedUIElement(node) {
 }
 
 async function mirrorNode(node, isInsideInstance = false, mirrorContext = createMirrorContext(), mirrorInstances = false, isInsideFlippedContainer = false) {
+    if (await trySwitchToExistingLocaleVariant(node, mirrorContext)) return;
+
     const isIllustration = isAtomicIllustration(node);
     const nodeNameLower = node.name.toLowerCase();
 
@@ -3697,7 +3893,7 @@ async function handleChangeFont(payload) {
 
         // Get all available styles for the target font
         const availableFonts = await figma.listAvailableFontsAsync();
-        const targetFontStyles = availableFonts.filter(font => font.fontName.family === fontFamily);
+        const targetFontStyles = availableFonts.filter(font => normalizeName(font && font.fontName && font.fontName.family) === normalizeName(fontFamily));
 
         if (targetFontStyles.length === 0) {
             const message = `Font family "${fontFamily}" not found.`;
@@ -3728,10 +3924,10 @@ async function handleChangeFont(payload) {
             // Simplified handling: use the font of the first character or the node itself
             // Handling mixed styles is complex, so we grab the style of the first character if mixed
             if (node.fontName === figma.mixed) {
-                const rangeFont = node.getRangeFontName(0, 1);
-                currentStyle = rangeFont.style;
+                const rangeFont = node.characters.length > 0 ? node.getRangeFontName(0, 1) : null;
+                currentStyle = rangeFont && rangeFont !== figma.mixed && rangeFont.style ? rangeFont.style : 'Regular';
             } else {
-                currentStyle = node.fontName.style;
+                currentStyle = node.fontName && node.fontName.style ? node.fontName.style : 'Regular';
             }
 
             // If no specific style requested, use smart matching
@@ -3740,16 +3936,25 @@ async function handleChangeFont(payload) {
             }
 
             // Verify the target style exists
-            if (!targetFontStyles.some(f => f.fontName.style === targetStyle)) {
+            if (!targetFontStyles.some(f => f && f.fontName && f.fontName.style === targetStyle)) {
                 // Fallback if specific requested style not found (shouldn't happen if UI is correct, but safety first)
                 targetStyle = findBestWeightMatch(currentStyle, targetFontStyles);
             }
 
-            const targetFontName = { family: fontFamily, style: targetStyle };
+            if (!targetStyle) targetStyle = 'Regular';
+            const resolvedFontFamily = targetFontStyles[0] && targetFontStyles[0].fontName ? targetFontStyles[0].fontName.family : fontFamily;
+            const targetFontName = { family: resolvedFontFamily, style: targetStyle };
 
             try {
                 await figma.loadFontAsync(targetFontName);
-                node.fontName = targetFontName;
+                if (node.characters.length > 0 && node.fontName === figma.mixed) {
+                    const segments = node.getStyledTextSegments(['fontName']);
+                    for (const segment of segments) {
+                        node.setRangeFontName(segment.start, segment.end, targetFontName);
+                    }
+                } else {
+                    node.fontName = targetFontName;
+                }
 
                 // [NEW] Auto-Fit Text
                 if (autoFit) {
@@ -3794,20 +3999,23 @@ async function handleChangeFont(payload) {
 }
 
 function findBestWeightMatch(currentStyle, availableFontStyles) {
-    const styleMap = availableFontStyles.map(f => f.fontName.style);
+    const styleMap = (availableFontStyles || [])
+        .map(f => f && f.fontName && f.fontName.style)
+        .filter(style => typeof style === 'string' && style.trim().length > 0);
 
     // 1. Exact match
-    if (styleMap.includes(currentStyle)) return currentStyle;
+    const normalizedCurrentStyle = typeof currentStyle === 'string' && currentStyle.trim() ? currentStyle : 'Regular';
+    if (styleMap.includes(normalizedCurrentStyle)) return normalizedCurrentStyle;
 
     // 2. Weight-based matching
-    const lowerStyle = currentStyle.toLowerCase();
+    const lowerStyle = normalizedCurrentStyle.toLowerCase();
 
     // Define priorities for common weights
     if (lowerStyle.includes('bold')) {
         if (styleMap.some(s => s.toLowerCase().includes('bold'))) return styleMap.find(s => s.toLowerCase().includes('bold'));
         if (styleMap.some(s => s.toLowerCase().includes('black'))) return styleMap.find(s => s.toLowerCase().includes('black'));
         if (styleMap.some(s => s.toLowerCase().includes('heavy'))) return styleMap.find(s => s.toLowerCase().includes('heavy'));
-        if (styleMap.some(s => s.toLowerCase().includes('sembold'))) return styleMap.find(s => s.toLowerCase().includes('semibold'));
+        if (styleMap.some(s => s.toLowerCase().includes('semibold'))) return styleMap.find(s => s.toLowerCase().includes('semibold'));
     }
 
     if (lowerStyle.includes('light')) {
@@ -3824,7 +4032,7 @@ function findBestWeightMatch(currentStyle, availableFontStyles) {
     if (styleMap.includes('Regular')) return 'Regular';
 
     // 4. Fallback to first available
-    return styleMap[0];
+    return styleMap[0] || 'Regular';
 }
 
 /**
@@ -3917,6 +4125,146 @@ function inferVariantRtlValue(component, languageName, fallbackIsRtl = false) {
     if (languageName === 'Arabic') return 'True';
     if (languageName && languageName !== 'Auto Detect') return 'False';
     return inferSourceIsRtl(component, 'auto') || fallbackIsRtl ? 'True' : 'False';
+}
+
+function getComponentPropertyKey(node, propertyName) {
+    const properties = node && node.componentProperties ? node.componentProperties : null;
+    if (!properties) return null;
+
+    const targetName = normalizeName(propertyName);
+    for (const key of Object.keys(properties)) {
+        const baseName = key.split('#')[0];
+        if (normalizeName(baseName) === targetName || normalizeName(key) === targetName) {
+            return key;
+        }
+    }
+
+    return null;
+}
+
+function componentPropertyValue(node, propertyKey, stringValue, booleanValue) {
+    const definition = node && node.componentProperties ? node.componentProperties[propertyKey] : null;
+    if (definition && definition.type === 'BOOLEAN') return booleanValue;
+    return stringValue;
+}
+
+async function applyLocalePropertiesToNode(node, toLanguage) {
+    if (!node || typeof node.setProperties !== 'function') return false;
+
+    const languageName = getLanguageName(toLanguage);
+    const props = {};
+    const languageKey = getComponentPropertyKey(node, 'Language');
+    const rtlKey = getComponentPropertyKey(node, 'RTL');
+
+    if (languageKey) props[languageKey] = languageName;
+    if (rtlKey) props[rtlKey] = componentPropertyValue(node, rtlKey, toLanguage === 'ar' ? 'True' : 'False', toLanguage === 'ar');
+
+    if (Object.keys(props).length === 0) return false;
+
+    try {
+        node.setProperties(props);
+        return true;
+    } catch (error) {
+        console.warn(`Could not update component locale properties for "${node.name}": ${error.message}`);
+        return false;
+    }
+}
+
+async function applyLocalePropertiesToNodes(nodes, toLanguage, mirrorContext = null) {
+    const stack = Array.from(nodes || []);
+    if (mirrorContext && mirrorContext.options.smartSwitchComponents === true) {
+        // Match before locale updates can change the source variant. Inspect outer
+        // instances first, but retain the original locale traversal for fallbacks.
+        const selectedIds = new Set(stack.map(node => node.id));
+        const pending = stack.filter(node => {
+            for (let parent = node.parent; parent; parent = parent.parent) {
+                if (selectedIds.has(parent.id)) return false;
+            }
+            return true;
+        });
+        while (pending.length > 0) {
+            const node = pending.pop();
+            if (await trySwitchToExistingLocaleVariant(node, mirrorContext)) continue;
+            if ('children' in node) pending.push(...node.children);
+        }
+    }
+    const seen = new Set();
+
+    while (stack.length > 0) {
+        const node = stack.pop();
+        if (!node || seen.has(node.id)) continue;
+        seen.add(node.id);
+
+        if (mirrorContext && mirrorContext.smartSwitchedNodeIds.has(node.id)) continue;
+        await applyLocalePropertiesToNode(node, toLanguage);
+
+        if ('children' in node) {
+            for (const child of node.children) {
+                stack.push(child);
+            }
+        }
+    }
+}
+
+// Only reuse a variant explicitly matching the target locale. Unmatched instances continue through
+// the existing locale/mirror flow, including its optional variant generation.
+async function trySwitchToExistingLocaleVariant(node, mirrorContext) {
+    if (mirrorContext.options.smartSwitchComponents !== true) return false;
+    if (mirrorContext.smartSwitchedNodeIds.has(node.id)) return true;
+    const { toLanguage } = mirrorContext.options;
+    if (!toLanguage || toLanguage === 'auto' || node.type !== 'INSTANCE') return false;
+    if (mirrorContext.smartSwitchAttempts.has(node.id)) return false;
+    // A failed match must not be retried after locale updates change the source.
+    mirrorContext.smartSwitchAttempts.add(node.id);
+
+    try {
+        const mainComponent = await node.getMainComponentAsync();
+        if (!mainComponent) return false;
+        const componentSet = await getComponentParentAsync(mainComponent);
+        if (!componentSet || componentSet.type !== 'COMPONENT_SET') return false;
+
+        // Do not infer missing dimensions from names or other variants.
+        const sourceProps = mainComponent.variantProperties;
+        if (!sourceProps) return false;
+        const keys = Object.keys(sourceProps);
+        const languageKey = keys.find(key => normalizeName(key) === 'language');
+        if (!languageKey) return false;
+        const targetLanguageNames = getLanguageModeNames(toLanguage).map(normalizeName);
+        // Use the same direction convention as the existing conversion flow.
+        const targetIsRtl = toLanguage === 'ar';
+        const matches = componentSet.children.filter(variant => {
+            if (variant.type !== 'COMPONENT') return false;
+            const props = variant.variantProperties;
+            if (!props || Object.keys(props).length !== keys.length) return false;
+            return keys.every(key => {
+                if (!Object.prototype.hasOwnProperty.call(props, key)) return false;
+                if (key === languageKey) return targetLanguageNames.includes(normalizeName(props[key]));
+                if (normalizeName(key) === 'rtl') return normalizeName(props[key]) === (targetIsRtl ? 'true' : 'false');
+                if (normalizeName(key) === 'direction') return normalizeName(props[key]) === (targetIsRtl ? 'rtl' : 'ltr');
+                return props[key] === sourceProps[key];
+            });
+        });
+        if (matches.length !== 1) return false;
+
+        const subtreeIds = [];
+        const collectIds = root => {
+            subtreeIds.push(root.id);
+            if ('children' in root) root.children.forEach(collectIds);
+        };
+        collectIds(node);
+        if (matches[0].id !== mainComponent.id) {
+            // Native swapping preserves compatible overrides without copying source
+            // defaults or restoring the old Language/RTL component properties.
+            node.swapComponent(matches[0]);
+        }
+        collectIds(node);
+        // Include old descendant IDs: a swap can replace selected nested nodes.
+        subtreeIds.forEach(id => mirrorContext.smartSwitchedNodeIds.add(id));
+        return true;
+    } catch (error) {
+        console.warn(`Could not switch instance "${node.name}" to an existing ${getLanguageName(toLanguage)} variant: ${error.message}`);
+        return false;
+    }
 }
 
 function normalizeVariantNodeName(variant, fallbackLanguageName = 'English', fallbackIsRtl = false) {
