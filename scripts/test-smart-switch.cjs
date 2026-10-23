@@ -32,7 +32,7 @@ test('Smart Switch introduction is remembered across plugin launches', async () 
 
 function loadPlugin(source = pluginSource) {
     const calls = { generated: [], translated: [], swaps: [], locale: [], warnings: [] };
-    const figma = { currentPage: { selection: [] }, ui: { postMessage() {} }, showUI() {}, notify() {} };
+    const figma = { currentPage: { selection: [] }, ui: { postMessage() {} }, showUI() {}, notify() {}, on() {} };
     const plugin = vm.createContext({
         figma, __html__: '', setTimeout() {},
         console: { log() {}, error() {}, warn(message) { calls.warnings.push(message); } }

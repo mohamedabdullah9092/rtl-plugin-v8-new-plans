@@ -2084,6 +2084,15 @@ function formatUserFacingPluginError(error) {
 }
 
 figma.showUI(__html__, { width: 400, height: 650, title: "RTL Master" });
+function postSelectionState() {
+    figma.ui.postMessage({
+        type: 'selection-state',
+        payload: { hasSelection: figma.currentPage.selection.length > 0 }
+    });
+}
+
+figma.on('selectionchange', postSelectionState);
+postSelectionState();
 
 // Warm the expensive font list while the user is still reading the UI, so the
 // first action doesn't pay listAvailableFontsAsync() latency up front.
@@ -3125,6 +3134,7 @@ async function completeVariantCreation() {
 
 // A cache for available fonts to avoid calling the async function repeatedly during a single action.
 let availableFontsCache = null;
+const fontStylesCache = new Map();
 const fontLoadStatusCache = new Map();
 const fallbackFontCache = new Map();
 const fontsByFamilyCache = new Map();
@@ -3832,11 +3842,19 @@ async function getAvailableFonts() {
 
 async function getFontStyles(fontFamily) {
     try {
-        const fonts = await figma.listAvailableFontsAsync();
+        if (fontStylesCache.has(fontFamily)) {
+            return fontStylesCache.get(fontFamily);
+        }
+        if (!availableFontsCache) {
+            availableFontsCache = await figma.listAvailableFontsAsync();
+        }
+        const fonts = availableFontsCache;
         const styles = fonts
             .filter(font => font.fontName.family === fontFamily)
             .map(font => font.fontName.style);
-        return [...new Set(styles)].sort();
+        const uniqueStyles = [...new Set(styles)].sort();
+        fontStylesCache.set(fontFamily, uniqueStyles);
+        return uniqueStyles;
     } catch (error) {
         console.error('Error fetching font styles:', error);
         return [];
