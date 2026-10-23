@@ -2117,7 +2117,9 @@ const App = () => {
   const [fromLanguage, setFromLanguage] = useState('auto');
   const [toLanguage, setToLanguage] = useState('ar');
   const [mirrorInstances, setMirrorInstances] = useState(false);
-  const [smartSwitchComponents, setSmartSwitchComponents] = useState(true);
+  // Smart Switch is opt-in so enabling it never changes a design implicitly
+  // on first launch or after the plugin state is reset.
+  const [smartSwitchComponents, setSmartSwitchComponents] = useState(false);
   const [createVariant, setCreateVariant] = useState(false);
   const [variableModes, setVariableModes] = useState([]); // Figma variable modes with font info
   const [selectedFontGroup, setSelectedFontGroup] = useState(''); // e.g. 'Heading', 'Paragraph'
