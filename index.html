@@ -1,14 +1,17 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html data-theme="dark" lang="en" class="h-full">
 
 <head>
-  <meta charset="utf-t" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Figma Mirror & Translate</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
+    :root { color-scheme: dark; --ui-bg: 12 12 12; --ui-surface: 22 22 22; --ui-raised: 32 32 32; --ui-border: 32 32 32; --ui-text: 245 245 245; --ui-secondary: 128 128 128; --ui-muted: 115 115 115; --ui-icon: 204 204 204; --ui-accent: 20 241 149; --ui-accent-light: 97 255 184; --ui-accent-ink: 20 241 149; --ui-on-accent: 12 12 12; --ui-overlay: 12 12 12; --ui-pattern: 255 255 255; }
+    :root[data-theme="light"] { color-scheme: light; --ui-bg: 255 255 255; --ui-surface: 245 245 245; --ui-raised: 224 224 224; --ui-border: 224 224 224; --ui-text: 22 22 22; --ui-secondary: 82 82 82; --ui-muted: 102 102 102; --ui-icon: 22 22 22; --ui-accent-ink: 0 112 70; --ui-overlay: 22 22 22; --ui-pattern: 0 0 0; }
+
     html, body, #root { height: 100% !important; overflow: hidden !important; }
     *::-webkit-scrollbar { width: 0; display: none; }
     * { scrollbar-width: none; }
@@ -22,28 +25,28 @@
       corner-shape: round;
     }
     .feature-announcement::backdrop { background: rgba(0, 0, 0, 0.6); }
-    .beui-language-select { --color-border-strong: #808080; }
+    .beui-language-select { --color-border-strong: rgb(var(--ui-secondary)); }
     .beui-language-select [aria-haspopup="listbox"],
-    .beui-language-select [role="listbox"] { background: #161616; color: #F5F5F5; border-color: #202020; }
-    .beui-language-select [aria-haspopup="listbox"]:hover { border-color: #808080; }
+    .beui-language-select [role="listbox"] { background: rgb(var(--ui-surface)); color: rgb(var(--ui-text)); border-color: rgb(var(--ui-border)); }
+    .beui-language-select [aria-haspopup="listbox"]:hover { border-color: rgb(var(--ui-secondary)); }
     .beui-language-select [aria-haspopup="listbox"]:focus-visible { outline: 2px solid #14F195; outline-offset: 2px; }
     .beui-language-select [aria-haspopup="listbox"] {
       border-radius: 9999px !important;
       corner-shape: round;
     }
     .beui-language-select [role="listbox"] { max-height: 240px; overflow-y: auto; overscroll-behavior: contain; }
-    .beui-language-select [role="option"] { color: #808080; }
-    .beui-language-select .text-muted-foreground { color: #808080; }
+    .beui-language-select [role="option"] { color: rgb(var(--ui-secondary)); }
+    .beui-language-select .text-muted-foreground { color: rgb(var(--ui-secondary)); }
     .beui-language-select [role="option"][aria-selected="true"],
     .beui-language-select [role="option"]:hover,
-    .beui-language-select [role="option"]:focus-visible { background: #202020; color: #F5F5F5; }
-    .empty-state { background-color: #0C0C0C; background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1.5px, transparent 1.8px); background-size: 28px 28px; }
+    .beui-language-select [role="option"]:focus-visible { background: rgb(var(--ui-border)); color: rgb(var(--ui-text)); }
+    .empty-state { background-color: rgb(var(--ui-bg)); background-image: radial-gradient(circle, rgb(var(--ui-pattern) / 0.04) 1.5px, transparent 1.8px); background-size: 28px 28px; }
     #root .empty-state-icon { border-radius: 9999px !important; corner-shape: round !important; }
-    .empty-state > div { background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1.5px, transparent 1.8px); background-size: 28px 28px; }
+    .empty-state > div { background-image: radial-gradient(circle, rgb(var(--ui-pattern) / 0.04) 1.5px, transparent 1.8px); background-size: 28px 28px; }
     #root .user-controls { box-sizing: border-box !important; display: flex; flex-direction: row; justify-content: flex-end; align-items: center; position: static; inset: auto; width: 128px; height: 40px; flex: 0 0 128px; background: transparent !important; border: 0 !important; border-radius: 9999px !important; corner-shape: round !important; gap: 4px !important; padding: 0 !important; overflow: visible !important; }
-    #root .top-icon-button { box-sizing: border-box !important; display: flex; flex-direction: column; justify-content: center; align-items: center; flex: none; gap: 10px; background: #202020 !important; border: 0 !important; width: 40px !important; height: 40px !important; padding: 8px !important; border-radius: 9999px !important; corner-shape: round !important; }
+    #root .top-icon-button { box-sizing: border-box !important; display: flex; flex-direction: column; justify-content: center; align-items: center; flex: none; gap: 10px; background: rgb(var(--ui-border)) !important; border: 0 !important; width: 40px !important; height: 40px !important; padding: 8px !important; border-radius: 9999px !important; corner-shape: round !important; }
     .plugin-main-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-    .plugin-action-footer { position: relative; isolation: isolate; background: #0C0C0C; }
+    .plugin-action-footer { position: relative; isolation: isolate; background: rgb(var(--ui-bg)); }
     .plugin-action-footer::before {
       content: "";
       position: absolute;
@@ -53,7 +56,7 @@
       top: -30px;
       height: 30px;
       pointer-events: none;
-      background: linear-gradient(to bottom, rgba(12, 12, 12, 0), #0C0C0C 92%);
+      background: linear-gradient(to bottom, rgb(var(--ui-bg) / 0), rgb(var(--ui-bg)) 92%);
     }
     .plugin-action-buttons { display: flex; flex-direction: column; gap: 8px; }
     #root .plugin-action-buttons > button { flex: none; width: 100%; min-width: 0; padding: 10px 8px; border-radius: 28px !important; corner-shape: superellipse(2) !important; font-size: 14px; white-space: nowrap; }
@@ -61,7 +64,7 @@
     #root .plugin-pill-tabs button {
       border-radius: 9999px !important;
       corner-shape: round;
-      border: 1px solid #202020;
+      border: 1px solid rgb(var(--ui-border));
       outline: none !important;
       box-shadow: none !important;
       transition: background-color 280ms ease, color 280ms ease, transform 280ms ease;
@@ -73,9 +76,9 @@
       box-shadow: none !important;
     }
     #root .plugin-pill-tabs button.tab-active {
-      background-image: linear-gradient(166.47deg, rgba(20, 241, 149, 0.11) 28.5%, rgba(20, 241, 149, 0) 87.8%), linear-gradient(90deg, #161616 0%, #161616 100%);
+      background-image: linear-gradient(166.47deg, rgba(20, 241, 149, 0.11) 28.5%, rgba(20, 241, 149, 0) 87.8%), linear-gradient(90deg, rgb(var(--ui-surface)) 0%, rgb(var(--ui-surface)) 100%);
       border: 1px solid rgba(20, 241, 149, 0.2);
-      color: #14F195;
+      color: rgb(var(--ui-accent-ink));
     }
     #root .plugin-pill-tabs button:not(.tab-active) {
       border: 0 !important;
@@ -90,39 +93,93 @@
       corner-shape: round;
     }
     /* Figma nabv 1083:6981: native 257 x 48 geometry. */
-    #root .plugin-header-card { position: relative; align-self: stretch; display: flex; flex-direction: row; align-items: center; justify-content: space-between; flex: 0 0 auto; width: calc(100% - 16px); max-width: calc(100% - 16px); height: 48px; margin: 16px 8px 0; direction: ltr; border-radius: 60px !important; corner-shape: round; padding: 4px; box-sizing: border-box; background: #161616; border: 0; box-shadow: none; overflow: visible; }
+    #root .plugin-navbar { display: flex; align-items: center; gap: 4px; width: calc(100% - 16px); height: 48px; margin: 16px 8px 0; flex: 0 0 auto; direction: ltr; }
+    #root .plugin-header-card { position: relative; display: flex; align-items: center; justify-content: space-between; flex: 1 1 0; min-width: 0; height: 48px; direction: inherit; border-radius: 60px !important; corner-shape: round; padding: 4px; box-sizing: border-box; background: rgb(var(--ui-surface)); border: 0; box-shadow: none; overflow: visible; }
+    #root .navbar-menu-button { width: 48px !important; height: 48px !important; padding: 12px !important; background: rgb(var(--ui-surface)) !important; }
+    #root .plugin-navbar > .relative { flex: 0 0 48px; }
+    #root .navbar-menu-button .navbar-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex: none; }
     #root .plugin-header-card > .flex:first-child { position: static; z-index: 2; }
     #root .plugin-account-status:empty { display: none; }
     #root .relative > .brand-mark { display: none !important; }
-    #root .brand-mark { corner-shape: round !important; width: 40px; height: 40px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex: none; background: #202020; border-radius: 100px; }
-    #root .plugin-header-card .top-icon-button { color: #CCCCCC; cursor: pointer; }
+    #root .brand-mark { corner-shape: round !important; width: 40px; height: 40px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex: none; background: rgb(var(--ui-border)); border-radius: 100px; }
+    #root .plugin-header-card .top-icon-button { color: rgb(var(--ui-icon)); cursor: pointer; }
     #root .plugin-header-card .top-icon-button:disabled { cursor: default; }
     #root .plugin-header-card .brand-mark img { width: 16.375px; height: 20.4688px; }
     #root .plugin-header-card .navbar-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex: none; }
-    #root .plugin-header-card .navbar-icon-menu { transform: scaleX(-1); }
+    #root .plugin-navbar .navbar-icon-menu { transform: scaleX(-1); }
     #root .user-controls {
       border-radius: 9999px !important;
       corner-shape: round !important;
       background: transparent;
     }
-  </style>
+      html[lang="ar"] body { font-family: "Segoe UI", Tahoma, sans-serif; }
+    html[lang="ar"] #root .font-sans { font-family: "Segoe UI", Tahoma, sans-serif; }
+    html[dir="rtl"] #root .text-left { text-align: right; }
+    html[dir="rtl"] #root .tracking-widest, html[dir="rtl"] #root .tracking-wider { letter-spacing: normal; }
+    html[dir="rtl"] #root .plugin-pill-tabs button { padding-inline: 8px; }
+    html[dir="rtl"] #root .nav-item .truncate { white-space: normal; line-height: 1.5; text-align: start; }
+    html[dir="rtl"] #root .group.relative { gap: 4px; min-width: 0; padding-inline-end: 12px; }
+    html[dir="rtl"] #root .group.relative > .font-medium { min-width: 0; }
+    html[dir="rtl"] #root .group.relative > .ui-tag, html[dir="rtl"] #root .group.relative > .text-brand-text-secondary { flex-shrink: 0; }
+    html[dir="rtl"] #root input[dir="ltr"]:placeholder-shown { text-align: right; }
+    html[dir="rtl"] #root .plugin-action-buttons > button { white-space: normal; }
+    html[dir="rtl"] #root input[type="password"], html[dir="rtl"] #root input#license-key-input { direction: ltr; text-align: left; }
+    /* Complete interface direction, including top-layer dialogs. */
+    html[lang="ar"] #root { font-family: "Segoe UI", Tahoma, sans-serif; }
+    html[dir="rtl"] #root .plugin-navbar { direction: rtl; }
+    html[dir="rtl"] #root .user-controls { direction: rtl; }
+    .plugin-header-card .user-controls > .relative { direction: inherit; }
+    .app-menu-drawer { text-align: start; }
+    html[dir="rtl"] .app-menu-drawer[data-state="closed"] { transform: translateX(-100%); }
+    .plugin-main-scroll > div, .plugin-main-scroll .flex > div { min-width: 0; }
+    #root .plugin-header-card button:focus-visible { outline-offset: 2px; }
+    #root .plugin-header-card [class*="top-full"] { max-width: calc(100vw - 16px); }
+    #root input[dir="ltr"] { text-align: left; unicode-bidi: isolate; }
+    #root .plugin-action-buttons > button { column-gap: 6px; }
+    #root .plugin-main-scroll [role="tooltip"] { max-width: calc(100vw - 32px); text-align: start; }
+    .feature-announcement { text-align: start; }
+    html[dir="rtl"] .feature-announcement { direction: rtl; font-family: "Segoe UI", Tahoma, sans-serif; }
+    /* Suppress only direction-change motion; normal drawer open/close still animates. */
+    html.ui-direction-changing .app-menu-drawer { transition: none !important; }
+    html.ui-direction-changing .app-menu-drawer[data-state="closed"] { visibility: hidden !important; }
+    @media (prefers-reduced-motion: reduce) { .app-menu-drawer { transition: none !important; } }
+
+    #root .top-icon-button, #root .brand-mark { background: rgb(var(--ui-raised)) !important; }
+    #root .navbar-menu-button { background: rgb(var(--ui-surface)) !important; }
+    #root .user-controls { background: transparent !important; }
+    #root .text-brand-dark { color: rgb(var(--ui-on-accent)); }
+    #root .text-brand-teal, #root .text-brand-teal-light { color: rgb(var(--ui-accent-ink)); }
+    .beui-language-select { --color-border-strong: rgb(var(--ui-secondary)); --color-background: rgb(var(--ui-surface)); --color-foreground: rgb(var(--ui-text)); --color-muted-foreground: rgb(var(--ui-secondary)); --color-border: rgb(var(--ui-border)); }
+    .app-menu-backdrop { background: rgb(var(--ui-overlay) / .5) !important; }
+    html[data-theme="light"] #root .text-white, html[data-theme="light"] #root .hover\:text-white:hover { color: rgb(var(--ui-text)); }
+    html[data-theme="light"] #root .text-green-400 { color: #15803d; }
+    html[data-theme="light"] #root .text-red-400 { color: #b91c1c; }
+    html[data-theme="light"] #root .text-blue-400 { color: #1d4ed8; }
+    html[data-theme="light"] #root .text-sky-400 { color: #0369a1; }
+    html[data-theme="light"] #root .text-amber-400 { color: #92400e; }
+    html[data-theme="light"] #root .bg-white\/5, html[data-theme="light"] #root .empty-state-icon { background-color: rgb(0 0 0 / .06); }
+    html[data-theme="light"] #root .plugin-navbar .navbar-icon img { filter: brightness(0) opacity(.92); }
+    html[data-theme="light"] #root .bg-brand-dark\/80 { background-color: rgb(var(--ui-overlay) / .65); }
+    #root input::placeholder { color: rgb(var(--ui-muted)); opacity: 1; }
+    html[data-theme="light"] #root button:focus-visible, html[data-theme="light"] #root input:focus-visible, html[data-theme="light"] #root select:focus-visible { outline: 2px solid rgb(var(--ui-accent-ink)); outline-offset: 2px; }
+</style>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
           colors: {
-            'brand-dark': '#0C0C0C',
-            'brand-surface': '#161616',
-            'brand-border': '#202020',
+            'brand-dark': 'rgb(var(--ui-bg) / <alpha-value>)',
+            'brand-surface': 'rgb(var(--ui-surface) / <alpha-value>)',
+            'brand-border': 'rgb(var(--ui-border) / <alpha-value>)',
             'brand-teal': {
-              DEFAULT: '#14F195',
-              'light': '#61FFB8',
+              DEFAULT: 'rgb(var(--ui-accent) / <alpha-value>)',
+              'light': 'rgb(var(--ui-accent-light) / <alpha-value>)',
             },
             'brand-text': {
-              'primary': '#F5F5F5',
-              'secondary': '#808080',
-              'muted': '#737373',
+              'primary': 'rgb(var(--ui-text) / <alpha-value>)',
+              'secondary': 'rgb(var(--ui-secondary) / <alpha-value>)',
+              'muted': 'rgb(var(--ui-muted) / <alpha-value>)',
             },
           },
           fontFamily: {
@@ -164,6 +221,224 @@ import ReactDOM from 'react-dom/client';
 import * as ReactDOMCore from 'react-dom';
 import * as ReactJSXRuntime from 'react/jsx-runtime';
 import { GoogleGenAI, Type } from "@google/genai";
+
+// Interface language is independent of the selected translation languages.
+const ARABIC_UI = {
+  "Mirror & Translate": "عكس التصميم وترجمة النصوص",
+  "Mirror Only": "عكس التصميم فقط",
+  "Translate Only": "ترجمة النصوص فقط",
+  "Font Changer": "تغيير الخط",
+  "Change Font": "تطبيق الخط",
+  "Translate Text": "ترجمة النصوص",
+  "Source language": "اللغة الأصلية",
+  "Target language": "الترجمة إلى",
+  "Swap languages": "تبديل اللغتين",
+  "Change language": "تغيير لغة الواجهة",
+  "Settings": "الإعدادات",
+  "Open menu": "فتح القائمة",
+  "Menu": "القائمة",
+  "Close menu": "إغلاق القائمة",
+  "Close": "إغلاق",
+  "Cancel": "إلغاء",
+  "Save": "حفظ",
+  "Save Keys": "حفظ المفاتيح",
+  "Saving...": "جارٍ الحفظ…",
+  "Search...": "ابحث هنا…",
+  "No options found": "لا توجد نتائج",
+  "Recent": "المستخدمة مؤخرًا",
+  "All Fonts": "كل الخطوط",
+  "API Keys": "مفاتيح خدمات الترجمة",
+  "Provide API keys for high-quality translations.": "أضف مفتاح Gemini أو OpenAI للحصول على ترجمة أفضل.",
+  "Gemini API Key (Recommended)": "مفتاح Gemini (الخيار الموصى به)",
+  "Enter Gemini key": "أدخل مفتاح Gemini",
+  "OpenAI API Key (Fallback)": "مفتاح OpenAI (خيار بديل)",
+  "Enter OpenAI key": "أدخل مفتاح OpenAI",
+  "NEW FEATURE": "ميزة جديدة",
+  "Close new feature announcement": "إغلاق التعريف بالميزة",
+  "Smart Switch Components": "اختيار Component حسب اللغة",
+  "Use the language variants you already designed.": "استخدم Variants التي جهّزتها لكل لغة.",
+  "Switch to a variant matching your target language while keeping the instance linked.": "تختار الإضافة Variant المناسب للغة مع الحفاظ على ارتباط Instance بـ Main Component.",
+  "Keep size, state, and compatible text and icon overrides.": "تحافظ على المقاس والحالة، وعلى Overrides للنصوص والأيقونات متى كانت متوافقة.",
+  "Avoid mirroring your prepared localized layout twice.": "تستخدم التصميم الذي جهّزته للغة مباشرة، دون عكسه مرة أخرى.",
+  "Got it": "فهمت",
+  "About This Plugin": "عن الإضافة",
+  "Developed By:": "طوّرها:",
+  "Mohamed Abdullah": "محمد عبدالله",
+  "Contact & Support": "التواصل والمساعدة",
+  "have questions? We're here!": "تحتاج مساعدة؟ تواصل معنا.",
+  "Email": "البريد الإلكتروني",
+  "Upgrade to Pro": "الترقية إلى Pro",
+  "Unlock Full Access": "استفد من كل المزايا",
+  "Unlimited mirrors, AI translations & smart variants.": "اعكس التصاميم بلا حدود، وترجم بالذكاء الاصطناعي، واستخدم Variants المناسبة للغة.",
+  "Monthly": "شهري",
+  "Yearly (-32%)": "سنوي (خصم 32٪)",
+  "/month": "/شهريًا",
+  "Upgrade Now": "اشترك الآن",
+  "Already have a license?": "لديك مفتاح تفعيل؟",
+  "Enter license key": "أدخل مفتاح التفعيل",
+  "Please enter a license key.": "أدخل مفتاح التفعيل أولًا.",
+  "Activate": "تفعيل",
+  "Egyptian user?": "مقيم في مصر؟",
+  "Contact me!": "تواصل معي",
+  "Back": "السابق",
+  "Next": "التالي",
+  "Skip": "تخطّي",
+  "Finish": "ابدأ الاستخدام",
+  "No frame selected": "لم تحدّد أي Frame",
+  "Select a frame or layer to mirror layouts and translate text.": "حدّد Frame أو Layer في Figma لبدء عكس التصميم وترجمة النصوص.",
+  "You're all set!": "أنت جاهز للبدء!",
+  "Subscription Details": "تفاصيل الاشتراك",
+  "You are currently on the ": "اشتراكك الحالي: ",
+  "Unsubscribe": "إلغاء الاشتراك",
+  "Are you sure?": "هل تريد إلغاء الاشتراك؟",
+  "You will lose access to all PRO features and your account will revert to the free plan with 10 trial uses. This action cannot be undone.": "ستتوقف مزايا Pro ويعود حسابك إلى الخطة المجانية التي تتيح 10 استخدامات تجريبية. لا يمكن التراجع عن هذه الخطوة.",
+  "Manage API Keys": "إدارة مفاتيح الترجمة",
+  "Manage Subscription": "إدارة الاشتراك",
+  "GO PRO": "الترقية إلى Pro",
+  "NEW": "جديد",
+  "About Smart Switch Components": "كيف تختار الإضافة Component المناسب للغة؟",
+  "Switch components to a matching variant in the target language when available, while keeping their component connection.": "إذا جهّزت Variant باللغة المطلوبة، تستخدمه الإضافة بدل عكس التصميم من جديد. يظل العنصر مرتبطًا بـ Component الأصلي.",
+  "Mirror Main Components": "عكس Main Components",
+  "Create or reuse a mirrored target variant, arrange it beside its source, then swap the local nested instance to it.": "تجهّز نسخة معكوسة من Main Component وتضعها بجانب الأصل، ثم تستخدمها داخل تصميمك بدل النسخة الحالية.",
+  "Create as Variant": "إنشاء Variant جديد",
+  "Creates a new variant instead of modifying the selection. Select a single component or instance to use this.": "تحفظ النتيجة في Variant جديد وتترك التصميم الأصلي كما هو. لاستخدام هذا الخيار، حدّد Component أو Instance واحدًا فقط.",
+  "No API key found. Using a free service. ": "تستخدم الإضافة حاليًا خدمة ترجمة مجانية. ",
+  "Add Keys": "أضف مفتاح خدمة ترجمة",
+  " for better translations.": " للحصول على نتائج أفضل.",
+  "Select Font": "اختر الخط",
+  "Loading fonts...": "جارٍ تحميل الخطوط…",
+  "Select a font...": "اختر خطًا…",
+  "Auto-Fit Text": "ضبط حجم النص تلقائيًا",
+  "Select Weight (Optional)": "سُمك الخط (اختياري)",
+  "Auto Match (Recommended)": "مطابقة السُمك الحالي تلقائيًا (موصى به)",
+  "Progress": "تقدّم العملية",
+  "Error": "تعذّر إكمال العملية",
+  "Processing": "جارٍ التنفيذ…",
+  "Done": "اكتملت العملية",
+  "Processing selection...": "جارٍ تجهيز العناصر المحدّدة…",
+  "Please select a font first": "اختر الخط أولًا",
+  "Changing font...": "جارٍ تطبيق الخط…",
+  "Something went wrong.": "حدث خطأ أثناء تشغيل الإضافة.",
+  "Please try again or restart the plugin.": "حاول مرة أخرى أو أعد فتح الإضافة.",
+  "Unlimited Actions": "استخدام بلا حدود",
+  "AI Translations": "ترجمة بالذكاء الاصطناعي",
+  "Smart Variants": "Variants المناسبة للغة",
+  "Priority Support": "أولوية في الدعم",
+  "Welcome to RTL Master!": "مرحبًا بك في RTL Master!",
+  "Let's take a quick tour to see how you can supercharge your RTL design workflow.": "تعرّف بخطوات بسيطة على عكس التصاميم وترجمتها.",
+  "1. Choose Languages": "1. اختر اللغتين",
+  "Select your source and target languages. 'Auto Detect' is great for mixed content. Use the swap button to quickly reverse.": "اختر لغة النصوص واللغة التي تريد الترجمة إليها. يمكنك استخدام التعرّف التلقائي إذا كان التصميم يحتوي على أكثر من لغة، أو تبديل اللغتين بضغطة واحدة.",
+  "2. The Magic Button": "2. نفّذ التغييرات",
+  "This is your primary action. It mirrors the layout of your selected frames and translates the text using powerful AI.": "اضغط هنا لعكس اتجاه Frames المحدّدة وترجمة النصوص داخلها.",
+  "3. Create Variants": "3. احتفظ بالتصميم الأصلي",
+  "Instead of modifying your design, you can create a new component variant with the mirrored and translated content. Perfect for component libraries!": "يمكنك حفظ النتيجة في Variant جديد بدل تعديل التصميم الأصلي. يفيدك ذلك عند تجهيز مكتبة Components بأكثر من لغة.",
+  "4. Better Translations": "4. حسّن جودة الترجمة",
+  "For the highest quality, add your own Gemini or OpenAI API keys. The plugin will fall back to a free service if no keys are provided.": "أضف مفتاح Gemini أو OpenAI للحصول على ترجمة أفضل. وإذا لم تضف مفتاحًا، ستستخدم الإضافة خدمة مجانية.",
+  "5. Discover More": "5. المساعدة والاشتراك",
+  "Find plugin details, support links, and manage your PRO subscription here.": "من هنا يمكنك معرفة المزيد عن الإضافة، والتواصل للمساعدة، وإدارة اشتراك Pro.",
+  "You're ready to master RTL design. Select a frame and give it a try!": "حدّد Frame في Figma وجرّب الإضافة.",
+  "Auto Detect": "تعرّف تلقائي",
+  "Arabic": "العربية",
+  "English": "الإنجليزية",
+  "Spanish": "الإسبانية",
+  "French": "الفرنسية",
+  "German": "الألمانية",
+  "Japanese": "اليابانية",
+  "Korean": "الكورية",
+  "Portuguese": "البرتغالية",
+  "Russian": "الروسية",
+  "Chinese (Simplified)": "الصينية المبسّطة",
+  "Italian": "الإيطالية",
+  "Turkish": "التركية",
+  "Hindi": "الهندية",
+  "Processing...": "جارٍ التنفيذ…",
+  "Translating...": "جارٍ ترجمة النصوص…",
+  "Completed successfully": "اكتملت العملية بنجاح",
+  "Translation failed. Check your connection and try again.": "تعذّرت الترجمة. تأكّد من اتصالك بالإنترنت وحاول مرة أخرى.",
+  "Translation failed": "تعذّرت الترجمة",
+  "Confirm Unsubscribe": "تأكيد إلغاء الاشتراك",
+  "Get a key from:": "احصل على مفتاح من:",
+  " plan.": " .",
+  "A Figma plugin to mirror layouts for RTL/LTR design and translate text layers using AI. It provides a streamlined workflow for localization and right-to-left UI adaptation.": "إضافة تساعدك على تهيئة تصميمك للعربية أو غيرها من اللغات، بعكس اتجاه العناصر وترجمة النصوص داخل Figma.",
+  "Get keys from ": "يمكنك الحصول على المفاتيح من ",
+  " and ": " و",
+  " Initializing...": " جارٍ تشغيل الإضافة…",
+  "Translating": "ترجمة النصوص",
+  "Font changed successfully!": "تم تطبيق الخط بنجاح",
+  "Failed to change font": "تعذّر تطبيق الخط",
+  "Billed $90/year. Cancel anytime.": "تُدفع 90 دولارًا سنويًا. يمكنك الإلغاء في أي وقت.",
+  "Billed monthly. Cancel anytime.": "يُجدّد الاشتراك شهريًا. يمكنك الإلغاء في أي وقت.",
+  "Variables": "Variables",
+  "Variable": "Variable",
+  "Component": "Component",
+  "Components": "Components",
+  "Variant": "Variant",
+  "Variants": "Variants",
+  "Instance": "Instance",
+  "Instances": "Instances",
+  "Frame": "Frame",
+  "Frames": "Frames",
+  "Layer": "Layer",
+  "Layers": "Layers",
+  "Auto Layout": "Auto Layout",
+  "Component Set": "Component Set",
+  "Text Styles": "Text Styles",
+  "Overrides": "Overrides"
+};
+
+// Theme is independent of interface and translation languages.
+let currentUiTheme = 'dark';
+let uiThemeChosen = false;
+const uiThemeListeners = new Set();
+const getUiTheme = () => currentUiTheme;
+const subscribeUiTheme = listener => { uiThemeListeners.add(listener); return () => uiThemeListeners.delete(listener); };
+function changeUiTheme(theme, persist = true) {
+  if (persist) uiThemeChosen = true;
+  currentUiTheme = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = currentUiTheme;
+  document.documentElement.style.colorScheme = currentUiTheme;
+  uiThemeListeners.forEach(listener => listener());
+  if (persist) parent.postMessage({ pluginMessage: { type: 'set-ui-theme', payload: { theme: currentUiTheme } } }, '*');
+}
+window.addEventListener('message', event => {
+  if (event.source !== parent) return;
+  const message = event.data?.pluginMessage;
+  if (message?.type === 'ui-theme' && !uiThemeChosen) changeUiTheme(message.payload?.theme, false);
+});
+const THEME_ICON_ASSETS = { dark: 'data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjIwLjUiIGhlaWdodD0iMjAuNSIgdmlld0JveD0iMCAwIDIwLjUgMjAuNSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGcgaWQ9ImVsZW1lbnRzIj4KPHBhdGggaWQ9Ikljb24iIGQ9Ik04Ljc2NjI5IDAuMjkyOTk0QzguOTQ1NzcgMC41MjY1MiA4Ljk3MTk2IDAuODQzNDgyIDguODMzMjMgMS4xMDMyOUM4LjI0OTI3IDIuMTk2OTMgNy45MTc5MiAzLjQ0NjEgNy45MTc5MiA0Ljc3NDg5QzcuOTE3OTIgOS4wODY3IDExLjQxMzMgMTIuNTgyMSAxNS43MjUxIDEyLjU4MjFDMTcuMDUzOSAxMi41ODIxIDE4LjMwMzEgMTIuMjUwOCAxOS4zOTY3IDExLjY2NjhDMTkuNjU2NSAxMS41MjgxIDE5Ljk3MzUgMTEuNTU0MyAyMC4yMDcgMTEuNzMzN0MyMC40NDA2IDExLjkxMzIgMjAuNTQ3NCAxMi4yMTI4IDIwLjQ4MDIgMTIuNDk5NUMxOS40MDU2IDE3LjA4NSAxNS4yOTA5IDIwLjUgMTAuMzc2OSAyMC41QzQuNjQ1ODkgMjAuNSAwIDE1Ljg1NDEgMCAxMC4xMjMyQzAgNS4yMDkwOSAzLjQxNTA1IDEuMDk0NDggOC4wMDA1IDAuMDE5ODE2NkM4LjI4NzI2IC0wLjA0NzM4OTggOC41ODY4MSAwLjA1OTQ2NzggOC43NjYyOSAwLjI5Mjk5NFpNNi44NDYzOCAxLjk3NTg0QzMuNzAwMjUgMy4zNDEwMyAxLjUgNi40NzU4MyAxLjUgMTAuMTIzMkMxLjUgMTUuMDI1NyA1LjQ3NDMxIDE5IDEwLjM3NjkgMTlDMTQuMDI0MiAxOSAxNy4xNTkgMTYuNzk5OCAxOC41MjQyIDEzLjY1MzZDMTcuNjQwMyAxMy45MzIxIDE2LjY5OTggMTQuMDgyMSAxNS43MjUxIDE0LjA4MjFDMTAuNTg0OSAxNC4wODIxIDYuNDE3OTIgOS45MTUxMiA2LjQxNzkyIDQuNzc0ODlDNi40MTc5MiAzLjgwMDIyIDYuNTY3OTcgMi44NTk3NSA2Ljg0NjM4IDEuOTc1ODRaIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZmlsbD0iI0NDQ0NDQyIvPgo8L2c+Cjwvc3ZnPgo=', light: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMxNjE2MTYiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjQiLz48cGF0aCBkPSJNMTIgMnYyIi8+PHBhdGggZD0iTTEyIDIwdjIiLz48cGF0aCBkPSJtNC45MyA0LjkzIDEuNDEgMS40MSIvPjxwYXRoIGQ9Im0xNy42NiAxNy42NiAxLjQxIDEuNDEiLz48cGF0aCBkPSJNMiAxMmgyIi8+PHBhdGggZD0iTTIwIDEyaDIiLz48cGF0aCBkPSJtNi4zNCAxNy42Ni0xLjQxIDEuNDEiLz48cGF0aCBkPSJtMTkuMDcgNC45My0xLjQxIDEuNDEiLz48L3N2Zz4=' };
+
+let currentUiLanguage = 'en';
+let uiLanguageChosen = false;
+const uiLanguageListeners = new Set();
+const getUiLanguage = () => currentUiLanguage;
+const subscribeUiLanguage = listener => { uiLanguageListeners.add(listener); return () => uiLanguageListeners.delete(listener); };
+function uiText(value) {
+  if (currentUiLanguage !== 'ar' || typeof value !== 'string') return value;
+  const text = ARABIC_UI[value] ?? value.replace(/^Translating (\d+)\/(\d+)\.\.\.$/, 'جارٍ الترجمة: $1 من $2');
+  return text.replace(/\b(?:Main Components?|Component Set|Auto Layout|Text Styles|Variables?|Components?|Variants?|Instances?|Frames?|Layers?|Overrides)\b/g, term => '\u2066' + term.replace(/ /g, '\u00a0') + '\u2069');
+}
+let uiDirectionResetFrame;
+function changeUiLanguage(language, persist = true) {
+  // Direction changes must never sweep the off-canvas drawer through the viewport.
+  cancelAnimationFrame(uiDirectionResetFrame);
+  document.documentElement.classList.add('ui-direction-changing');
+  if (persist) uiLanguageChosen = true;
+  currentUiLanguage = language === 'ar' ? 'ar' : 'en';
+  document.documentElement.lang = currentUiLanguage;
+  document.documentElement.dir = currentUiLanguage === 'ar' ? 'rtl' : 'ltr';
+  uiDirectionResetFrame = requestAnimationFrame(() => {
+    void document.documentElement.offsetWidth;
+    uiDirectionResetFrame = requestAnimationFrame(() => document.documentElement.classList.remove('ui-direction-changing'));
+  });
+  uiLanguageListeners.forEach(listener => listener());
+  if (persist) parent.postMessage({ pluginMessage: { type: 'set-ui-language', payload: { language: currentUiLanguage } } }, '*');
+}
+window.addEventListener('message', event => {
+  if (event.source !== parent) return;
+  const message = event.data?.pluginMessage;
+  if (message?.type === 'ui-language' && !uiLanguageChosen) changeUiLanguage(message.payload?.language, false);
+});
+
 
 // BEGIN GENERATED BEUI SELECT
     // Sources: https://beui.dev/r/select.json; rebuild with npm run build:plugin-ui.
@@ -280,10 +555,11 @@ class ErrorBoundary extends React.Component {
         className: "bg-brand-dark text-red-400 p-4 h-full flex flex-col items-center justify-center text-center"
       }, /*#__PURE__*/React.createElement("h1", {
         className: "font-bold text-lg mb-2"
-      }, "Something went wrong."), /*#__PURE__*/React.createElement("p", {
+      }, uiText("Something went wrong.")), /*#__PURE__*/React.createElement("p", {
         className: "text-sm text-brand-text-secondary"
-      }, "Please try again or restart the plugin."), this.state.error && /*#__PURE__*/React.createElement("pre", {
-        className: "mt-4 text-xs bg-brand-surface p-2 rounded-md text-left overflow-auto max-w-full"
+      }, uiText("Please try again or restart the plugin.")), this.state.error && /*#__PURE__*/React.createElement("pre", {
+        dir: "ltr",
+          className: "mt-4 text-xs bg-brand-surface p-2 rounded-md text-start overflow-auto max-w-full"
       }, this.state.error.toString()));
     }
     return this.props.children;
@@ -880,13 +1156,13 @@ const SparkleIcon = () => /*#__PURE__*/React.createElement("svg", {
   viewBox: "0 0 12 12",
   fill: "none",
   xmlns: "http://www.w3.org/2000/svg",
-  className: "ml-1.5 opacity-80"
+  className: "ms-1.5 opacity-80"
 }, /*#__PURE__*/React.createElement("path", {
   d: "M6 0L7.5 4.5L12 6L7.5 7.5L6 12L4.5 7.5L0 6L4.5 4.5L6 0Z",
   fill: "currentColor"
 }));
 const LoadingSpinner = () => /*#__PURE__*/React.createElement("svg", {
-  className: "animate-spin -ml-1 mr-3 h-5 w-5 text-white",
+  className: "animate-spin -ms-1 me-3 h-5 w-5 text-white",
   xmlns: "http://www.w3.org/2000/svg",
   fill: "none",
   viewBox: "0 0 24 24"
@@ -910,7 +1186,8 @@ const ToggleSwitch = ({
 }) => /*#__PURE__*/React.createElement("button", {
   type: "button",
   role: "switch",
-  "aria-label": ariaLabel,
+  dir: "ltr",
+  "aria-label": uiText(ariaLabel),
   "aria-checked": checked,
   onClick: () => !disabled && onChange(!checked),
   disabled: disabled,
@@ -954,7 +1231,7 @@ const LanguageSelector = ({
   }, /*#__PURE__*/React.createElement(SelectTrigger, null, /*#__PURE__*/React.createElement(SelectValue, null)), /*#__PURE__*/React.createElement(SelectContent, null, options.map(lang => /*#__PURE__*/React.createElement(SelectItem, {
     key: lang.code,
     value: lang.code
-  }, lang.name)))));
+  }, uiText(lang.name))))));
 };
 const PluginSelect = ({
   value,
@@ -990,7 +1267,7 @@ const PluginSelect = ({
   })), /*#__PURE__*/React.createElement(SelectContent, null, options.filter(option => open || option === value).map(option => /*#__PURE__*/React.createElement(SelectItem, {
     key: option,
     value: option
-  }, option)))));
+  }, uiText(option))))));
 };
 const NativeFontSelect = ({
   value,
@@ -1015,8 +1292,8 @@ const NativeFontSelect = ({
 }, placeholder), options.map(option => /*#__PURE__*/React.createElement("option", {
   key: option,
   value: option
-}, option))), /*#__PURE__*/React.createElement("span", {
-  className: "pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-brand-text-secondary text-base"
+}, uiText(option)))), /*#__PURE__*/React.createElement("span", {
+  className: "pointer-events-none absolute end-4 top-1/2 -translate-y-1/2 text-brand-text-secondary text-base"
 }, "⌄"));
 const Button = ({
   children,
@@ -1092,8 +1369,8 @@ const SearchableSelect = ({
     onClick: () => !disabled && setIsOpen(!isOpen)
   }, /*#__PURE__*/React.createElement("span", {
     className: `truncate ${!value ? 'text-brand-text-secondary' : ''}`
-  }, value || placeholder), /*#__PURE__*/React.createElement("svg", {
-    className: `w-4 h-4 ml-2 transition-transform ${isOpen ? 'transform rotate-180' : ''}`,
+  }, uiText(value || placeholder)), /*#__PURE__*/React.createElement("svg", {
+    className: `w-4 h-4 ms-2 transition-transform ${isOpen ? 'transform rotate-180' : ''}`,
     fill: "none",
     stroke: "currentColor",
     viewBox: "0 0 24 24"
@@ -1109,7 +1386,7 @@ const SearchableSelect = ({
   }, /*#__PURE__*/React.createElement("input", {
     type: "text",
     className: "w-full bg-brand-dark text-brand-text-primary px-3 py-1.5 rounded-md text-sm border border-brand-border focus:outline-none focus:ring-1 focus:ring-brand-teal",
-    placeholder: "Search...",
+    placeholder: uiText("Search..."),
     value: query,
     onChange: e => setQuery(e.target.value),
     onClick: e => e.stopPropagation(),
@@ -1118,21 +1395,21 @@ const SearchableSelect = ({
     className: "overflow-y-auto flex-grow"
   }, filteredRecent.length === 0 && filteredOptions.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "px-4 py-2 text-sm text-brand-text-secondary"
-  }, "No options found") : /*#__PURE__*/React.createElement(React.Fragment, null, filteredRecent.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, uiText("No options found")) : /*#__PURE__*/React.createElement(React.Fragment, null, filteredRecent.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "px-4 py-1.5 text-[10px] font-bold text-brand-teal uppercase tracking-wider bg-brand-teal/5"
-  }, "Recent"), filteredRecent.map(option => /*#__PURE__*/React.createElement("div", {
+  }, uiText("Recent")), filteredRecent.map(option => /*#__PURE__*/React.createElement("div", {
     key: `recent-${option}`,
     className: `px-4 py-2 text-sm cursor-pointer hover:bg-brand-teal/10 hover:text-brand-teal ${value === option ? 'bg-brand-teal/20 text-brand-teal font-semibold' : 'text-brand-text-primary'}`,
     onClick: () => handleSelect(option)
-  }, option)), filteredOptions.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, uiText(option))), filteredOptions.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "border-t border-brand-border/50 my-1"
   })), filteredOptions.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, filteredRecent.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "px-4 py-1.5 text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider"
-  }, "All Fonts"), filteredOptions.map(option => /*#__PURE__*/React.createElement("div", {
+  }, uiText("All Fonts")), filteredOptions.map(option => /*#__PURE__*/React.createElement("div", {
     key: option,
     className: `px-4 py-2 text-sm cursor-pointer hover:bg-brand-teal/10 hover:text-brand-teal ${value === option ? 'bg-brand-teal/20 text-brand-teal font-semibold' : 'text-brand-text-primary'}`,
     onClick: () => handleSelect(option)
-  }, option)))))));
+  }, uiText(option))))))));
 };
 const ApiKeysManager = ({
   initialGeminiKey,
@@ -1157,21 +1434,22 @@ const ApiKeysManager = ({
     className: "text-center"
   }, /*#__PURE__*/React.createElement("h1", {
     className: "font-bold text-2xl text-brand-text-primary"
-  }, "API Keys"), /*#__PURE__*/React.createElement("p", {
+  }, uiText("API Keys")), /*#__PURE__*/React.createElement("p", {
     className: "text-sm text-brand-text-secondary mt-1"
-  }, "Provide API keys for high-quality translations.")), /*#__PURE__*/React.createElement("div", {
+  }, uiText("Provide API keys for high-quality translations."))), /*#__PURE__*/React.createElement("div", {
     className: "space-y-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "space-y-1.5"
   }, /*#__PURE__*/React.createElement("label", {
     htmlFor: "gemini-key-input",
     className: "text-xs font-medium text-brand-text-secondary"
-  }, "Gemini API Key (Recommended)"), /*#__PURE__*/React.createElement("input", {
+  }, uiText("Gemini API Key (Recommended)")), /*#__PURE__*/React.createElement("input", {
     id: "gemini-key-input",
     type: "password",
+    dir: "ltr",
     value: geminiKey,
     onChange: e => setGeminiKey(e.target.value),
-    placeholder: "Enter Gemini key",
+    placeholder: uiText("Enter Gemini key"),
     disabled: isSaving,
     className: "w-full bg-brand-surface border border-brand-border text-brand-text-primary text-sm rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-brand-teal focus:border-brand-teal disabled:opacity-50"
   })), /*#__PURE__*/React.createElement("div", {
@@ -1179,12 +1457,12 @@ const ApiKeysManager = ({
   }, /*#__PURE__*/React.createElement("label", {
     htmlFor: "openai-key-input",
     className: "text-xs font-medium text-brand-text-secondary"
-  }, "OpenAI API Key (Fallback)"), /*#__PURE__*/React.createElement("input", {
+  }, uiText("OpenAI API Key (Fallback)")), /*#__PURE__*/React.createElement("input", {
     id: "openai-key-input",
     type: "password",
     value: openaiKey,
     onChange: e => setOpenaiKey(e.target.value),
-    placeholder: "Enter OpenAI key",
+    placeholder: uiText("Enter OpenAI key"),
     disabled: isSaving,
     className: "w-full bg-brand-surface border border-brand-border text-brand-text-primary text-sm rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-brand-teal focus:border-brand-teal disabled:opacity-50"
   }))), /*#__PURE__*/React.createElement("div", {
@@ -1193,18 +1471,18 @@ const ApiKeysManager = ({
     onClick: handleSave,
     disabled: isSaving,
     isLoading: isSaving
-  }, isSaving ? 'Saving...' : 'Save Keys'), /*#__PURE__*/React.createElement(Button, {
+  }, uiText(isSaving ? 'Saving...' : 'Save Keys')), /*#__PURE__*/React.createElement(Button, {
     onClick: onCancel,
     disabled: isSaving,
     variant: "secondary"
-  }, "Cancel"))), /*#__PURE__*/React.createElement("div", {
+  }, uiText("Cancel")))), /*#__PURE__*/React.createElement("div", {
     className: "flex-shrink-0 text-center pb-2 space-y-2 text-xs text-brand-text-secondary"
-  }, /*#__PURE__*/React.createElement("p", null, "Get keys from ", /*#__PURE__*/React.createElement("a", {
+  }, /*#__PURE__*/React.createElement("p", null, uiText("Get keys from "), /*#__PURE__*/React.createElement("a", {
     href: "https://aistudio.google.com/app/apikey",
     target: "_blank",
     rel: "noopener noreferrer",
     className: "text-brand-teal-light hover:underline"
-  }, "Google AI Studio"), " and ", /*#__PURE__*/React.createElement("a", {
+  }, "Google AI Studio"), uiText(" and "), /*#__PURE__*/React.createElement("a", {
     href: "https://platform.openai.com/api-keys",
     target: "_blank",
     rel: "noopener noreferrer",
@@ -1273,7 +1551,8 @@ const SubscriptionIcon = () => /*#__PURE__*/React.createElement("svg", {
   className: "shrink-0 text-brand-text-secondary",
   "aria-hidden": "true"
 }, /*#__PURE__*/React.createElement("rect", { width: "20", height: "14", x: "2", y: "5", rx: "2" }), /*#__PURE__*/React.createElement("line", { x1: "2", x2: "22", y1: "10", y2: "10" }), /*#__PURE__*/React.createElement("line", { x1: "6", x2: "6.01", y1: "15", y2: "15" }), /*#__PURE__*/React.createElement("line", { x1: "10", x2: "14", y1: "15", y2: "15" }));
-const FigmaSettingsIcon = () => React.createElement("span", { className: "navbar-icon", "aria-hidden": "true" }, React.createElement("img", { src: "data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjIxLjUiIGhlaWdodD0iMTkuNSIgdmlld0JveD0iMCAwIDIxLjUgMTkuNSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGcgaWQ9ImVsZW1lbnRzIj4KPHBhdGggaWQ9Ikljb24iIGQ9Ik0xMi43MjM2IDEuNTQ4NzJlLTA3QzEzLjQ5MzkgLTEuMjY2MDFlLTA1IDE0LjEyNjQgMC4wMDA2NDg4MzIgMTQuNjQ2NSAwLjA1MTc1OEMxNS4xOTExIDAuMTA1Mjg3IDE1LjY3MTQgMC4yMTg5MzUgMTYuMTI2IDAuNDgwNDY5QzE2LjU4MDYgMC43NDIwNTcgMTYuOTE5OCAxLjEwMDE3IDE3LjIzOTMgMS41NDM5NUMxNy41NDQyIDEuOTY3NTEgMTcuODYxNCAyLjUxMjkyIDE4LjI0NzEgMy4xNzc3M0wyMC4yMDggNi41NTc2MkMyMC41OTUzIDcuMjI1MDggMjAuOTEyOSA3Ljc3MzM3IDIxLjEyOTkgOC4yNUMyMS4zNTcyIDguNzQ5MzQgMjEuNSA5LjIyMzggMjEuNSA5Ljc1QzIxLjUgMTAuMjc2MyAyMS4zNTcyIDEwLjc1MDYgMjEuMTI5OSAxMS4yNUMyMC45MTI5IDExLjcyNjcgMjAuNTk1MyAxMi4yNzQ4IDIwLjIwOCAxMi45NDI0TDE4LjI0NzEgMTYuMzIyM0MxNy44NjEzIDE2Ljk4NzMgMTcuNTQ0MiAxNy41MzM0IDE3LjIzOTMgMTcuOTU3QzE2LjkxOTggMTguNDAwOCAxNi41ODA2IDE4Ljc1OSAxNi4xMjYgMTkuMDIwNUMxNS42NzE0IDE5LjI4MiAxNS4xOTExIDE5LjM5NTcgMTQuNjQ2NSAxOS40NDkyQzE0LjEyNjQgMTkuNTAwMyAxMy40OTM5IDE5LjUgMTIuNzIzNiAxOS41SDguNzc2MzdDOC4wMDYxNCAxOS41IDcuMzczNiAxOS41MDAzIDYuODUzNTIgMTkuNDQ5MkM2LjMwODg5IDE5LjM5NTcgNS44Mjg1OSAxOS4yODIgNS4zNzQwMiAxOS4wMjA1QzQuOTE5NDIgMTguNzU5IDQuNTgwMjEgMTguNDAwOCA0LjI2MDc0IDE3Ljk1N0MzLjk1NTc2IDE3LjUzMzQgMy42Mzg3NCAxNi45ODczIDMuMjUyOTMgMTYuMzIyM0wxLjI5MTk5IDEyLjk0MjRDMC45MDQ2OTggMTIuMjc0OCAwLjU4NzA4OSAxMS43MjY3IDAuMzcwMTE3IDExLjI1QzAuMTQyODEzIDEwLjc1MDYgMCAxMC4yNzYzIDAgOS43NUMzLjU0MjU0ZS0wNSA5LjIyMzggMC4xNDI4NDEgOC43NDkzNCAwLjM3MDExNyA4LjI1QzAuNTg3MTA4IDcuNzczMzYgMC45MDQ3MyA3LjIyNTEgMS4yOTE5OSA2LjU1NzYyTDMuMjUyOTMgMy4xNzc3M0MzLjYzODY3IDIuNTEyODMgMy45NTU4IDEuOTY2NTYgNC4yNjA3NCAxLjU0Mjk3QzQuNTgwMTEgMS4wOTk0MSA0LjkxOTYxIDAuNzQxOTY1IDUuMzc0MDIgMC40ODA0NjlDNS44Mjg1OSAwLjIxODkzNSA2LjMwODkgMC4xMDUyODcgNi44NTM1MiAwLjA1MTc1OEM3LjM3MzYgMC4wMDA2NDg4MzIgOC4wMDYxNSAtMS4yNzE5N2UtMDUgOC43NzYzNyAxLjU0ODcyZS0wN0gxMi43MjM2Wk04LjgxMjUgMS41QzcuOTk2NjMgMS41IDcuNDM4MTUgMS41MDA4OSA3IDEuNTQzOTVDNi41NzgzMSAxLjU4NTQxIDYuMzI3NzYgMS42NjE5MyA2LjEyMjA3IDEuNzgwMjdDNS45MTY0NCAxLjg5ODYgNS43MjQ2MyAyLjA3NjY4IDUuNDc3NTQgMi40MTk5MkM1LjIyMDgxIDIuNzc2NTggNC45NDA5OSAzLjI1ODMzIDQuNTMyMjMgMy45NjI4OUwyLjYwODQgNy4yNzgzMkMyLjE5NzkxIDcuOTg1ODYgMS45MTgwNCA4LjQ3MDY5IDEuNzM1MzUgOC44NzIwN0MxLjU1OTYgOS4yNTgyNCAxLjUwMDAzIDkuNTEyOTkgMS41IDkuNzVDMS41IDkuOTg3MDkgMS41NTk1MiAxMC4yNDI2IDEuNzM1MzUgMTAuNjI4OUMxLjkxODA0IDExLjAzMDIgMi4xOTgwNSAxMS41MTQ0IDIuNjA4NCAxMi4yMjE3TDQuNTMyMjMgMTUuNTM4MUM0Ljk0MDkyIDE2LjI0MjUgNS4yMjA4MyAxNi43MjQ1IDUuNDc3NTQgMTcuMDgxMUM1LjcyNDUgMTcuNDI0MSA1LjkxNjU0IDE3LjYwMTQgNi4xMjIwNyAxNy43MTk3QzYuMzI3NzYgMTcuODM4MSA2LjU3ODMzIDE3LjkxNDYgNyAxNy45NTYxQzcuNDM4MTUgMTcuOTk5MSA3Ljk5NjYzIDE4IDguODEyNSAxOEgxMi42ODc1QzEzLjUwMzQgMTggMTQuMDYxOCAxNy45OTkxIDE0LjUgMTcuOTU2MUMxNC45MjE3IDE3LjkxNDYgMTUuMTcyMiAxNy44MzgxIDE1LjM3NzkgMTcuNzE5N0MxNS41ODM1IDE3LjYwMTQgMTUuNzc1NSAxNy40MjQxIDE2LjAyMjUgMTcuMDgxMUMxNi4yNzkyIDE2LjcyNDUgMTYuNTU5MSAxNi4yNDI1IDE2Ljk2NzggMTUuNTM4MUwxOC44OTE2IDEyLjIyMTdDMTkuMzAyIDExLjUxNDQgMTkuNTgyIDExLjAzMDIgMTkuNzY0NiAxMC42Mjg5QzE5Ljk0MDUgMTAuMjQyNiAyMCA5Ljk4NzA5IDIwIDkuNzVDMjAgOS41MTI5OSAxOS45NDA0IDkuMjU4MjMgMTkuNzY0NiA4Ljg3MjA3QzE5LjU4MiA4LjQ3MDY5IDE5LjMwMjEgNy45ODU4NiAxOC44OTE2IDcuMjc4MzJMMTYuOTY3OCAzLjk2Mjg5QzE2LjU1OSAzLjI1ODMzIDE2LjI3OTIgMi43NzY1OCAxNi4wMjI1IDIuNDE5OTJDMTUuNzc1NCAyLjA3NjY4IDE1LjU4MzYgMS44OTg2IDE1LjM3NzkgMS43ODAyN0MxNS4xNzIyIDEuNjYxOTMgMTQuOTIxNyAxLjU4NTQxIDE0LjUgMS41NDM5NUMxNC4wNjE4IDEuNTAwODkgMTMuNTAzNCAxLjUgMTIuNjg3NSAxLjVIOC44MTI1Wk0xMC43NSA1LjVDMTMuMDk3MSA1LjUgMTQuOTk5OSA3LjQwMjg4IDE1IDkuNzVDMTUgMTIuMDk3MiAxMy4wOTcyIDE0IDEwLjc1IDE0QzguNDAyNzkgMTQgNi41IDEyLjA5NzIgNi41IDkuNzVDNi41MDAxMSA3LjQwMjg4IDguNDAyODUgNS41IDEwLjc1IDUuNVpNMTAuNzUgN0M5LjIzMTI4IDcgOC4wMDAxMSA4LjIzMTMxIDggOS43NUM4IDExLjI2ODggOS4yMzEyMiAxMi41IDEwLjc1IDEyLjVDMTIuMjY4OCAxMi41IDEzLjUgMTEuMjY4OCAxMy41IDkuNzVDMTMuNDk5OSA4LjIzMTMxIDEyLjI2ODcgNyAxMC43NSA3WiIgZmlsbD0iI0NDQ0NDQyIvPgo8L2c+Cjwvc3ZnPgo=", alt: "", className: "block", style: { flexShrink: 0 } }));
+// Gear icon: Lucide settings, from the installed lucide-react package (ISC).
+const NavbarSettingsIcon = () => React.createElement("span", { className: "navbar-icon", "aria-hidden": "true" }, React.createElement("img", { src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNDQ0NDQ0MiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik05LjY3MSA0LjEzNmEyLjM0IDIuMzQgMCAwIDEgNC42NTkgMCAyLjM0IDIuMzQgMCAwIDAgMy4zMTkgMS45MTUgMi4zNCAyLjM0IDAgMCAxIDIuMzMgNC4wMzMgMi4zNCAyLjM0IDAgMCAwIDAgMy44MzEgMi4zNCAyLjM0IDAgMCAxLTIuMzMgNC4wMzMgMi4zNCAyLjM0IDAgMCAwLTMuMzE5IDEuOTE1IDIuMzQgMi4zNCAwIDAgMS00LjY1OSAwIDIuMzQgMi4zNCAwIDAgMC0zLjMyLTEuOTE1IDIuMzQgMi4zNCAwIDAgMS0yLjMzLTQuMDMzIDIuMzQgMi4zNCAwIDAgMCAwLTMuODMxQTIuMzQgMi4zNCAwIDAgMSA2LjM1IDYuMDUxYTIuMzQgMi4zNCAwIDAgMCAzLjMxOS0xLjkxNSIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjMiLz48L3N2Zz4=", alt: "", style: { flexShrink: 0 } }));
 const FigmaInboxIcon = () => React.createElement("span", { className: "navbar-icon navbar-icon-menu", "aria-hidden": "true" }, React.createElement("img", { src: "data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjIxLjUiIGhlaWdodD0iMjEuNSIgdmlld0JveD0iMCAwIDIxLjUgMjEuNSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGcgaWQ9ImVsZW1lbnRzIj4KPHBhdGggaWQ9Ikljb24iIGQ9Ik00Ljc1IDEyQzcuMzczMzUgMTIgOS41IDE0LjEyNjYgOS41IDE2Ljc1QzkuNSAxOS4zNzM0IDcuMzczMzUgMjEuNSA0Ljc1IDIxLjVDMi4xMjY2NSAyMS41IDAgMTkuMzczNCAwIDE2Ljc1QzAgMTQuMTI2NiAyLjEyNjY1IDEyIDQuNzUgMTJaTTE2Ljc1IDEyQzE5LjM3MzQgMTIgMjEuNSAxNC4xMjY2IDIxLjUgMTYuNzVDMjEuNSAxOS4zNzM0IDE5LjM3MzQgMjEuNSAxNi43NSAyMS41QzE0LjEyNjYgMjEuNSAxMiAxOS4zNzM0IDEyIDE2Ljc1QzEyIDE0LjEyNjYgMTQuMTI2NiAxMiAxNi43NSAxMlpNNC43NSAxMy41QzIuOTU1MDcgMTMuNSAxLjUgMTQuOTU1MSAxLjUgMTYuNzVDMS41IDE4LjU0NDkgMi45NTUwNyAyMCA0Ljc1IDIwQzYuNTQ0OTMgMjAgOCAxOC41NDQ5IDggMTYuNzVDOCAxNC45NTUxIDYuNTQ0OTMgMTMuNSA0Ljc1IDEzLjVaTTE2Ljc1IDEzLjVDMTQuOTU1MSAxMy41IDEzLjUgMTQuOTU1MSAxMy41IDE2Ljc1QzEzLjUgMTguNTQ0OSAxNC45NTUxIDIwIDE2Ljc1IDIwQzE4LjU0NDkgMjAgMjAgMTguNTQ0OSAyMCAxNi43NUMyMCAxNC45NTUxIDE4LjU0NDkgMTMuNSAxNi43NSAxMy41Wk00Ljc1IDBDNy4zNzMzNSAwIDkuNSAyLjEyNjY1IDkuNSA0Ljc1QzkuNSA3LjM3MzM1IDcuMzczMzUgOS41IDQuNzUgOS41QzIuMTI2NjUgOS41IDAgNy4zNzMzNSAwIDQuNzVDMCAyLjEyNjY1IDIuMTI2NjUgMCA0Ljc1IDBaTTE2Ljc1IDBDMTkuMzczNCAwIDIxLjUgMi4xMjY2NSAyMS41IDQuNzVDMjEuNSA3LjM3MzM1IDE5LjM3MzQgOS41IDE2Ljc1IDkuNUMxNC4xMjY2IDkuNSAxMiA3LjM3MzM1IDEyIDQuNzVDMTIgMi4xMjY2NSAxNC4xMjY2IDAgMTYuNzUgMFpNNC43NSAxLjVDMi45NTUwNyAxLjUgMS41IDIuOTU1MDcgMS41IDQuNzVDMS41IDYuNTQ0OTMgMi45NTUwNyA4IDQuNzUgOEM2LjU0NDkzIDggOCA2LjU0NDkzIDggNC43NUM4IDIuOTU1MDcgNi41NDQ5MyAxLjUgNC43NSAxLjVaTTE2Ljc1IDEuNUMxNC45NTUxIDEuNSAxMy41IDIuOTU1MDcgMTMuNSA0Ljc1QzEzLjUgNi41NDQ5MyAxNC45NTUxIDggMTYuNzUgOEMxOC41NDQ5IDggMjAgNi41NDQ5MyAyMCA0Ljc1QzIwIDIuOTU1MDcgMTguNTQ0OSAxLjUgMTYuNzUgMS41WiIgZmlsbD0iI0NDQ0NDQyIvPgo8L2c+Cjwvc3ZnPgo=", alt: "", className: "block", style: { flexShrink: 0 } }));
 const LanguageIcon = () => React.createElement("span", { className: "navbar-icon", "aria-hidden": "true" }, React.createElement("img", { src: "data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjIxLjUiIGhlaWdodD0iMjEuNSIgdmlld0JveD0iMCAwIDIxLjUgMjEuNSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGcgaWQ9ImVsZW1lbnRzIj4KPHBhdGggaWQ9Ikljb24iIGQ9Ik0xMC43NSAwQzE2LjY4NzEgMCAyMS41IDQuODEyOTQgMjEuNSAxMC43NUMyMS41IDE2LjY4NzEgMTYuNjg3MSAyMS41IDEwLjc1IDIxLjVDNC44MTI5NCAyMS41IDAgMTYuNjg3MSAwIDEwLjc1QzAgNC44MTI5NCA0LjgxMjk0IDAgMTAuNzUgMFpNMTAuNzUgMS41QzUuNjQxMzcgMS41IDEuNSA1LjY0MTM3IDEuNSAxMC43NUMxLjUgMTUuODU4NiA1LjY0MTM3IDIwIDEwLjc1IDIwQzE1Ljg1ODYgMjAgMjAgMTUuODU4NiAyMCAxMC43NUMyMCA1LjY0MTM3IDE1Ljg1ODYgMS41IDEwLjc1IDEuNVpNMTAuMjUgNUMxMC42NjQyIDUgMTEgNS4zMzU3OSAxMSA1Ljc1VjYuMzc4OTFIMTUuNzVDMTYuMTY0MSA2LjM3ODkxIDE2LjQ5OTggNi43MTQ4OCAxNi41IDcuMTI4OTFDMTYuNSA3LjU0MzEyIDE2LjE2NDIgNy44Nzg5MSAxNS43NSA3Ljg3ODkxSDEzLjgwMzdDMTMuMjY0NSA5LjQ3OTY2IDEyLjM2MjUgMTAuOTc4NiAxMS4zNDg2IDEyLjMxNDVMMTIuODI2MiAxMy44NTA2QzEzLjExMzMgMTQuMTQ5MSAxMy4xMDQxIDE0LjYyNCAxMi44MDU3IDE0LjkxMTFDMTIuNTA3MSAxNS4xOTgzIDEyLjAzMjMgMTUuMTg5MSAxMS43NDUxIDE0Ljg5MDZMMTAuMzk3NSAxMy40ODkzQzkuNDc3NjIgMTQuNTU3OSA4LjUxMzU1IDE1LjUwOCA3LjY1MDM5IDE2LjMwMThDNy4zNDU1MiAxNi41ODIxIDYuODcxMiAxNi41NjI2IDYuNTkwODIgMTYuMjU3OEM2LjMxMDU3IDE1Ljk1MyA2LjMzMDI0IDE1LjQ3ODcgNi42MzQ3NyAxNS4xOTgyQzcuNTExNDEgMTQuMzkyMSA4LjQ3OTgyIDEzLjQzMzIgOS4zODU3NCAxMi4zNjQzQzkuMTU3MjUgMTIuMDc3MyA4LjkyMDcyIDExLjc2NjIgOC43MDQxIDExLjQ2NThDOC4zNjczMiAxMC45OTg4IDguMDM4NzUgMTAuNTA1MyA3Ljg3Njk1IDEwLjE1ODJDNy43MDE5OCA5Ljc4Mjc5IDcuODY0ODQgOS4zMzYxNCA4LjI0MDIzIDkuMTYxMTNDOC42MTU2NyA4Ljk4NjE1IDkuMDYyMzIgOS4xNDg5OCA5LjIzNzMgOS41MjQ0MUM5LjMzMjggOS43MjkxIDkuNTgzMDcgMTAuMTIwNCA5LjkyMDkgMTAuNTg4OUMxMC4wNTY0IDEwLjc3NjggMTAuMTk5NCAxMC45NjkzIDEwLjM0MjggMTEuMTU1M0MxMS4xMDUgMTAuMTE4IDExLjc2MDggOS4wMTUwNiAxMi4yMDcgNy44Nzg5MUg1Ljc1QzUuMzM1NzkgNy44Nzg5MSA1IDcuNTQzMTIgNSA3LjEyODkxQzUuMDAwMjIgNi43MTQ4OCA1LjMzNTkyIDYuMzc4OTEgNS43NSA2LjM3ODkxSDkuNVY1Ljc1QzkuNSA1LjMzNTc5IDkuODM1NzkgNSAxMC4yNSA1WiIgZmlsbD0iI0NDQ0NDQyIvPgo8L2c+Cjwvc3ZnPgo=", alt: "", className: "block", style: { flexShrink: 0 } }));
 const CloseIcon = () => /*#__PURE__*/React.createElement("svg", {
@@ -1382,24 +1661,24 @@ const SmartSwitchAnnouncement = ({
     className: "flex items-center justify-between mb-3"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-xs font-bold text-brand-teal"
-  }, "NEW FEATURE"), /*#__PURE__*/React.createElement("button", {
+  }, uiText("NEW FEATURE")), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => dialogRef.current.close(),
-    "aria-label": "Close new feature announcement",
+    "aria-label": uiText("Close new feature announcement"),
     className: "p-1 rounded-full hover:bg-brand-border focus:outline-none focus:ring-2 focus:ring-brand-teal"
   }, /*#__PURE__*/React.createElement(CloseIcon, null))), /*#__PURE__*/React.createElement("h2", {
     id: "smart-switch-announcement-title",
     className: "text-lg font-semibold mb-2"
-  }, "Smart Switch Components"), /*#__PURE__*/React.createElement("p", {
+  }, uiText("Smart Switch Components")), /*#__PURE__*/React.createElement("p", {
     className: "text-sm text-brand-text-secondary mb-3"
-  }, "Use the language variants you already designed."), /*#__PURE__*/React.createElement("ul", {
-    className: "list-disc pl-4 space-y-2 text-sm text-brand-text-secondary mb-5"
-  }, /*#__PURE__*/React.createElement("li", null, "Switch to a variant matching your target language while keeping the instance linked."), /*#__PURE__*/React.createElement("li", null, "Keep size, state, and compatible text and icon overrides."), /*#__PURE__*/React.createElement("li", null, "Avoid mirroring your prepared localized layout twice.")), /*#__PURE__*/React.createElement("button", {
+  }, uiText("Use the language variants you already designed.")), /*#__PURE__*/React.createElement("ul", {
+    className: "list-disc ps-4 space-y-2 text-sm text-brand-text-secondary mb-5"
+  }, /*#__PURE__*/React.createElement("li", null, uiText("Switch to a variant matching your target language while keeping the instance linked.")), /*#__PURE__*/React.createElement("li", null, uiText("Keep size, state, and compatible text and icon overrides.")), /*#__PURE__*/React.createElement("li", null, uiText("Avoid mirroring your prepared localized layout twice."))), /*#__PURE__*/React.createElement("button", {
     type: "button",
     autoFocus: true,
     onClick: () => dialogRef.current.close(),
     className: "w-full rounded-lg bg-brand-teal text-brand-dark py-2.5 text-sm font-bold hover:bg-brand-teal-light focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-brand-surface"
-  }, "Got it"));
+  }, uiText("Got it")));
 };
 const Logo = () => /*#__PURE__*/React.createElement("svg", {
   viewBox: "0 0 128 48",
@@ -1435,40 +1714,43 @@ const AppMenu = ({
 }) => {
   const pluginDescription = "A Figma plugin to mirror layouts for RTL/LTR design and translate text layers using AI. It provides a streamlined workflow for localization and right-to-left UI adaptation.";
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: `fixed inset-0 bg-brand-dark bg-opacity-50 z-20 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`,
+    className: `app-menu-backdrop fixed inset-0 bg-brand-dark bg-opacity-50 z-20 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`,
     onClick: onClose
   }), /*#__PURE__*/React.createElement("div", {
-    className: `fixed top-0 right-0 h-full w-4/5 max-w-xs bg-brand-surface z-30 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} border-l border-brand-border flex flex-col`
+    "data-state": isOpen ? "open" : "closed",
+    "aria-hidden": !isOpen,
+    inert: !isOpen,
+    className: `app-menu-drawer fixed top-0 end-0 h-full w-4/5 max-w-xs bg-brand-surface z-30 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} border-s border-brand-border flex flex-col`
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between p-4 border-b border-brand-border"
   }, /*#__PURE__*/React.createElement("h2", {
     className: "text-lg font-semibold text-brand-text-primary"
-  }, "Menu"), /*#__PURE__*/React.createElement("button", {
+  }, uiText("Menu")), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "p-2 rounded-full hover:bg-brand-border focus:outline-none focus:ring-2 focus:ring-brand-teal",
-    "aria-label": "Close menu"
+    "aria-label": uiText("Close menu")
   }, /*#__PURE__*/React.createElement(CloseIcon, null))), /*#__PURE__*/React.createElement("div", {
     className: "flex-grow p-6 space-y-8 text-sm overflow-y-auto"
   }, /*#__PURE__*/React.createElement("div", {
     className: "space-y-2"
   }, /*#__PURE__*/React.createElement("h3", {
     className: "font-bold text-brand-text-primary"
-  }, "About This Plugin"), /*#__PURE__*/React.createElement("p", {
+  }, uiText("About This Plugin")), /*#__PURE__*/React.createElement("p", {
     className: "text-brand-text-secondary"
-  }, pluginDescription)), /*#__PURE__*/React.createElement("div", {
+  }, uiText(pluginDescription))), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2"
   }, /*#__PURE__*/React.createElement("h3", {
     className: "font-bold text-brand-text-primary"
-  }, "Developed By:"), /*#__PURE__*/React.createElement("p", {
+  }, uiText("Developed By:")), /*#__PURE__*/React.createElement("p", {
     className: "text-brand-text-secondary"
-  }, "Mohamed Abdullah")), /*#__PURE__*/React.createElement("div", {
+  }, uiText("Mohamed Abdullah"))), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2"
   }, /*#__PURE__*/React.createElement("h3", {
     className: "font-bold text-brand-text-primary"
-  }, "Contact & Support"), /*#__PURE__*/React.createElement("p", {
+  }, uiText("Contact & Support")), /*#__PURE__*/React.createElement("p", {
     className: "text-brand-text-secondary"
-  }, "have questions? We're here!"), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-center space-x-2 pt-3"
+  }, uiText("have questions? We're here!")), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-center gap-x-2 pt-3"
   }, /*#__PURE__*/React.createElement("a", {
     href: "https://www.facebook.com/mohamed.abdullah.845751/",
     target: "_blank",
@@ -1503,7 +1785,7 @@ const AppMenu = ({
     href: "mailto:mohamedabdullah9092@gmail.com",
     target: "_blank",
     rel: "noopener noreferrer",
-    "aria-label": "Email",
+    "aria-label": uiText("Email"),
     className: "relative w-10 h-10 rounded-full flex items-center justify-center bg-white/5 group transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-brand-surface focus:ring-amber-500"
   }, /*#__PURE__*/React.createElement("div", {
     className: "absolute inset-0 bg-amber-500 rounded-full opacity-10 blur-md group-hover:opacity-30 transition-opacity"
@@ -1545,23 +1827,23 @@ const UpgradeScreen = ({
     className: "bg-brand-dark text-brand-text-primary font-sans flex flex-col h-full relative"
   }, onClose && /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "absolute top-4 right-4 p-2 rounded-full text-brand-text-secondary hover:bg-brand-surface hover:text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-teal z-10",
-    "aria-label": "Close"
+    className: "absolute top-4 end-4 p-2 rounded-full text-brand-text-secondary hover:bg-brand-surface hover:text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-teal z-10",
+    "aria-label": uiText("Close")
   }, /*#__PURE__*/React.createElement(CloseIcon, null)), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col justify-center flex-grow px-6 py-4 space-y-5"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-center space-y-1"
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-xs font-bold text-brand-teal uppercase tracking-widest"
-  }, "Upgrade to Pro"), /*#__PURE__*/React.createElement("h1", {
+  }, uiText("Upgrade to Pro")), /*#__PURE__*/React.createElement("h1", {
     className: "text-2xl font-bold text-white"
-  }, "Unlock Full Access"), /*#__PURE__*/React.createElement("p", {
+  }, uiText("Unlock Full Access")), /*#__PURE__*/React.createElement("p", {
     className: "text-brand-text-secondary text-xs"
-  }, "Unlimited mirrors, AI translations & smart variants.")), /*#__PURE__*/React.createElement("div", {
+  }, uiText("Unlimited mirrors, AI translations & smart variants."))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-2"
   }, ["Unlimited Actions", "AI Translations", "Smart Variants", "Priority Support"].map((f, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
-    className: "flex items-center space-x-2 bg-brand-surface rounded-lg px-3 py-2 border border-brand-border"
+    className: "flex items-center gap-x-2 bg-brand-surface rounded-lg px-3 py-2 border border-brand-border"
   }, /*#__PURE__*/React.createElement("svg", {
     className: "h-4 w-4 flex-shrink-0 text-brand-teal",
     viewBox: "0 0 24 24",
@@ -1572,17 +1854,17 @@ const UpgradeScreen = ({
     clipRule: "evenodd"
   })), /*#__PURE__*/React.createElement("span", {
     className: "text-brand-text-primary text-xs"
-  }, f)))), /*#__PURE__*/React.createElement("div", {
+  }, uiText(f))))), /*#__PURE__*/React.createElement("div", {
     className: "flex justify-center"
   }, /*#__PURE__*/React.createElement("div", {
     className: "inline-flex items-center p-1 bg-brand-surface rounded-lg border border-brand-border"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setIsYearly(false),
     className: `px-4 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap ${!isYearly ? 'bg-brand-dark text-white shadow' : 'text-brand-text-secondary hover:text-white'}`
-  }, "Monthly"), /*#__PURE__*/React.createElement("button", {
+  }, uiText("Monthly")), /*#__PURE__*/React.createElement("button", {
     onClick: () => setIsYearly(true),
     className: `px-4 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap ${isYearly ? 'bg-brand-dark text-brand-teal shadow' : 'text-brand-text-secondary hover:text-white'}`
-  }, "Yearly (-32%)"))), /*#__PURE__*/React.createElement("div", {
+  }, uiText("Yearly (-32%)")))), /*#__PURE__*/React.createElement("div", {
     className: "space-y-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-center"
@@ -1590,11 +1872,11 @@ const UpgradeScreen = ({
     className: "text-3xl font-bold text-white"
   }, isYearly ? '$7.5' : '$11', " ", /*#__PURE__*/React.createElement("span", {
     className: "text-sm font-normal text-brand-text-secondary"
-  }, "/month")), /*#__PURE__*/React.createElement("p", {
+  }, uiText("/month"))), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-brand-text-muted mt-0.5"
-  }, isYearly ? 'Billed $90/year. Cancel anytime.' : 'Billed monthly. Cancel anytime.')), /*#__PURE__*/React.createElement(Button, {
+  }, uiText(isYearly ? 'Billed $90/year. Cancel anytime.' : 'Billed monthly. Cancel anytime.'))), /*#__PURE__*/React.createElement(Button, {
     onClick: handleUpgradeClick
-  }, "Upgrade Now")), /*#__PURE__*/React.createElement("div", {
+  }, uiText("Upgrade Now"))), /*#__PURE__*/React.createElement("div", {
     className: "relative"
   }, /*#__PURE__*/React.createElement("div", {
     className: "absolute inset-0 flex items-center"
@@ -1604,27 +1886,28 @@ const UpgradeScreen = ({
     className: "relative flex justify-center"
   }, /*#__PURE__*/React.createElement("span", {
     className: "bg-brand-dark px-3 text-xs text-brand-text-secondary"
-  }, "Already have a license?"))), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center space-x-2"
+  }, uiText("Already have a license?")))), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-x-2"
   }, /*#__PURE__*/React.createElement("input", {
     type: "text",
+    dir: "ltr",
     value: licenseKey,
     onChange: e => {
       setLicenseKey(e.target.value);
       if (localError) setLocalError('');
     },
-    placeholder: "Enter license key",
+    placeholder: uiText("Enter license key"),
     disabled: isLoading,
-    className: "flex-grow bg-brand-surface border border-brand-border text-brand-text-primary text-sm rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-brand-teal focus:border-brand-teal disabled:opacity-50"
+    className: "min-w-0 flex-grow bg-brand-surface border border-brand-border text-brand-text-primary text-sm rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-brand-teal focus:border-brand-teal disabled:opacity-50"
   }), /*#__PURE__*/React.createElement("button", {
     onClick: handleActivate,
     disabled: isLoading || !licenseKey.trim(),
     className: "flex-shrink-0 bg-brand-surface hover:bg-brand-border text-brand-text-primary font-semibold py-2.5 px-4 rounded-lg border border-brand-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-  }, isLoading ? '...' : 'Activate')), displayError && /*#__PURE__*/React.createElement("p", {
+  }, isLoading ? '…' : uiText('Activate'))), displayError && /*#__PURE__*/React.createElement("p", {
     className: "text-red-400 text-xs text-center -mt-3"
-  }, displayError), /*#__PURE__*/React.createElement("p", {
+  }, uiText(displayError)), /*#__PURE__*/React.createElement("p", {
     className: "text-center text-xs text-brand-text-muted"
-  }, "Egyptian user?", ' ', /*#__PURE__*/React.createElement("button", {
+  }, uiText("Egyptian user?"), ' ', /*#__PURE__*/React.createElement("button", {
     onClick: () => parent.postMessage({
       pluginMessage: {
         type: 'open-url',
@@ -1634,7 +1917,7 @@ const UpgradeScreen = ({
       }
     }, '*'),
     className: "text-brand-teal hover:underline"
-  }, "Contact me!"))));
+  }, uiText("Contact me!")))));
 };
 const OnboardingTour = ({
   tourConfig,
@@ -1725,9 +2008,9 @@ const OnboardingTour = ({
     className: "space-y-3"
   }, /*#__PURE__*/React.createElement("h3", {
     className: "font-bold text-lg text-brand-text-primary"
-  }, stepData.title), /*#__PURE__*/React.createElement("p", {
+  }, uiText(stepData.title)), /*#__PURE__*/React.createElement("p", {
     className: "text-sm text-brand-text-secondary"
-  }, stepData.text)), /*#__PURE__*/React.createElement("div", {
+  }, uiText(stepData.text))), /*#__PURE__*/React.createElement("div", {
     className: "flex justify-center my-4"
   }, tourConfig.map((_, index) => /*#__PURE__*/React.createElement("div", {
     key: index,
@@ -1737,15 +2020,15 @@ const OnboardingTour = ({
   }, currentStep > 0 ? /*#__PURE__*/React.createElement("button", {
     onClick: handlePrev,
     className: "text-sm text-brand-text-secondary hover:text-white transition"
-  }, "Back") : /*#__PURE__*/React.createElement("div", null), /*#__PURE__*/React.createElement("div", {
+  }, uiText("Back")) : /*#__PURE__*/React.createElement("div", null), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2"
   }, currentStep < tourConfig.length - 1 && /*#__PURE__*/React.createElement("button", {
     onClick: onComplete,
     className: "text-sm text-brand-text-secondary hover:text-white transition"
-  }, "Skip"), /*#__PURE__*/React.createElement("button", {
+  }, uiText("Skip")), /*#__PURE__*/React.createElement("button", {
     onClick: handleNext,
     className: "bg-brand-teal text-brand-dark font-semibold px-4 py-2 rounded-lg text-sm hover:bg-brand-teal-light transition"
-  }, currentStep === tourConfig.length - 1 ? 'Finish' : 'Next')))));
+  }, uiText(currentStep === tourConfig.length - 1 ? 'Finish' : 'Next'))))));
 };
 const LANGUAGES = [{
   code: 'auto',
@@ -1784,8 +2067,12 @@ const LANGUAGES = [{
   code: 'tr',
   name: 'Turkish'
 }];
-const EmptyState = () => /*#__PURE__*/React.createElement("div", { className: "empty-state flex-1 px-2 pt-2 pb-2 rounded-2xl bg-brand-dark flex items-center" }, /*#__PURE__*/React.createElement("div", { className: "w-full h-full min-h-0 rounded-2xl bg-brand-surface border border-brand-border p-3 flex flex-col items-center justify-center gap-4" }, /*#__PURE__*/React.createElement("div", { className: "w-full flex flex-col items-center gap-2.5 text-center" }, /*#__PURE__*/React.createElement("div", { className: "empty-state-icon p-4 rounded-full bg-white/[0.08]" }, /*#__PURE__*/React.createElement("img", { src: "data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjI2LjE2ODQiIGhlaWdodD0iMjYuMTY1MyIgdmlld0JveD0iMCAwIDI2LjE2ODQgMjYuMTY1MyIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGcgaWQ9ImVsZW1lbnRzIj4KPHBhdGggaWQ9IlRvbmUiIG9wYWNpdHk9IjAuNCIgZD0iTTEuMjQ0NCAxNC4zMjk0QzAuNjU0NzAyIDE0LjMyOTQgMC4zNTkzMTQgMTQuMzI5NCAwLjE3NjA0NyAxNC41MTY0Qy0wLjAwNTk3MjY2IDE0LjcwMzQgLTAuMDAzNTI3OTIgMTQuOTkwMSAwLjAwMTQ1ODkzIDE1LjU3NjFDMC4wMTc2NjYyIDE3LjIwOTMgMC4wNjYzNTEzIDE4LjU4MDcgMC4yMjIxOSAxOS43NDAyQzAuNDU3ODE5IDIxLjQ5OCAwLjk1NjQ0NiAyMi45MzE3IDIuMDk0NjkgMjQuMDc4N0MzLjIzMTcgMjUuMjEzMiA0LjY3MDQzIDI1LjcxMTkgNi40MjA4MSAyNS45NDg4QzcuNTgyNzUgMjYuMDk4NCA4Ljk2MjkyIDI2LjE0ODMgMTAuNTg5OSAyNi4xNjA3QzExLjE3NTggMjYuMTczMiAxMS40Njg3IDI2LjE3MzEgMTEuNjUzMiAyNS45ODYxQzExLjgzOSAyNS44MTE2IDExLjgzOSAyNS41MTI0IDExLjgzOSAyNC45MjY0VjE1LjU3NjFDMTEuODM5IDE0Ljk5MDEgMTEuODM5MSAxNC42OTA5IDExLjY1NTggMTQuNTE2NEMxMS40NzM4IDE0LjMyOTQgMTEuMTc5NSAxNC4zMjk0IDEwLjU5MjMgMTQuMzI5NEgxLjI0NDRaTTI2LjE2MzggMTAuNTg5MkMyNi4xNzYzIDExLjE3NTIgMjYuMTc2MiAxMS40NjE5IDI1Ljk4OTIgMTEuNjQ4OUMyNS44MTQ3IDExLjgzNTkgMjUuNTE1NSAxMS44MzU5IDI0LjkyOTUgMTEuODM1OUgxNS41NzkyQzE0Ljk5MDcgMTEuODM1OSAxNC42OTY1IDExLjgzNTkgMTQuNTE0NSAxMS42NDg5QzE0LjMzMjQgMTEuNDc0NCAxNC4zMzI0IDExLjE3NTIgMTQuMzMyNCAxMC41ODkyVjEuMjM4ODhDMTQuMzMyNCAwLjY1MjkyNiAxNC4zMzI1IDAuMzUzNzE1IDE0LjUxNyAwLjE3OTE3NUMxNC43MDE1IC0wLjAwNzgzMTkyIDE0Ljk5NDUgLTAuMDA3ODgwNjIgMTUuNTc5MiAwLjAwNDU4NjUxQzE3LjIxMjQgMC4wMTcwNTM2IDE4LjU4MzggMC4wNjY5NDY1IDE5Ljc0MzIgMC4yMTY1NTJDMjEuNTAxMSAwLjQ1MzQyOCAyMi45MzQ4IDAuOTUyMTEzIDI0LjA4MTggMi4wODY2MkMyNS4yMTYzIDMuMjMzNiAyNS43MTUgNC42NjczNCAyNS45NTE4IDYuNDEyNzRDMjYuMTAxNCA3LjU4NDY1IDI2LjE1MTMgOC45NTYwMyAyNi4xNjM4IDEwLjU4OTJaIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZmlsbD0iIzYxNjU2QyIvPgo8cGF0aCBpZD0iSWNvbiIgZD0iTTExLjgzOSAxLjIzODg4QzExLjgzOSAwLjY1MjkyNiAxMS44MzkgMC4zNTM3MTUgMTEuNjUzMiAwLjE3OTE3NUMxMS40Njg3IC0wLjAwNzgzMTkyIDExLjE3NTggLTAuMDA3ODgwNjIgMTAuNTg5OSAwLjAwNDU4NjUxQzguOTYyOTIgMC4wMTcwNTM2IDcuNTgyNzUgMC4wNjY5NDY1IDYuNDIwODEgMC4yMTY1NTJDNC42NzA0MyAwLjQ1MzQyOCAzLjIzMTcgMC45NTIxMTMgMi4wOTQ2OSAyLjA4NjYyQzAuOTU2NDQ2IDMuMjMzNiAwLjQ1NzgxOSA0LjY2NzM0IDAuMjIyMTkgNi40MTI3NEMwLjA2NjM1MTMgNy41ODQ2NSAwLjAxNzY2NjIgOC45NTYwMyAwLjAwMTQ1ODkzIDEwLjU4OTJDLTAuMDAzNTI3OTIgMTEuMTc1MiAtMC4wMDU5NzI2NiAxMS40NjE5IDAuMTc2MDQ3IDExLjY0ODlDMC4zNTkzMTQgMTEuODM1OSAwLjY1NDcwMiAxMS44MzU5IDEuMjQ0NCAxMS44MzU5SDEwLjU5MjNDMTEuMTc5NSAxMS44MzU5IDExLjQ3MzggMTEuODM1OSAxMS42NTU4IDExLjY0ODlDMTEuODM5MSAxMS40NzQ0IDExLjgzOSAxMS4xNzUyIDExLjgzOSAxMC41ODkyVjEuMjM4ODhaTTE0LjMzMjQgMjQuOTI2NEMxNC4zMzI0IDI1LjUxMjQgMTQuMzMyNSAyNS44MTE2IDE0LjUxNyAyNS45ODYxQzE0LjcwMTUgMjYuMTczMSAxNC45OTQ1IDI2LjE3MzIgMTUuNTc5MiAyNi4xNjA3QzE3LjIxMjQgMjYuMTQ4MyAxOC41ODM4IDI2LjA5ODQgMTkuNzQzMiAyNS45NDg4QzIxLjUwMTEgMjUuNzExOSAyMi45MzQ4IDI1LjIxMzIgMjQuMDgxOCAyNC4wNzg3QzI1LjIxNjMgMjIuOTMxNyAyNS43MTUgMjEuNDk4IDI1Ljk1MTggMTkuNzQwMkMyNi4xMDE0IDE4LjU4MDcgMjYuMTUxMyAxNy4yMDkzIDI2LjE2MzggMTUuNTc2MUMyNi4xNzYzIDE0Ljk5MDEgMjYuMTc2MiAxNC43MDM0IDI1Ljk4OTIgMTQuNTE2NEMyNS44MTQ3IDE0LjMyOTQgMjUuNTE1NSAxNC4zMjk0IDI0LjkyOTUgMTQuMzI5NEgxNS41NzkyQzE0Ljk5MDcgMTQuMzI5NCAxNC42OTY1IDE0LjMyOTQgMTQuNTE0NSAxNC41MTY0QzE0LjMzMjQgMTQuNjkwOSAxNC4zMzI0IDE0Ljk5MDEgMTQuMzMyNCAxNS41NzYxVjI0LjkyNjRaIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZmlsbD0iIzk0OTc5QyIvPgo8L2c+Cjwvc3ZnPgo=", width: "30", height: "30", alt: "", className: "block" })), /*#__PURE__*/React.createElement("div", { className: "w-full flex flex-col items-center gap-1" }, /*#__PURE__*/React.createElement("p", { className: "w-full text-sm font-medium text-brand-text-primary" }, "No frame selected"), /*#__PURE__*/React.createElement("p", { className: "w-full text-xs leading-normal text-brand-text-secondary" }, "Select a frame or layer to mirror layouts and translate text.")))));
+const EmptyState = () => /*#__PURE__*/React.createElement("div", { className: "empty-state flex-1 px-2 pt-2 pb-2 rounded-2xl bg-brand-dark flex items-center" }, /*#__PURE__*/React.createElement("div", { className: "w-full h-full min-h-0 rounded-2xl bg-brand-surface border border-brand-border p-3 flex flex-col items-center justify-center gap-4" }, /*#__PURE__*/React.createElement("div", { className: "w-full flex flex-col items-center gap-2.5 text-center" }, /*#__PURE__*/React.createElement("div", { className: "empty-state-icon p-4 rounded-full bg-white/[0.08]" }, /*#__PURE__*/React.createElement("img", { src: "data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjI2LjE2ODQiIGhlaWdodD0iMjYuMTY1MyIgdmlld0JveD0iMCAwIDI2LjE2ODQgMjYuMTY1MyIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGcgaWQ9ImVsZW1lbnRzIj4KPHBhdGggaWQ9IlRvbmUiIG9wYWNpdHk9IjAuNCIgZD0iTTEuMjQ0NCAxNC4zMjk0QzAuNjU0NzAyIDE0LjMyOTQgMC4zNTkzMTQgMTQuMzI5NCAwLjE3NjA0NyAxNC41MTY0Qy0wLjAwNTk3MjY2IDE0LjcwMzQgLTAuMDAzNTI3OTIgMTQuOTkwMSAwLjAwMTQ1ODkzIDE1LjU3NjFDMC4wMTc2NjYyIDE3LjIwOTMgMC4wNjYzNTEzIDE4LjU4MDcgMC4yMjIxOSAxOS43NDAyQzAuNDU3ODE5IDIxLjQ5OCAwLjk1NjQ0NiAyMi45MzE3IDIuMDk0NjkgMjQuMDc4N0MzLjIzMTcgMjUuMjEzMiA0LjY3MDQzIDI1LjcxMTkgNi40MjA4MSAyNS45NDg4QzcuNTgyNzUgMjYuMDk4NCA4Ljk2MjkyIDI2LjE0ODMgMTAuNTg5OSAyNi4xNjA3QzExLjE3NTggMjYuMTczMiAxMS40Njg3IDI2LjE3MzEgMTEuNjUzMiAyNS45ODYxQzExLjgzOSAyNS44MTE2IDExLjgzOSAyNS41MTI0IDExLjgzOSAyNC45MjY0VjE1LjU3NjFDMTEuODM5IDE0Ljk5MDEgMTEuODM5MSAxNC42OTA5IDExLjY1NTggMTQuNTE2NEMxMS40NzM4IDE0LjMyOTQgMTEuMTc5NSAxNC4zMjk0IDEwLjU5MjMgMTQuMzI5NEgxLjI0NDRaTTI2LjE2MzggMTAuNTg5MkMyNi4xNzYzIDExLjE3NTIgMjYuMTc2MiAxMS40NjE5IDI1Ljk4OTIgMTEuNjQ4OUMyNS44MTQ3IDExLjgzNTkgMjUuNTE1NSAxMS44MzU5IDI0LjkyOTUgMTEuODM1OUgxNS41NzkyQzE0Ljk5MDcgMTEuODM1OSAxNC42OTY1IDExLjgzNTkgMTQuNTE0NSAxMS42NDg5QzE0LjMzMjQgMTEuNDc0NCAxNC4zMzI0IDExLjE3NTIgMTQuMzMyNCAxMC41ODkyVjEuMjM4ODhDMTQuMzMyNCAwLjY1MjkyNiAxNC4zMzI1IDAuMzUzNzE1IDE0LjUxNyAwLjE3OTE3NUMxNC43MDE1IC0wLjAwNzgzMTkyIDE0Ljk5NDUgLTAuMDA3ODgwNjIgMTUuNTc5MiAwLjAwNDU4NjUxQzE3LjIxMjQgMC4wMTcwNTM2IDE4LjU4MzggMC4wNjY5NDY1IDE5Ljc0MzIgMC4yMTY1NTJDMjEuNTAxMSAwLjQ1MzQyOCAyMi45MzQ4IDAuOTUyMTEzIDI0LjA4MTggMi4wODY2MkMyNS4yMTYzIDMuMjMzNiAyNS43MTUgNC42NjczNCAyNS45NTE4IDYuNDEyNzRDMjYuMTAxNCA3LjU4NDY1IDI2LjE1MTMgOC45NTYwMyAyNi4xNjM4IDEwLjU4OTJaIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZmlsbD0iIzYxNjU2QyIvPgo8cGF0aCBpZD0iSWNvbiIgZD0iTTExLjgzOSAxLjIzODg4QzExLjgzOSAwLjY1MjkyNiAxMS44MzkgMC4zNTM3MTUgMTEuNjUzMiAwLjE3OTE3NUMxMS40Njg3IC0wLjAwNzgzMTkyIDExLjE3NTggLTAuMDA3ODgwNjIgMTAuNTg5OSAwLjAwNDU4NjUxQzguOTYyOTIgMC4wMTcwNTM2IDcuNTgyNzUgMC4wNjY5NDY1IDYuNDIwODEgMC4yMTY1NTJDNC42NzA0MyAwLjQ1MzQyOCAzLjIzMTcgMC45NTIxMTMgMi4wOTQ2OSAyLjA4NjYyQzAuOTU2NDQ2IDMuMjMzNiAwLjQ1NzgxOSA0LjY2NzM0IDAuMjIyMTkgNi40MTI3NEMwLjA2NjM1MTMgNy41ODQ2NSAwLjAxNzY2NjIgOC45NTYwMyAwLjAwMTQ1ODkzIDEwLjU4OTJDLTAuMDAzNTI3OTIgMTEuMTc1MiAtMC4wMDU5NzI2NiAxMS40NjE5IDAuMTc2MDQ3IDExLjY0ODlDMC4zNTkzMTQgMTEuODM1OSAwLjY1NDcwMiAxMS44MzU5IDEuMjQ0NCAxMS44MzU5SDEwLjU5MjNDMTEuMTc5NSAxMS44MzU5IDExLjQ3MzggMTEuODM1OSAxMS42NTU4IDExLjY0ODlDMTEuODM5MSAxMS40NzQ0IDExLjgzOSAxMS4xNzUyIDExLjgzOSAxMC41ODkyVjEuMjM4ODhaTTE0LjMzMjQgMjQuOTI2NEMxNC4zMzI0IDI1LjUxMjQgMTQuMzMyNSAyNS44MTE2IDE0LjUxNyAyNS45ODYxQzE0LjcwMTUgMjYuMTczMSAxNC45OTQ1IDI2LjE3MzIgMTUuNTc5MiAyNi4xNjA3QzE3LjIxMjQgMjYuMTQ4MyAxOC41ODM4IDI2LjA5ODQgMTkuNzQzMiAyNS45NDg4QzIxLjUwMTEgMjUuNzExOSAyMi45MzQ4IDI1LjIxMzIgMjQuMDgxOCAyNC4wNzg3QzI1LjIxNjMgMjIuOTMxNyAyNS43MTUgMjEuNDk4IDI1Ljk1MTggMTkuNzQwMkMyNi4xMDE0IDE4LjU4MDcgMjYuMTUxMyAxNy4yMDkzIDI2LjE2MzggMTUuNTc2MUMyNi4xNzYzIDE0Ljk5MDEgMjYuMTc2MiAxNC43MDM0IDI1Ljk4OTIgMTQuNTE2NEMyNS44MTQ3IDE0LjMyOTQgMjUuNTE1NSAxNC4zMjk0IDI0LjkyOTUgMTQuMzI5NEgxNS41NzkyQzE0Ljk5MDcgMTQuMzI5NCAxNC42OTY1IDE0LjMyOTQgMTQuNTE0NSAxNC41MTY0QzE0LjMzMjQgMTQuNjkwOSAxNC4zMzI0IDE0Ljk5MDEgMTQuMzMyNCAxNS41NzYxVjI0LjkyNjRaIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZmlsbD0iIzk0OTc5QyIvPgo8L2c+Cjwvc3ZnPgo=", width: "30", height: "30", alt: "", className: "block" })), /*#__PURE__*/React.createElement("div", { className: "w-full flex flex-col items-center gap-1" }, /*#__PURE__*/React.createElement("p", { className: "w-full text-sm font-medium text-brand-text-primary" }, uiText("No frame selected")), /*#__PURE__*/React.createElement("p", { className: "w-full text-xs leading-normal text-brand-text-secondary" }, uiText("Select a frame or layer to mirror layouts and translate text."))))));
 const App = () => {
+  const uiLanguage = React.useSyncExternalStore(subscribeUiLanguage, getUiLanguage);
+  const uiTheme = React.useSyncExternalStore(subscribeUiTheme, getUiTheme);
+  useEffect(() => { parent.postMessage({ pluginMessage: { type: "get-ui-theme" } }, "*"); }, []);
+  useEffect(() => { parent.postMessage({ pluginMessage: { type: "get-ui-language" } }, "*"); }, []);
   const [isPro, setIsPro] = useState(false);
   const [trialCount, setTrialCount] = useState(null);
   const [isStatusLoading, setIsStatusLoading] = useState(true);
@@ -1867,6 +2154,28 @@ const App = () => {
   const apiKeysRef = useRef(null);
   const menuButtonRef = useRef(null);
   const settingsButtonRef = useRef(null);
+  useEffect(() => {
+    if (!isSettingsMenuOpen) return;
+    const dismissOutside = event => {
+      if (!settingsButtonRef.current?.contains(event.target)) setIsSettingsMenuOpen(false);
+    };
+    const dismissOnBlur = () => setIsSettingsMenuOpen(false);
+    const dismissOnEscape = event => {
+      if (event.key === 'Escape') {
+        setIsSettingsMenuOpen(false);
+        settingsButtonRef.current?.querySelector('button')?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', dismissOutside, true);
+    document.addEventListener('keydown', dismissOnEscape);
+    window.addEventListener('blur', dismissOnBlur);
+    return () => {
+      document.removeEventListener('pointerdown', dismissOutside, true);
+      document.removeEventListener('keydown', dismissOnEscape);
+      window.removeEventListener('blur', dismissOnBlur);
+    };
+  }, [isSettingsMenuOpen]);
+
   const hasAnyKey = geminiApiKey || openaiApiKey;
   useEffect(() => {
     apiKeysDataRef.current = {
@@ -2349,7 +2658,7 @@ const App = () => {
     title: '5. Discover More',
     text: 'Find plugin details, support links, and manage your PRO subscription here.'
   }, {
-    title: "You're all set!",
+    title: uiText("You're all set!"),
     text: "You're ready to master RTL design. Select a frame and give it a try!",
     targetRef: null
   }];
@@ -2362,18 +2671,18 @@ const App = () => {
     className: "text-center space-y-4"
   }, /*#__PURE__*/React.createElement("h1", {
     className: "text-2xl font-bold text-white"
-  }, "Subscription Details"), /*#__PURE__*/React.createElement("p", {
+  }, uiText("Subscription Details")), /*#__PURE__*/React.createElement("p", {
     className: "text-brand-text-secondary"
-  }, "You are currently on the ", /*#__PURE__*/React.createElement("span", {
+  }, uiText("You are currently on the "), /*#__PURE__*/React.createElement("span", {
     className: "text-brand-teal font-bold"
-  }, "PRO"), " plan.")), /*#__PURE__*/React.createElement("div", {
+  }, "PRO"), uiText(" plan."))), /*#__PURE__*/React.createElement("div", {
     className: "mt-8 space-y-3"
   }, /*#__PURE__*/React.createElement(Button, {
     onClick: onUnsubscribe,
     variant: "secondary"
-  }, "Unsubscribe"), /*#__PURE__*/React.createElement(Button, {
+  }, uiText("Unsubscribe")), /*#__PURE__*/React.createElement(Button, {
     onClick: onClose
-  }, "Close")));
+  }, uiText("Close"))));
   const UnsubscribeConfirmation = ({
     onCancel,
     onConfirm,
@@ -2384,15 +2693,15 @@ const App = () => {
     className: "bg-brand-surface border border-brand-border rounded-xl p-6 max-w-sm w-full text-center space-y-4"
   }, /*#__PURE__*/React.createElement("h2", {
     className: "text-xl font-bold text-white"
-  }, "Are you sure?"), /*#__PURE__*/React.createElement("p", {
+  }, uiText("Are you sure?")), /*#__PURE__*/React.createElement("p", {
     className: "text-sm text-brand-text-secondary"
-  }, "You will lose access to all PRO features and your account will revert to the free plan with 10 trial uses. This action cannot be undone."), /*#__PURE__*/React.createElement("div", {
+  }, uiText("You will lose access to all PRO features and your account will revert to the free plan with 10 trial uses. This action cannot be undone.")), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-3 pt-2"
   }, /*#__PURE__*/React.createElement(Button, {
     onClick: onCancel,
     variant: "secondary",
     disabled: isProcessing
-  }, "Cancel"), /*#__PURE__*/React.createElement(Button, {
+  }, uiText("Cancel")), /*#__PURE__*/React.createElement(Button, {
     onClick: onConfirm,
     style: {
       backgroundColor: '#ef4444',
@@ -2400,11 +2709,11 @@ const App = () => {
     },
     disabled: isProcessing,
     isLoading: isProcessing
-  }, isProcessing ? 'Processing...' : 'Unsubscribe'))));
+  }, uiText(isProcessing ? 'Processing...' : 'Unsubscribe')))));
   if (isStatusLoading || !areKeysChecked || onboardingStatus === 'loading') {
     return /*#__PURE__*/React.createElement("div", {
       className: "bg-brand-dark text-brand-text-primary flex items-center justify-center h-full p-4"
-    }, /*#__PURE__*/React.createElement(LoadingSpinner, null), " Initializing...");
+    }, /*#__PURE__*/React.createElement(LoadingSpinner, null), uiText(" Initializing..."));
   }
   if (showApiManager) {
     return /*#__PURE__*/React.createElement(ApiKeysManager, {
@@ -2429,67 +2738,66 @@ const App = () => {
       setShowSubscriptionManager(true);
       setIsMenuOpen(false);
     }
-  }), /*#__PURE__*/React.createElement("header", {
-    className: "plugin-header-card"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center space-x-3"
+  }), /*#__PURE__*/React.createElement("header", { className: "plugin-navbar", "data-figma-node": "1103:7294" }, React.createElement("div", { className: "plugin-header-card" }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-x-3"
   }, /*#__PURE__*/React.createElement("div", { className: "brand-mark", "aria-label": "RTL Master" }, /*#__PURE__*/React.createElement("img", { src: "data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjE2LjM3NSIgaGVpZ2h0PSIyMC40Njg4IiB2aWV3Qm94PSIwIDAgMTYuMzc1IDIwLjQ2ODgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxnIGlkPSJsb2dvIDEiPgo8cGF0aCBpZD0iVmVjdG9yIiBkPSJNMTUuMzgzIDAuMDMwMjU1M0MxNC44NzA1IDAuMDMwMzI4OSAxNC40NTQ2IDAuNDQ1NzU5IDE0LjQ1NDYgMC45NTgwMzdWMTkuNTEwN0MxNC40NTQ3IDIwLjAyMjkgMTQuODcwNSAyMC40Mzg0IDE1LjM4MyAyMC40Mzg1QzE1Ljg5NTcgMjAuNDM4NSAxNi4zMTE1IDIwLjAyMyAxNi4zMTE1IDE5LjUxMDdWMC45NTgwMzdDMTYuMzExNSAwLjQ0NTY4NSAxNS44OTU3IDAuMDMwMjU1MyAxNS4zODMgMC4wMzAyNTUzWk0zLjA1MTgxIDExLjM5NEMyLjY0MzYgMTEuMzk0IDIuMjkxNDMgMTEuMzkzNyAyLjAwMjUyIDExLjQxOThDMS42OTY5NiAxMS40NDc1IDEuMzk0NDMgMTEuNTA5MSAxLjEwOTI4IDExLjY3MzZDMC41MDE5MjUgMTIuMDIzOSAwLjI0MTUxNSAxMi41NjM5IDAuMTM2OTM5IDEzLjA3NzFDMC4wNTYyMjQzIDEzLjQ3MzIgMC4wNjE3NDc2IDE0LjA3ODUgMC4wNjQ5ODggMTQuNDA4OEMwLjA2MTc0NzYgMTQuNzM5MSAwLjA1NjIyNDMgMTUuMzQzOCAwLjEzNjkzOSAxNS43Mzk4QzAuMjQxNTE1IDE2LjI1MyAwLjUwMTkyNSAxNi43OTM3IDEuMTA5MjggMTcuMTQ0MUMxLjM5NDM2IDE3LjMwODUgMS42OTcwNCAxNy4zNjk0IDIuMDAyNTIgMTcuMzk3MUMyLjI5MTQzIDE3LjQyMzIgMi42NDM2IDE3LjQyMzcgMy4wNTE4MSAxNy40MjM2SDkuNjA5MzlDMTAuMDE3NiAxNy40MjM3IDEwLjM3MDQgMTcuNDIzMyAxMC42NTk0IDE3LjM5NzFDMTAuOTY0OCAxNy4zNjk0IDExLjI2NzUgMTcuMzA4NSAxMS41NTI2IDE3LjE0NDFDMTIuMTYgMTYuNzkzNyAxMi40MjA0IDE2LjI1MyAxMi41MjUgMTUuNzM5OEMxMi42MDU2IDE1LjM0MzggMTIuNjAwMSAxNC43MzkxIDEyLjU5NjkgMTQuNDA4OEMxMi42MDAxIDE0LjA3ODUgMTIuNjA1NyAxMy40NzMyIDEyLjUyNSAxMy4wNzcxQzEyLjQyMDQgMTIuNTY0IDEyLjE1OTggMTIuMDIzOSAxMS41NTI2IDExLjY3MzZDMTEuMjY3NSAxMS41MDkxIDEwLjk2NDggMTEuNDQ3NSAxMC42NTk0IDExLjQxOThDMTAuMzcwNCAxMS4zOTM3IDEwLjAxNzYgMTEuMzk0IDkuNjA5MzkgMTEuMzk0SDMuMDUxODFaTTguNjIxMjIgMy4wNDUwNUM4LjIxMzA4IDMuMDQ1MDUgNy44NjA4NCAzLjA0NDc1IDcuNTcxOTMgMy4wNzA5NUM3LjI2NjQ1IDMuMDk4NjIgNi45NjM3NyAzLjE2MDE1IDYuNjc4NjkgMy4zMjQ2M0M2LjA3MTQ4IDMuNjc1IDUuODEwOTMgNC4yMTUxIDUuNzA2MzUgNC43MjgyNkM1LjYyNTYzIDUuMTI0MjYgNS42MzExNiA1LjcyOTYzIDUuNjM0NCA2LjA1OTkxQzUuNjMxMTYgNi4zOTAyIDUuNjI1NjMgNi45OTQ5MSA1LjcwNjM1IDcuMzkwOTFDNS44MTA5MyA3LjkwNDA3IDYuMDcxMzQgOC40NDQ4MyA2LjY3ODY5IDguNzk1MkM2Ljk2Mzc3IDguOTU5NjggNy4yNjY0NSA5LjAyMDQ3IDcuNTcxOTMgOS4wNDgyMUM3Ljg2MDg0IDkuMDc0MzQgOC4yMTMwOCA5LjA3NDc4IDguNjIxMjIgOS4wNzQ3OEg5LjYwOTM5QzEwLjAxNzYgOS4wNzQ3OCAxMC4zNzA0IDkuMDc0MzQgMTAuNjU5NCA5LjA0ODIxQzEwLjk2NDggOS4wMjA0NyAxMS4yNjc1IDguOTU5NjggMTEuNTUyNiA4Ljc5NTJDMTIuMTU5OSA4LjQ0NDgzIDEyLjQyMDQgNy45MDQwNyAxMi41MjUgNy4zOTA5MUMxMi42MDU2IDYuOTk0OTEgMTIuNjAwMSA2LjM5MDIgMTIuNTk2OSA2LjA1OTkxQzEyLjYwMDEgNS43Mjk2MyAxMi42MDU3IDUuMTI0MjYgMTIuNTI1IDQuNzI4MjZDMTIuNDIwNCA0LjIxNTE3IDEyLjE1OTggMy42NzUwNyAxMS41NTI2IDMuMzI0NjNDMTEuMjY3NSAzLjE2MDE1IDEwLjk2NDkgMy4wOTg2MiAxMC42NTk0IDMuMDcwOTVDMTAuMzcwNCAzLjA0NDc1IDEwLjAxNzYgMy4wNDUwNSA5LjYwOTM5IDMuMDQ1MDVIOC42MjEyMloiIGZpbGw9IiMxNEYxOTUiLz4KPC9nPgo8L3N2Zz4K", width: "16.375", height: "20.469", alt: "", className: "block", style: { flexShrink: 0 } }))), /*#__PURE__*/React.createElement("div", {
     className: "user-controls flex items-center gap-1 p-1 bg-brand-surface",
-    style: { background: "#161616", border: 0, borderRadius: 9999, width: 128, height: 40, padding: 0, gap: 4, overflow: "visible", justifyContent: "flex-end" }
+    style: { background: "rgb(var(--ui-surface))", border: 0, borderRadius: 9999, width: 128, height: 40, padding: 0, gap: 4, overflow: "visible", justifyContent: "flex-end" }
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "top-icon-button flex items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-brand-teal",
-    style: { width: 40, height: 40, padding: 8, boxSizing: "border-box", border: 0, borderRadius: 9999, background: "#202020" },
-    "aria-label": "Change language",
-    disabled: true
-  }, /*#__PURE__*/React.createElement(LanguageIcon, null)), /*#__PURE__*/React.createElement("div", {
+    style: { width: 40, height: 40, padding: 8, boxSizing: "border-box", border: 0, borderRadius: 9999, background: "rgb(var(--ui-raised))" },
+    "aria-label": uiLanguage === "ar" ? "Switch interface to English" : "تغيير لغة الواجهة إلى العربية",
+    title: uiLanguage === "ar" ? "English" : "العربية",
+    onClick: () => changeUiLanguage(uiLanguage === "ar" ? "en" : "ar")
+  }, /*#__PURE__*/React.createElement(LanguageIcon, null)), React.createElement("button", { type: "button", className: "top-icon-button navbar-theme-button", onClick: () => changeUiTheme(uiTheme === "dark" ? "light" : "dark"), "aria-label": uiLanguage === "ar" ? (uiTheme === "dark" ? "تفعيل الوضع النهاري" : "تفعيل الوضع الداكن") : (uiTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"), "aria-pressed": uiTheme === "light", title: uiLanguage === "ar" ? (uiTheme === "dark" ? "تفعيل الوضع النهاري" : "تفعيل الوضع الداكن") : (uiTheme === "dark" ? "Switch to light mode" : "Switch to dark mode") }, React.createElement("span", { className: "navbar-icon", "aria-hidden": true }, React.createElement("img", { src: THEME_ICON_ASSETS[uiTheme], alt: "", style: { flexShrink: 0 } }))), /*#__PURE__*/React.createElement("div", {
     ref: settingsButtonRef,
     className: "relative"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setIsSettingsMenuOpen(value => !value),
     className: "top-icon-button flex items-center justify-center rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-teal",
-    style: { width: 40, height: 40, padding: 8, boxSizing: "border-box", border: 0, borderRadius: 9999, background: "#202020" },
-    "aria-label": "Settings",
+    style: { width: 40, height: 40, padding: 8, boxSizing: "border-box", border: 0, borderRadius: 9999, background: "rgb(var(--ui-raised))" },
+    "aria-label": uiText("Settings"),
     "aria-expanded": isSettingsMenuOpen
-  }, /*#__PURE__*/React.createElement(FigmaSettingsIcon, null)), isSettingsMenuOpen && /*#__PURE__*/React.createElement("div", {
-    className: "absolute right-0 top-full mt-2 w-44 z-50 rounded-2xl border border-brand-border bg-brand-surface p-1 shadow-xl"
+  }, /*#__PURE__*/React.createElement(NavbarSettingsIcon, null)), isSettingsMenuOpen && /*#__PURE__*/React.createElement("div", {
+    className: "absolute end-0 top-full mt-2 w-44 z-50 rounded-2xl border border-brand-border bg-brand-surface p-1 shadow-xl"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setShowApiManager(true);
       setIsSettingsMenuOpen(false);
     },
-    className: "w-full rounded-xl px-3 py-2 text-left text-xs text-brand-text-primary hover:bg-brand-dark transition-colors focus:outline-none flex items-center gap-2",
-    "aria-label": "Manage API Keys"
-  }, /*#__PURE__*/React.createElement(KeyIcon, null), /*#__PURE__*/React.createElement("span", null, "Manage API Keys")), isPro && /*#__PURE__*/React.createElement("button", {
+    className: "w-full rounded-xl px-3 py-2 text-start text-xs text-brand-text-primary hover:bg-brand-dark transition-colors focus:outline-none flex items-center gap-2",
+    "aria-label": uiText("Manage API Keys")
+  }, /*#__PURE__*/React.createElement(KeyIcon, null), /*#__PURE__*/React.createElement("span", null, uiText("Manage API Keys"))), isPro && /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setShowSubscriptionManager(true);
       setIsSettingsMenuOpen(false);
     },
-    className: "w-full rounded-xl px-3 py-2 text-left text-xs text-brand-text-primary hover:bg-brand-dark transition-colors focus:outline-none flex items-center gap-2",
-    "aria-label": "Manage Subscription"
-  }, /*#__PURE__*/React.createElement(SubscriptionIcon, null), /*#__PURE__*/React.createElement("span", null, "Manage Subscription")))), /*#__PURE__*/React.createElement("div", {
+    className: "w-full rounded-xl px-3 py-2 text-start text-xs text-brand-text-primary hover:bg-brand-dark transition-colors focus:outline-none flex items-center gap-2",
+    "aria-label": uiText("Manage Subscription")
+  }, /*#__PURE__*/React.createElement(SubscriptionIcon, null), /*#__PURE__*/React.createElement("span", null, uiText("Manage Subscription"))))))), /*#__PURE__*/React.createElement("div", {
     ref: menuButtonRef,
     className: "relative"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setIsMenuOpen(true),
-    className: "top-icon-button flex items-center justify-center rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-teal",
-    style: { width: 40, height: 40, padding: 8, boxSizing: "border-box", border: 0, borderRadius: 9999, background: "#202020" },
-    "aria-label": "Open menu"
-  }, /*#__PURE__*/React.createElement(FigmaInboxIcon, null))))) , /*#__PURE__*/React.createElement("div", { className: "plugin-account-status flex items-center justify-end gap-2 mx-2 mt-2 flex-shrink-0" }, !isPro && trialCount !== null && /*#__PURE__*/React.createElement("div", {
+    className: "top-icon-button navbar-menu-button flex items-center justify-center rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-teal",
+    style: { width: 48, height: 48, padding: 12, boxSizing: "border-box", border: 0, borderRadius: 9999, background: "rgb(var(--ui-surface))" },
+    "aria-label": uiText("Open menu")
+  }, /*#__PURE__*/React.createElement(FigmaInboxIcon, null)))) , /*#__PURE__*/React.createElement("div", { className: "plugin-account-status flex items-center justify-end gap-2 mx-2 mt-2 flex-shrink-0" }, !isPro && trialCount !== null && /*#__PURE__*/React.createElement("div", {
     className: "ui-tag text-xs font-medium text-brand-text-secondary bg-brand-surface px-2 py-1 rounded-md"
-  }, trialCount, " / 10 trials"), !isPro && /*#__PURE__*/React.createElement("button", {
+  }, uiLanguage === "ar" ? `${trialCount} من 10 استخدامات تجريبية` : `${trialCount} / 10 trials`), !isPro && /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowUpgradeScreen(true),
     className: "text-xs font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-1 rounded-full border border-brand-teal/30 hover:bg-brand-teal/20 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-brand-dark focus:ring-brand-teal",
-    "aria-label": "Upgrade to Pro"
-  }, "GO PRO")), !hasSelection && /*#__PURE__*/React.createElement(EmptyState, null), /*#__PURE__*/React.createElement("div", {
+    "aria-label": uiText("Upgrade to Pro")
+  }, uiText("GO PRO"))), !hasSelection && /*#__PURE__*/React.createElement(EmptyState, null), /*#__PURE__*/React.createElement("div", {
     className: `plugin-pill-tabs flex gap-1 mx-2 mt-2 p-1 bg-brand-surface rounded-full flex-shrink-0 ${hasSelection ? '' : 'hidden'}`
   }, /*#__PURE__*/React.createElement(TabButton, {
     active: activeTab === 'mirror',
     onClick: () => setActiveTab('mirror')
-  }, "Mirror & Translate"), /*#__PURE__*/React.createElement(TabButton, {
+  }, uiLanguage === "ar" ? "عكس وترجمة" : "Mirror & Translate"), /*#__PURE__*/React.createElement(TabButton, {
     active: activeTab === 'fontChanger',
     onClick: () => setActiveTab('fontChanger')
-  }, "Font Changer")), /*#__PURE__*/React.createElement("div", {
+  }, uiText("Font Changer"))), /*#__PURE__*/React.createElement("div", {
     className: `plugin-main-scroll flex-grow px-2 pt-2 pb-2 ${activeTab === 'mirror' ? 'mirror-options space-y-2' : 'space-y-2'} ${hasSelection ? '' : 'hidden'}`
   }, activeTab === 'mirror' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     ref: langSelectorRef,
@@ -2498,7 +2806,7 @@ const App = () => {
     className: "flex items-center justify-between"
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-semibold text-brand-text-primary"
-  }, "Translate Text"), /*#__PURE__*/React.createElement(ToggleSwitch, {
+  }, uiText("Translate Text")), /*#__PURE__*/React.createElement(ToggleSwitch, {
     checked: translateText,
     onChange: setTranslateText,
     disabled: isLoading
@@ -2507,9 +2815,9 @@ const App = () => {
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-brand-dark rounded-2xl p-4 -mx-3 -mb-3 border border-brand-border/40"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-center space-x-1"
+    className: "flex items-center justify-center gap-x-1"
   }, /*#__PURE__*/React.createElement(LanguageSelector, {
-    label: "Source language",
+    label: uiText("Source language"),
     value: fromLanguage,
     onChange: e => setFromLanguage(e.target.value),
     options: LANGUAGES,
@@ -2518,9 +2826,9 @@ const App = () => {
     onClick: handleSwapLanguages,
     className: "w-9 h-9 shrink-0 inline-flex items-center justify-center rounded-full hover:bg-brand-border focus:outline-none focus:ring-0 focus-visible:outline-none disabled:opacity-50",
     disabled: fromLanguage === 'auto' || !translateText || isLoading,
-    "aria-label": "Swap languages"
+    "aria-label": uiText("Swap languages")
   }, /*#__PURE__*/React.createElement(SwapIcon, null)), /*#__PURE__*/React.createElement(LanguageSelector, {
-    label: "Target language",
+    label: uiText("Target language"),
     value: toLanguage,
     onChange: e => setToLanguage(e.target.value),
     options: LANGUAGES.filter(lang => lang.code !== 'auto'),
@@ -2533,20 +2841,20 @@ const App = () => {
     className: "flex items-center group relative"
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-medium text-brand-text-primary"
-  }, "Smart Switch Components"), /*#__PURE__*/React.createElement("span", {
-    className: "ui-tag ml-1.5 px-1.5 rounded-full border border-brand-teal/25 bg-brand-teal/10 text-brand-teal text-[9px] leading-4 font-bold"
-  }, "NEW"), /*#__PURE__*/React.createElement("div", {
-    className: "ml-1.5 group/smart-info relative"
+  }, uiText("Smart Switch Components")), /*#__PURE__*/React.createElement("span", {
+    className: "ui-tag ms-1.5 px-1.5 rounded-full border border-brand-teal/25 bg-brand-teal/10 text-brand-teal text-[9px] leading-4 font-bold"
+  }, uiText("NEW")), /*#__PURE__*/React.createElement("div", {
+    className: "ms-1.5 group/smart-info relative"
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
-    "aria-label": "About Smart Switch Components",
+    "aria-label": uiText("About Smart Switch Components"),
     "aria-describedby": "smart-switch-description",
     className: "flex text-brand-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-teal rounded-full"
   }, /*#__PURE__*/React.createElement(InfoIcon, null)), /*#__PURE__*/React.createElement("div", {
     id: "smart-switch-description",
     role: "tooltip",
-    className: "absolute -left-48 bottom-full mb-2 w-56 p-2.5 text-xs text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover/smart-info:opacity-100 group-focus-within/smart-info:opacity-100 transition-opacity pointer-events-none z-10"
-  }, "Switch components to a matching variant in the target language when available, while keeping their component connection."))), /*#__PURE__*/React.createElement(ToggleSwitch, {
+    className: "absolute -start-48 bottom-full mb-2 w-56 p-2.5 text-xs text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover/smart-info:opacity-100 group-focus-within/smart-info:opacity-100 transition-opacity pointer-events-none z-10"
+  }, uiText("Switch components to a matching variant in the target language when available, while keeping their component connection.")))), /*#__PURE__*/React.createElement(ToggleSwitch, {
     checked: smartSwitchComponents,
     onChange: setSmartSwitchComponents,
     disabled: isLoading,
@@ -2559,11 +2867,11 @@ const App = () => {
     className: "flex items-center group relative"
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-medium text-brand-text-primary"
-  }, "Mirror Main Components"), /*#__PURE__*/React.createElement("span", {
-    className: "ml-1.5 text-brand-text-secondary"
+  }, uiText("Mirror Main Components")), /*#__PURE__*/React.createElement("span", {
+    className: "ms-1.5 text-brand-text-secondary"
   }, /*#__PURE__*/React.createElement(InfoIcon, null)), /*#__PURE__*/React.createElement("div", {
-    className: "absolute left-0 bottom-full mb-2 w-56 p-2.5 text-xs text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
-  }, "Create or reuse a mirrored target variant, arrange it beside its source, then swap the local nested instance to it.")), /*#__PURE__*/React.createElement(ToggleSwitch, {
+    className: "absolute start-0 bottom-full mb-2 w-56 p-2.5 text-xs text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
+  }, uiText("Create or reuse a mirrored target variant, arrange it beside its source, then swap the local nested instance to it."))), /*#__PURE__*/React.createElement(ToggleSwitch, {
     checked: mirrorInstances,
     onChange: setMirrorInstances,
     disabled: isLoading
@@ -2576,32 +2884,32 @@ const App = () => {
     className: "flex items-center group relative"
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-medium text-brand-text-primary"
-  }, "Create as Variant"), /*#__PURE__*/React.createElement("span", {
-    className: "ml-1.5 text-brand-text-secondary"
+  }, uiText("Create as Variant")), /*#__PURE__*/React.createElement("span", {
+    className: "ms-1.5 text-brand-text-secondary"
   }, /*#__PURE__*/React.createElement(InfoIcon, null)), /*#__PURE__*/React.createElement("div", {
-    className: "absolute left-0 bottom-full mb-2 w-56 p-2.5 text-xs text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
-  }, "Creates a new variant instead of modifying the selection. Select a single component or instance to use this.")), /*#__PURE__*/React.createElement(ToggleSwitch, {
+    className: "absolute start-0 bottom-full mb-2 w-56 p-2.5 text-xs text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
+  }, uiText("Creates a new variant instead of modifying the selection. Select a single component or instance to use this."))), /*#__PURE__*/React.createElement(ToggleSwitch, {
     checked: createVariant,
     onChange: setCreateVariant,
     disabled: isLoading
   }))), !hasAnyKey && translateText && /*#__PURE__*/React.createElement("div", {
     className: "text-xs text-center text-brand-teal-light p-3 bg-brand-teal/10 rounded-lg border border-brand-teal/20"
-  }, "No API key found. Using a free service. ", /*#__PURE__*/React.createElement("button", {
+  }, uiText("No API key found. Using a free service. "), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowApiManager(true),
     className: "font-bold underline hover:text-white"
-  }, "Add Keys"), " for better translations.")), activeTab === 'fontChanger' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, uiText("Add Keys")), uiText(" for better translations."))), activeTab === 'fontChanger' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "bg-brand-surface rounded-xl p-4 border border-brand-border"
   }, /*#__PURE__*/React.createElement("label", {
     className: "block font-medium text-brand-text-primary mb-2"
-  }, "Select Font"), /*#__PURE__*/React.createElement("div", {
+  }, uiText("Select Font")), /*#__PURE__*/React.createElement("div", {
     className: "bg-brand-dark rounded-2xl p-4 -mx-3 -mb-3 border border-brand-border/40"
   }, availableFonts.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "flex min-h-[72px] items-center justify-center text-center text-brand-text-secondary"
-  }, "Loading fonts...") : /*#__PURE__*/React.createElement(SearchableSelect, {
+  }, uiText("Loading fonts...")) : /*#__PURE__*/React.createElement(SearchableSelect, {
     options: availableFonts,
     value: selectedFont,
     onChange: setSelectedFont,
-    placeholder: "Select a font...",
+    placeholder: uiText("Select a font..."),
     disabled: isFontChanging,
     recentOptions: recentFonts
   }))), /*#__PURE__*/React.createElement("div", {
@@ -2610,7 +2918,7 @@ const App = () => {
     className: "flex items-center justify-between mb-3"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-sm text-brand-text-primary"
-  }, "Auto-Fit Text"), /*#__PURE__*/React.createElement(ToggleSwitch, {
+  }, uiText("Auto-Fit Text")), /*#__PURE__*/React.createElement(ToggleSwitch, {
     checked: autoFitText,
     onChange: setAutoFitText,
     disabled: isFontChanging
@@ -2618,13 +2926,13 @@ const App = () => {
     className: "mb-2"
   }, /*#__PURE__*/React.createElement("label", {
     className: "block font-normal text-brand-text-primary"
-  }, "Select Weight (Optional)")), /*#__PURE__*/React.createElement("div", {
+  }, uiText("Select Weight (Optional)"))), /*#__PURE__*/React.createElement("div", {
     className: "bg-brand-dark rounded-2xl p-4 -mx-3 -mb-3 border border-brand-border/40"
   }, /*#__PURE__*/React.createElement(SearchableSelect, {
     options: ['Auto Match (Recommended)', ...fontStyles],
     value: selectedWeight || 'Auto Match (Recommended)',
     onChange: val => setSelectedWeight(val === 'Auto Match (Recommended)' ? '' : val),
-    placeholder: "Auto Match (Recommended)",
+    placeholder: uiText("Auto Match (Recommended)"),
     disabled: isFontChanging || !selectedFont || fontStyles.length === 0,
     searchable: false
   }))))), /*#__PURE__*/React.createElement("footer", {
@@ -2637,11 +2945,11 @@ const App = () => {
     className: "flex items-baseline gap-2"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-3xl font-bold text-brand-teal"
-  }, `${overallPercent}%`), /*#__PURE__*/React.createElement("span", {
+  }, React.createElement("bdi", { dir: "ltr" }, `${overallPercent}%`)), /*#__PURE__*/React.createElement("span", {
     className: "text-xs text-brand-text-secondary"
-  }, "Progress")), /*#__PURE__*/React.createElement("span", {
+  }, uiText("Progress"))), /*#__PURE__*/React.createElement("span", {
     className: `text-xs font-medium px-2 py-1 rounded-full ${isError ? 'bg-red-500/10 text-red-400' : isLoading ? 'bg-brand-teal/10 text-brand-teal' : 'bg-green-500/10 text-green-400'}`
-  }, isError ? 'Error' : isLoading ? currentStep ? currentStep.stepLabel : 'Processing' : 'Done')), overallPercent > 0 ? /*#__PURE__*/React.createElement("div", {
+  }, uiText(isError ? 'Error' : isLoading ? currentStep ? currentStep.stepLabel : 'Processing' : 'Done'))), overallPercent > 0 ? /*#__PURE__*/React.createElement("div", {
     className: "w-full bg-brand-dark rounded-full h-2.5 overflow-hidden"
   }, /*#__PURE__*/React.createElement("div", {
     className: "h-2.5 rounded-full transition-all duration-300 ease-out",
@@ -2653,9 +2961,9 @@ const App = () => {
     className: "flex items-center justify-between mt-2"
   }, /*#__PURE__*/React.createElement("p", {
     className: `text-xs ${isError ? 'text-red-400' : 'text-brand-text-secondary'}`
-  }, currentStep ? currentStep.substep : statusMessage), progress && progress.total > 0 && progress.processed < progress.total && /*#__PURE__*/React.createElement("span", {
+  }, uiText(currentStep ? currentStep.substep : statusMessage)), progress && progress.total > 0 && progress.processed < progress.total && /*#__PURE__*/React.createElement("span", {
     className: "text-xs text-brand-text-muted"
-  }, progress.processed, " of ", progress.total))), /*#__PURE__*/React.createElement("div", {
+  }, React.createElement("bdi", null, currentUiLanguage === "ar" ? `${progress.processed} من ${progress.total}` : `${progress.processed} of ${progress.total}`)))), /*#__PURE__*/React.createElement("div", {
     ref: mainActionRef,
     className: "plugin-action-buttons flex flex-col"
   }, activeTab === 'mirror' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Button, {
@@ -2663,17 +2971,17 @@ const App = () => {
     disabled: isLoading,
     isLoading: isLoading,
     variant: "primary"
-  }, mainButtonText, /*#__PURE__*/React.createElement(SparkleIcon, null)), /*#__PURE__*/React.createElement(Button, {
+  }, uiText(mainButtonText), /*#__PURE__*/React.createElement(SparkleIcon, null)), /*#__PURE__*/React.createElement(Button, {
     onClick: () => handleAction('translate-only'),
     disabled: isLoading || !translateText,
     isLoading: isLoading && !progress,
     variant: "soft-primary"
-  }, "Translate Only")) : /*#__PURE__*/React.createElement(Button, {
+  }, uiText("Translate Only"))) : /*#__PURE__*/React.createElement(Button, {
     onClick: handleChangeFont,
     disabled: isFontChanging || !selectedFont,
     isLoading: isFontChanging,
     variant: "primary"
-  }, "Change Font"))), showSmartSwitchAnnouncement && onboardingStatus === 'complete' && !showUpgradeScreen && !showSubscriptionManager && /*#__PURE__*/React.createElement(SmartSwitchAnnouncement, {
+  }, uiText("Change Font")))), showSmartSwitchAnnouncement && onboardingStatus === 'complete' && !showUpgradeScreen && !showSubscriptionManager && /*#__PURE__*/React.createElement(SmartSwitchAnnouncement, {
     onDismiss: () => {
       smartSwitchAnnouncementDismissedRef.current = true;
       setShowSmartSwitchAnnouncement(false);
