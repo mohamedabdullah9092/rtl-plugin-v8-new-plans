@@ -5,6 +5,15 @@ const SMART_SWITCH_ANNOUNCEMENT_KEY = 'rtl-master:announcement:smart-switch-comp
 // The structure supports multiple target languages, with English as the source of truth.
 const uxDictionary = {
     "Arabic": {
+        // Standalone dashboard labels use natural Arabic noun phrases.
+        // Keep complete phrases here; adding ال to arbitrary words breaks grammar.
+        "Details": "التفاصيل",
+        "Distance": "المسافة",
+        "Altitude": "الارتفاع",
+        "Progress": "التقدّم",
+        "Waypoints": "نقاط المسار",
+        "Departure Point": "نقطة الانطلاق",
+        "Arrival Point": "نقطة الوصول",
         "Submit": "إرسال",
         "Cancel": "إلغاء",
         "Save": "حفظ",
@@ -2066,7 +2075,42 @@ function isInvalidVariantError(error) {
     const message = String(error && error.message || '').toLowerCase();
     return message.includes('component set for node has existing errors') ||
         message.includes('variant set with invalid properties') ||
-        message.includes('component set has invalid variant properties');
+        message.includes('component set has invalid variant properties') ||
+        message.includes('broken or invalid variants');
+}
+
+function markInvalidComponentSkipped(node, context, error) {
+    console.warn(`Skipping broken component "${node.name}" (${node.id}): ${error.message}`);
+    // Protect the whole subtree, including descendants selected independently.
+    const pending = [node];
+    while (pending.length) {
+        const current = pending.pop();
+        context.smartSwitchedNodeIds.add(current.id);
+        if ('children' in current) pending.push(...current.children);
+    }
+}
+
+async function skipInvalidComponent(node, context) {
+    if (context.smartSwitchedNodeIds.has(node.id)) return true;
+    try {
+        let component = node;
+        if (node.type === 'INSTANCE') {
+            void node.componentProperties;
+            component = await node.getMainComponentAsync();
+        }
+        if (component && component.type === 'COMPONENT') {
+            void component.variantProperties;
+            const parent = await getComponentParentAsync(component);
+            if (parent && parent.type === 'COMPONENT_SET') void parent.componentPropertyDefinitions;
+        } else if (component && component.type === 'COMPONENT_SET') {
+            void component.componentPropertyDefinitions;
+        }
+        return false;
+    } catch (error) {
+        if (!isInvalidVariantError(error)) throw error;
+        markInvalidComponentSkipped(node, context, error);
+        return true;
+    }
 }
 
 function formatUserFacingPluginError(error) {
@@ -2651,9 +2695,91 @@ async function handleRunAction(payload) {
     }
 }
 
+function getTranslationScreen(node) {
+    let screen = node;
+    for (let depth = 0; screen && screen.parent && depth < 40; depth++) {
+        if (screen.parent.type === 'PAGE' || screen.parent.type === 'SECTION') break;
+        screen = screen.parent;
+    }
+    return screen || node;
+}
+
+function analyzePageForTranslation(textNodes) {
+    const started = Date.now();
+    const maxNodes = 2500;
+    const maxCharacters = 9000;
+    const summary = { page: String(figma.currentPage.name || '').slice(0, 120), screens: [],
+        pageSamples: [], truncated: false, scannedNodes: 0 };
+    const roots = new Map();
+    for (const node of textNodes) {
+        const screen = getTranslationScreen(node);
+        if (!roots.has(screen.id) && roots.size < 6) roots.set(screen.id, screen);
+    }
+    const visited = new Set();
+    let characters = 0;
+    function sample(rootNodes, output, limit) {
+        const pending = rootNodes.slice(0, maxNodes).reverse();
+        const unique = new Set();
+        while (pending.length && output.length < limit) {
+            if (visited.size >= maxNodes || characters >= maxCharacters || Date.now() - started >= 120) {
+                summary.truncated = true;
+                break;
+            }
+            const node = pending.pop();
+            if (!node || visited.has(node.id) || node.visible === false) continue;
+            visited.add(node.id);
+            if (node.type === 'TEXT') {
+                const value = String(node.characters || '').trim().replace(/\s+/g, ' ').slice(0, Math.min(180, maxCharacters - characters));
+                if (value && !unique.has(value)) {
+                    unique.add(value);
+                    output.push(value);
+                    characters += value.length;
+                }
+            } else if ('children' in node) {
+                const children = node.children;
+                const remaining = Math.max(0, maxNodes - visited.size - pending.length);
+                if (children.length > remaining) summary.truncated = true;
+                pending.push(...children.slice(0, remaining).reverse());
+            }
+        }
+        if (pending.length) summary.truncated = true;
+    }
+    // Prefer the selected screen over unrelated screens elsewhere on the page.
+    for (const [id, root] of roots) {
+        const screen = { id, name: String(root.name || '').slice(0, 100), texts: [] };
+        sample([root], screen.texts, 28);
+        summary.screens.push(screen);
+    }
+    const pageChildren = figma.currentPage.children || [];
+    if (pageChildren.length > maxNodes) summary.truncated = true;
+    sample(pageChildren.slice(0, maxNodes), summary.pageSamples, 32);
+    summary.scannedNodes = visited.size;
+    return summary;
+}
+
+function getTranslationContext(node) {
+    const path = [];
+    for (let parent = node.parent; parent && path.length < 3; parent = parent.parent) {
+        if (parent.type === 'PAGE' || parent.type === 'DOCUMENT') break;
+        path.push(String(parent.name || '').slice(0, 80));
+    }
+    const nearby = [];
+    const pending = node.parent && 'children' in node.parent ? [...node.parent.children] : [];
+    let visited = 0;
+    while (pending.length && nearby.length < 8 && visited++ < 80) {
+        const sibling = pending.shift();
+        if (sibling.id === node.id) continue;
+        if (sibling.type === 'TEXT') nearby.push(String(sibling.characters || '').slice(0, 160));
+        else if ('children' in sibling) pending.push(...sibling.children);
+    }
+    return { layer: String(node.name || '').slice(0, 80), screenId: getTranslationScreen(node).id, containers: path, nearby };
+}
+
 async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguage, currentStep, totalSteps) {
     const textsForApi = [];
-    const translationsFromDict = [];
+    sendProgress(currentStep, 'Analyzing page context', 0, 1, 'Reading screen content and nearby labels...', totalSteps);
+    const pageContext = analyzePageForTranslation(textNodes);
+    let dictionaryMatches = 0;
     // Every sendProgress() serialises a message and forces a re-render in the
     // UI, so only emit one when the label could actually have changed (~8/s).
     let lastProgressAt = 0;
@@ -2692,36 +2818,17 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
             }
         }
 
-        if (dictionaryTranslation) {
-            translationsFromDict.push({ id: node.id, newCharacters: dictionaryTranslation });
-        } else {
-            textsForApi.push({ id: node.id, characters: originalText });
-        }
+        if (dictionaryTranslation) dictionaryMatches++;
+        // Dictionary entries are suggestions. AI must be able to override an
+        // ambiguous word using the page's domain rather than receiving it too late.
+        textsForApi.push({ id: node.id, characters: originalText,
+            context: getTranslationContext(node), dictionaryTranslation });
     }
 
-    sendProgress(currentStep, 'Checking dictionary', textNodes.length, textNodes.length, `${translationsFromDict.length} found in dictionary, ${textsForApi.length} need API`, totalSteps);
-
-    if (translationsFromDict.length > 0) {
-        const { successCount, failedCount, missingFonts, fontReplacements, localeFontChanges } = await applyTranslationsToNodes(translationsFromDict, null, { toLanguage });
-        let notif = `Translated ${successCount} text layer(s) from dictionary.`;
-        if (failedCount > 0) notif += ` ${failedCount} failed.`;
-        figma.notify(notif);
-
-        if (fontReplacements.size > 0) {
-            const replacementsList = Array.from(fontReplacements.entries()).map(([m, f]) => `${m} → ${f}`).join('; ');
-            figma.notify(`Substituted missing fonts: ${replacementsList}`, { timeout: 8000 });
-        }
-        if (missingFonts.size > 0) {
-            const fontList = Array.from(missingFonts).join(', ');
-            figma.notify(`Could not find fallback for: ${fontList}. Please install.`, { error: true, timeout: 8000 });
-        }
-        if (localeFontChanges > 0) {
-            figma.notify(`Applied locale font variables to ${localeFontChanges} text layer(s).`, { timeout: 5000 });
-        }
-    }
+    sendProgress(currentStep, 'Checking dictionary', textNodes.length, textNodes.length, `${dictionaryMatches} terminology suggestions; page context ready`, totalSteps);
 
     if (textsForApi.length > 0) {
-        figma.ui.postMessage({ type: 'text-nodes-found', payload: { texts: textsForApi, fromLanguage, toLanguage, currentStep, totalSteps } });
+        figma.ui.postMessage({ type: 'text-nodes-found', payload: { texts: textsForApi, pageContext, fromLanguage, toLanguage, currentStep, totalSteps } });
     } else {
         if (!pendingVariantCreation) {
             figma.ui.postMessage({ type: 'action-complete' });
@@ -2756,7 +2863,7 @@ async function processNodesInPlace(payload, shouldMirror) {
 
     const totalSteps = countTotalSteps(shouldMirror, translateText);
     let currentStep = 0;
-    await applyLocalePropertiesToNodes(selection, toLanguage, shouldMirror ? mirrorContext : null);
+    await applyLocalePropertiesToNodes(selection, toLanguage, mirrorContext, shouldMirror);
 
     if (shouldMirror) {
         currentStep++;
@@ -2801,6 +2908,26 @@ function createMirrorContext(options = {}) {
 }
 
 async function handleCreateVariant(payload) {
+    const context = createMirrorContext();
+    for (const node of figma.currentPage.selection) {
+        if (await skipInvalidComponent(node, context)) {
+            figma.notify('Skipped component with broken or invalid variants.');
+            figma.ui.postMessage({ type: 'action-complete' });
+            return;
+        }
+    }
+    try {
+        await handleCreateVariantUnchecked(payload);
+    } catch (error) {
+        if (!isInvalidVariantError(error)) throw error;
+        console.warn('Skipped invalid component variant creation:', error.message);
+        pendingVariantCreation = null;
+        figma.notify('Skipped component with broken or invalid variants.');
+        figma.ui.postMessage({ type: 'action-complete' });
+    }
+}
+
+async function handleCreateVariantUnchecked(payload) {
     const { fromLanguage, toLanguage, translateText, mirrorInstances, shouldMirror, smartSwitchComponents } = payload;
     const selection = figma.currentPage.selection;
 
@@ -3580,6 +3707,7 @@ function findTextNodes(nodes, excludedNodeIds = null) {
 }
 
 function isAtomicIllustration(node) {
+    if (isSpatialComposition(node)) return true;
     if (!('children' in node) || node.children.length === 0) {
         return false;
     }
@@ -3601,6 +3729,120 @@ function isAtomicIllustration(node) {
     }
 
     return true;
+}
+
+// Maps/diagrams are a shared coordinate system, even when markers are instances.
+// A large graphic anchor distinguishes these from ordinary rows of UI controls.
+function isSpatialComposition(node) {
+    if (!node || !('children' in node) || !node.children.length) return false;
+    if (node.layoutMode && node.layoutMode !== 'NONE') return false;
+    if (!(node.width > 0 && node.height > 0)) return false;
+    let hasAnchor = false;
+    let hasInstance = false;
+    const pending = [...node.children];
+    while (pending.length) {
+        const child = pending.pop();
+        // Text-bearing layouts need the regular localization path.
+        if (child.type === 'TEXT') return false;
+        if (child.type === 'INSTANCE') {
+            hasInstance = true;
+            // An unavailable instance subtree cannot safely be classified as artwork.
+            if (!('children' in child) || !child.children.length) return false;
+        }
+        const isGraphic = ['VECTOR', 'BOOLEAN_OPERATION', 'LINE'].includes(child.type) ||
+            (Array.isArray(child.fills) && child.fills.some(fill => fill.type === 'IMAGE'));
+        if (isGraphic && child.width >= node.width * 0.4 && child.height >= node.height * 0.4) {
+            hasAnchor = true;
+        }
+        if ('children' in child) pending.push(...child.children);
+    }
+    return hasAnchor && hasInstance;
+}
+
+function captureChildGeometry(node) {
+    return Array.from(node.children || []).map(child => ({ child, x: child.x,
+        y: child.y, width: child.width, height: child.height,
+        skipManualMirror: isLikelyBackground(child) || isFixedUIElement(child),
+        transform: child.relativeTransform ? child.relativeTransform.map(row => [...row]) : null }));
+}
+
+function mirrorAutoLayoutAlignment(node) {
+    const property = node.layoutMode === 'HORIZONTAL' ? 'primaryAxisAlignItems' :
+        node.layoutMode === 'VERTICAL' ? 'counterAxisAlignItems' : null;
+    if (!property) return;
+    if (node[property] === 'MIN') node[property] = 'MAX';
+    else if (node[property] === 'MAX') node[property] = 'MIN';
+}
+
+function setChildPosition(child, x, y, parentTransform = null) {
+    // Groups recalculate their origin after each child moves. Rebase each
+    // planned position against the CURRENT origin, using the original axes.
+    const current = child.parent && child.parent.absoluteTransform;
+    if (parentTransform && current && child.relativeTransform) {
+        const worldX = parentTransform[0][0] * x + parentTransform[0][1] * y + parentTransform[0][2];
+        const worldY = parentTransform[1][0] * x + parentTransform[1][1] * y + parentTransform[1][2];
+        const [[a, c, tx], [b, d, ty]] = current;
+        const determinant = a * d - b * c;
+        if (Math.abs(determinant) > 1e-8) {
+            const transform = child.relativeTransform.map(row => [...row]);
+            transform[0][2] = (d * (worldX - tx) - c * (worldY - ty)) / determinant;
+            transform[1][2] = (-b * (worldX - tx) + a * (worldY - ty)) / determinant;
+            child.relativeTransform = transform;
+            return;
+        }
+    }
+    child.x = x;
+    child.y = y;
+}
+
+function mirrorChildGeometry(node, geometry, parentWidth, parentTransform, absoluteOnly) {
+    for (const item of geometry) {
+        const child = item.child;
+        if (absoluteOnly ? child.layoutPositioning !== 'ABSOLUTE' : item.skipManualMirror) continue;
+        if (!Number.isFinite(item.x) || !Number.isFinite(item.width)) continue;
+        // Constraint changes can themselves reposition a layer. Set them first.
+        if ('constraints' in child) {
+            const { horizontal, vertical } = child.constraints;
+            if (horizontal === 'LEFT' || horizontal === 'RIGHT') {
+                child.constraints = { horizontal: horizontal === 'LEFT' ? 'RIGHT' : 'LEFT', vertical };
+            }
+        }
+        setChildPosition(child, parentWidth - item.x - item.width, item.y, parentTransform);
+    }
+}
+
+function getProgressFillGeometry(node, geometry) {
+    const shapes = geometry.filter(item => ['RECTANGLE', 'FRAME', 'COMPONENT', 'INSTANCE'].includes(item.child.type) &&
+        item.width > 0 && item.height > 0 && item.width >= item.height * 3 &&
+        Math.abs(item.child.rotation || 0) < 0.01);
+    const ownTrack = { child: node, x: 0, y: 0, width: node.width, height: node.height };
+    const tracks = shapes.concat(
+        node.type !== 'GROUP' && node.width >= node.height * 3 &&
+        Array.isArray(node.fills) && node.fills.some(fill => fill.visible !== false && fill.type === 'SOLID')
+            ? [ownTrack] : []);
+    const pairs = [];
+    for (const fill of shapes) {
+        const candidates = tracks.filter(track => track.child !== fill.child && track.width > fill.width + 1 &&
+            Math.abs(fill.height - track.height) <= Math.max(2, track.height * 0.25) &&
+            Math.abs(fill.y + fill.height / 2 - track.y - track.height / 2) <= 2 &&
+            fill.x >= track.x - 1 && fill.x + fill.width <= track.x + track.width + 1 &&
+            Math.min(Math.abs(fill.x - track.x), Math.abs(track.x + track.width - fill.x - fill.width)) <= Math.max(4, track.height * 0.25));
+        // An ambiguous overlap is not sufficient evidence of a progress bar.
+        if (candidates.length === 1) pairs.push({ fill: fill.child, track: candidates[0].child,
+            inset: fill.x - candidates[0].x, width: fill.width, yOffset: fill.y - candidates[0].y });
+    }
+    return pairs;
+}
+
+function restoreProgressFillGeometry(node, pairs) {
+    for (const pair of pairs) {
+        if ((node.layoutMode === 'HORIZONTAL' || node.layoutMode === 'VERTICAL') &&
+            pair.fill.layoutPositioning !== 'ABSOLUTE') continue;
+        const trackX = pair.track === node ? 0 : pair.track.x;
+        const trackY = pair.track === node ? 0 : pair.track.y;
+        const x = trackX + pair.track.width - pair.inset - pair.width;
+        setChildPosition(pair.fill, x, trackY + pair.yOffset);
+    }
 }
 
 function isLikelyBackground(node) {
@@ -3649,9 +3891,24 @@ function isFixedUIElement(node) {
 }
 
 async function mirrorNode(node, isInsideInstance = false, mirrorContext = createMirrorContext(), mirrorInstances = false, isInsideFlippedContainer = false) {
+    if (isSpatialComposition(node)) return;
+    if (await skipInvalidComponent(node, mirrorContext)) return;
+    try {
+        await mirrorNodeUnchecked(node, isInsideInstance, mirrorContext, mirrorInstances, isInsideFlippedContainer);
+    } catch (error) {
+        if (!isInvalidVariantError(error)) throw error;
+        markInvalidComponentSkipped(node, mirrorContext, error);
+    }
+}
+
+async function mirrorNodeUnchecked(node, isInsideInstance, mirrorContext, mirrorInstances, isInsideFlippedContainer) {
     if (await trySwitchToExistingLocaleVariant(node, mirrorContext)) return;
 
-    const isIllustration = isAtomicIllustration(node);
+    const geometry = captureChildGeometry(node);
+    const progressFills = getProgressFillGeometry(node, geometry);
+    const isIllustration = progressFills.length === 0 && isAtomicIllustration(node);
+    const originalWidth = node.width;
+    const originalTransform = node.absoluteTransform ? node.absoluteTransform.map(row => [...row]) : null;
     const nodeNameLower = node.name.toLowerCase();
 
     if (node.type === 'INSTANCE' && mirrorInstances) {
@@ -3671,7 +3928,10 @@ async function mirrorNode(node, isInsideInstance = false, mirrorContext = create
             console.warn(`Could not create or swap the target variant for instance "${node.name}": ${error.message}`);
             // Broken library icons must not abort the containing frame's conversion.
             // Leave this instance intact; the parent's traversal continues with siblings.
-            if (isInvalidVariantError(error)) return;
+            if (isInvalidVariantError(error)) {
+                markInvalidComponentSkipped(node, mirrorContext, error);
+                return;
+            }
             throw error;
         }
     }
@@ -3753,24 +4013,30 @@ async function mirrorNode(node, isInsideInstance = false, mirrorContext = create
         console.warn(`Skipping property modification for node "${node.name}" (${node.id}) due to a read-only error: ${e.message}`);
     }
 
+    // A graphical frame still owns layout alignment. Keep its artwork intact,
+    // but mirror its horizontal Auto Layout alignment even with just one child.
+    if ('children' in node && !isFlippedNow && !isInsideFlippedContainer) {
+        try {
+            mirrorAutoLayoutAlignment(node);
+            if (isIllustration) {
+                // Nested wrappers can be Fill width / Hug height while containing
+                // only graphics. They need alignment too, without moving artwork.
+                const pending = [...node.children];
+                while (pending.length) {
+                    const child = pending.pop();
+                    try { mirrorAutoLayoutAlignment(child); }
+                    catch (error) { console.warn(`Could not mirror nested alignment: ${error.message}`); }
+                    if ('children' in child) pending.push(...child.children);
+                }
+            }
+        } catch (error) {
+            console.warn(`Could not mirror Auto Layout alignment for "${node.name}": ${error.message}`);
+        }
+    }
+
     if ('children' in node && !isIllustration) {
         if (!isFlippedNow && !isInsideFlippedContainer) {
             try {
-                // These layout property changes are safe to run on instances themselves as overrides.
-                if (node.layoutMode === 'HORIZONTAL') {
-                    if (node.primaryAxisAlignItems === 'MIN') {
-                        node.primaryAxisAlignItems = 'MAX';
-                    } else if (node.primaryAxisAlignItems === 'MAX') {
-                        node.primaryAxisAlignItems = 'MIN';
-                    }
-                } else if (node.layoutMode === 'VERTICAL') {
-                    if (node.counterAxisAlignItems === 'MIN') {
-                        node.counterAxisAlignItems = 'MAX';
-                    } else if (node.counterAxisAlignItems === 'MAX') {
-                        node.counterAxisAlignItems = 'MIN';
-                    }
-                }
-
                 // These operations modify the children themselves (reordering/repositioning).
                 // They are NOT safe inside an instance, so we only run them on regular frames/groups.
                 if (!isInsideInstance && node.type !== 'INSTANCE') {
@@ -3780,59 +4046,11 @@ async function mirrorNode(node, isInsideInstance = false, mirrorContext = create
                             node.insertChild(index, child);
                         });
 
-                        // Mirror absolute-positioned children (ignore auto layout)
-                        const parentWidth = node.width;
-                        for (const child of node.children) {
-                            if (child.layoutPositioning === 'ABSOLUTE') {
-                                if ('x' in child && 'width' in child) {
-                                    child.x = parentWidth - (child.x + child.width);
-                                }
-                                if ('constraints' in child) {
-                                    const { horizontal, vertical } = child.constraints;
-                                    if (horizontal === 'LEFT') {
-                                        child.constraints = { horizontal: 'RIGHT', vertical };
-                                    } else if (horizontal === 'RIGHT') {
-                                        child.constraints = { horizontal: 'LEFT', vertical };
-                                    }
-                                }
-                            }
-                        }
+                        mirrorChildGeometry(node, geometry, originalWidth, originalTransform, true);
                     } else if (node.layoutMode === 'VERTICAL') {
-                        // Mirror absolute-positioned children (ignore auto layout) in vertical frames
-                        const parentWidth = node.width;
-                        for (const child of node.children) {
-                            if (child.layoutPositioning === 'ABSOLUTE') {
-                                if ('x' in child && 'width' in child) {
-                                    child.x = parentWidth - (child.x + child.width);
-                                }
-                                if ('constraints' in child) {
-                                    const { horizontal, vertical } = child.constraints;
-                                    if (horizontal === 'LEFT') {
-                                        child.constraints = { horizontal: 'RIGHT', vertical };
-                                    } else if (horizontal === 'RIGHT') {
-                                        child.constraints = { horizontal: 'LEFT', vertical };
-                                    }
-                                }
-                            }
-                        }
+                        mirrorChildGeometry(node, geometry, originalWidth, originalTransform, true);
                     } else if (node.layoutMode === 'NONE' || typeof node.layoutMode === 'undefined') {
-                        const parentWidth = node.width;
-                        for (const child of node.children) {
-                            if (isLikelyBackground(child) || isFixedUIElement(child)) {
-                                continue;
-                            }
-                            if ('x' in child && 'width' in child) {
-                                child.x = parentWidth - (child.x + child.width);
-                            }
-                            if ('constraints' in child) {
-                                const { horizontal, vertical } = child.constraints;
-                                if (horizontal === 'LEFT') {
-                                    child.constraints = { horizontal: 'RIGHT', vertical };
-                                } else if (horizontal === 'RIGHT') {
-                                    child.constraints = { horizontal: 'LEFT', vertical };
-                                }
-                            }
-                        }
+                        mirrorChildGeometry(node, geometry, originalWidth, originalTransform, false);
                     }
                 }
             } catch (e) {
@@ -3843,6 +4061,9 @@ async function mirrorNode(node, isInsideInstance = false, mirrorContext = create
         const currentlyInInstance = isInsideInstance || node.type === 'INSTANCE';
         for (const child of node.children) {
             await mirrorNode(child, currentlyInInstance, mirrorContext, mirrorInstances, isInsideFlippedContainer || isFlippedNow);
+        }
+        if (!isFlippedNow && !isInsideFlippedContainer && !node.readOnly && !isInsideInstance && node.type !== 'INSTANCE') {
+            restoreProgressFillGeometry(node, progressFills);
         }
     }
 }
@@ -4208,9 +4429,10 @@ async function applyLocalePropertiesToNode(node, toLanguage) {
     }
 }
 
-async function applyLocalePropertiesToNodes(nodes, toLanguage, mirrorContext = null) {
+async function applyLocalePropertiesToNodes(nodes, toLanguage, mirrorContext = null, allowSmartSwitch = true) {
+    mirrorContext = mirrorContext || createMirrorContext();
     const stack = Array.from(nodes || []);
-    if (mirrorContext && mirrorContext.options.smartSwitchComponents === true) {
+    if (allowSmartSwitch && mirrorContext.options.smartSwitchComponents === true) {
         // Match before locale updates can change the source variant. Inspect outer
         // instances first, but retain the original locale traversal for fallbacks.
         const selectedIds = new Set(stack.map(node => node.id));
@@ -4222,6 +4444,8 @@ async function applyLocalePropertiesToNodes(nodes, toLanguage, mirrorContext = n
         });
         while (pending.length > 0) {
             const node = pending.pop();
+            if (isSpatialComposition(node)) continue;
+            if (await skipInvalidComponent(node, mirrorContext)) continue;
             if (await trySwitchToExistingLocaleVariant(node, mirrorContext)) continue;
             if ('children' in node) pending.push(...node.children);
         }
@@ -4233,6 +4457,8 @@ async function applyLocalePropertiesToNodes(nodes, toLanguage, mirrorContext = n
         if (!node || seen.has(node.id)) continue;
         seen.add(node.id);
 
+        if (isSpatialComposition(node)) continue;
+        if (await skipInvalidComponent(node, mirrorContext)) continue;
         if (mirrorContext && mirrorContext.smartSwitchedNodeIds.has(node.id)) continue;
         await applyLocalePropertiesToNode(node, toLanguage);
 
