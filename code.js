@@ -2113,16 +2113,6 @@ setTimeout(() => {
 figma.ui.onmessage = async (msg) => {
     try {
         switch (msg.type) {
-            case 'get-ui-theme': {
-                const theme = await figma.clientStorage.getAsync('uiTheme');
-                figma.ui.postMessage({ type: 'ui-theme', payload: { theme: theme === 'light' ? 'light' : 'dark' } });
-                return;
-            }
-            case 'set-ui-theme': {
-                const theme = msg.payload?.theme === 'light' ? 'light' : 'dark';
-                await figma.clientStorage.setAsync('uiTheme', theme);
-                return;
-            }
             case 'get-ui-language': {
                 const language = await figma.clientStorage.getAsync('uiLanguage');
                 figma.ui.postMessage({ type: 'ui-language', payload: { language: language === 'ar' ? 'ar' : 'en' } });

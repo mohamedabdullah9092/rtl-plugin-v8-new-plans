@@ -398,22 +398,3 @@ test('interface language stores only supported values', async () => {
     await runtime.figma.ui.onmessage({ type: 'set-ui-language', payload: { language: 'unsupported' } });
     assert.deepEqual(writes, [['uiLanguage', 'ar'], ['uiLanguage', 'en']]);
 });
-
-test('theme preference is restored independently from interface language', async () => {
-    const runtime = loadPlugin();
-    const messages = [];
-    runtime.figma.clientStorage = { getAsync: async key => key === 'uiTheme' ? 'light' : 'ar' };
-    runtime.figma.ui.postMessage = message => messages.push(message);
-    await runtime.figma.ui.onmessage({ type: 'get-ui-theme' });
-    assert.equal(messages[0].type, 'ui-theme');
-    assert.equal(messages[0].payload.theme, 'light');
-});
-
-test('theme updates store only supported values under their own key', async () => {
-    const runtime = loadPlugin();
-    const writes = [];
-    runtime.figma.clientStorage = { setAsync: async (key, value) => writes.push([key, value]) };
-    await runtime.figma.ui.onmessage({ type: 'set-ui-theme', payload: { theme: 'light' } });
-    await runtime.figma.ui.onmessage({ type: 'set-ui-theme', payload: { theme: 'unsupported' } });
-    assert.deepEqual(writes, [['uiTheme', 'light'], ['uiTheme', 'dark']]);
-});

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html data-theme="dark" lang="en" class="h-full">
+<html lang="en" class="h-full">
 
 <head>
   <meta charset="utf-8" />
@@ -9,9 +9,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
-    :root { color-scheme: dark; --ui-bg: 12 12 12; --ui-surface: 22 22 22; --ui-raised: 32 32 32; --ui-border: 32 32 32; --ui-text: 245 245 245; --ui-secondary: 128 128 128; --ui-muted: 115 115 115; --ui-icon: 204 204 204; --ui-accent: 20 241 149; --ui-accent-light: 97 255 184; --ui-accent-ink: 20 241 149; --ui-on-accent: 12 12 12; --ui-overlay: 12 12 12; --ui-pattern: 255 255 255; }
-    :root[data-theme="light"] { color-scheme: light; --ui-bg: 255 255 255; --ui-surface: 245 245 245; --ui-raised: 224 224 224; --ui-border: 224 224 224; --ui-text: 22 22 22; --ui-secondary: 82 82 82; --ui-muted: 102 102 102; --ui-icon: 22 22 22; --ui-accent-ink: 0 112 70; --ui-overlay: 22 22 22; --ui-pattern: 0 0 0; }
-
     html, body, #root { height: 100% !important; overflow: hidden !important; }
     *::-webkit-scrollbar { width: 0; display: none; }
     * { scrollbar-width: none; }
@@ -25,28 +22,28 @@
       corner-shape: round;
     }
     .feature-announcement::backdrop { background: rgba(0, 0, 0, 0.6); }
-    .beui-language-select { --color-border-strong: rgb(var(--ui-secondary)); }
+    .beui-language-select { --color-border-strong: #808080; }
     .beui-language-select [aria-haspopup="listbox"],
-    .beui-language-select [role="listbox"] { background: rgb(var(--ui-surface)); color: rgb(var(--ui-text)); border-color: rgb(var(--ui-border)); }
-    .beui-language-select [aria-haspopup="listbox"]:hover { border-color: rgb(var(--ui-secondary)); }
+    .beui-language-select [role="listbox"] { background: #161616; color: #F5F5F5; border-color: #202020; }
+    .beui-language-select [aria-haspopup="listbox"]:hover { border-color: #808080; }
     .beui-language-select [aria-haspopup="listbox"]:focus-visible { outline: 2px solid #14F195; outline-offset: 2px; }
     .beui-language-select [aria-haspopup="listbox"] {
       border-radius: 9999px !important;
       corner-shape: round;
     }
     .beui-language-select [role="listbox"] { max-height: 240px; overflow-y: auto; overscroll-behavior: contain; }
-    .beui-language-select [role="option"] { color: rgb(var(--ui-secondary)); }
-    .beui-language-select .text-muted-foreground { color: rgb(var(--ui-secondary)); }
+    .beui-language-select [role="option"] { color: #808080; }
+    .beui-language-select .text-muted-foreground { color: #808080; }
     .beui-language-select [role="option"][aria-selected="true"],
     .beui-language-select [role="option"]:hover,
-    .beui-language-select [role="option"]:focus-visible { background: rgb(var(--ui-border)); color: rgb(var(--ui-text)); }
-    .empty-state { background-color: rgb(var(--ui-bg)); background-image: radial-gradient(circle, rgb(var(--ui-pattern) / 0.04) 1.5px, transparent 1.8px); background-size: 28px 28px; }
+    .beui-language-select [role="option"]:focus-visible { background: #202020; color: #F5F5F5; }
+    .empty-state { background-color: #0C0C0C; background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1.5px, transparent 1.8px); background-size: 28px 28px; }
     #root .empty-state-icon { border-radius: 9999px !important; corner-shape: round !important; }
-    .empty-state > div { background-image: radial-gradient(circle, rgb(var(--ui-pattern) / 0.04) 1.5px, transparent 1.8px); background-size: 28px 28px; }
-    #root .user-controls { box-sizing: border-box !important; display: flex; flex-direction: row; justify-content: flex-end; align-items: center; position: static; inset: auto; width: 128px; height: 40px; flex: 0 0 128px; background: transparent !important; border: 0 !important; border-radius: 9999px !important; corner-shape: round !important; gap: 4px !important; padding: 0 !important; overflow: visible !important; }
-    #root .top-icon-button { box-sizing: border-box !important; display: flex; flex-direction: column; justify-content: center; align-items: center; flex: none; gap: 10px; background: rgb(var(--ui-border)) !important; border: 0 !important; width: 40px !important; height: 40px !important; padding: 8px !important; border-radius: 9999px !important; corner-shape: round !important; }
+    .empty-state > div { background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1.5px, transparent 1.8px); background-size: 28px 28px; }
+    #root .user-controls { box-sizing: border-box !important; display: flex; flex-direction: row; justify-content: flex-end; align-items: center; position: static; inset: auto; width: 84px; height: 40px; flex: 0 0 84px; background: transparent !important; border: 0 !important; border-radius: 9999px !important; corner-shape: round !important; gap: 4px !important; padding: 0 !important; overflow: visible !important; }
+    #root .top-icon-button { box-sizing: border-box !important; display: flex; flex-direction: column; justify-content: center; align-items: center; flex: none; gap: 10px; background: #202020 !important; border: 0 !important; width: 40px !important; height: 40px !important; padding: 8px !important; border-radius: 9999px !important; corner-shape: round !important; }
     .plugin-main-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-    .plugin-action-footer { position: relative; isolation: isolate; background: rgb(var(--ui-bg)); }
+    .plugin-action-footer { position: relative; isolation: isolate; background: #0C0C0C; }
     .plugin-action-footer::before {
       content: "";
       position: absolute;
@@ -56,7 +53,7 @@
       top: -30px;
       height: 30px;
       pointer-events: none;
-      background: linear-gradient(to bottom, rgb(var(--ui-bg) / 0), rgb(var(--ui-bg)) 92%);
+      background: linear-gradient(to bottom, rgba(12, 12, 12, 0), #0C0C0C 92%);
     }
     .plugin-action-buttons { display: flex; flex-direction: column; gap: 8px; }
     #root .plugin-action-buttons > button { flex: none; width: 100%; min-width: 0; padding: 10px 8px; border-radius: 28px !important; corner-shape: superellipse(2) !important; font-size: 14px; white-space: nowrap; }
@@ -64,7 +61,7 @@
     #root .plugin-pill-tabs button {
       border-radius: 9999px !important;
       corner-shape: round;
-      border: 1px solid rgb(var(--ui-border));
+      border: 1px solid #202020;
       outline: none !important;
       box-shadow: none !important;
       transition: background-color 280ms ease, color 280ms ease, transform 280ms ease;
@@ -76,9 +73,9 @@
       box-shadow: none !important;
     }
     #root .plugin-pill-tabs button.tab-active {
-      background-image: linear-gradient(166.47deg, rgba(20, 241, 149, 0.11) 28.5%, rgba(20, 241, 149, 0) 87.8%), linear-gradient(90deg, rgb(var(--ui-surface)) 0%, rgb(var(--ui-surface)) 100%);
+      background-image: linear-gradient(166.47deg, rgba(20, 241, 149, 0.11) 28.5%, rgba(20, 241, 149, 0) 87.8%), linear-gradient(90deg, #161616 0%, #161616 100%);
       border: 1px solid rgba(20, 241, 149, 0.2);
-      color: rgb(var(--ui-accent-ink));
+      color: #14F195;
     }
     #root .plugin-pill-tabs button:not(.tab-active) {
       border: 0 !important;
@@ -94,15 +91,15 @@
     }
     /* Figma nabv 1083:6981: native 257 x 48 geometry. */
     #root .plugin-navbar { display: flex; align-items: center; gap: 4px; width: calc(100% - 16px); height: 48px; margin: 16px 8px 0; flex: 0 0 auto; direction: ltr; }
-    #root .plugin-header-card { position: relative; display: flex; align-items: center; justify-content: space-between; flex: 1 1 0; min-width: 0; height: 48px; direction: inherit; border-radius: 60px !important; corner-shape: round; padding: 4px; box-sizing: border-box; background: rgb(var(--ui-surface)); border: 0; box-shadow: none; overflow: visible; }
-    #root .navbar-menu-button { width: 48px !important; height: 48px !important; padding: 12px !important; background: rgb(var(--ui-surface)) !important; }
+    #root .plugin-header-card { position: relative; display: flex; align-items: center; justify-content: space-between; flex: 1 1 0; min-width: 0; height: 48px; direction: inherit; border-radius: 60px !important; corner-shape: round; padding: 4px; box-sizing: border-box; background: #161616; border: 0; box-shadow: none; overflow: visible; }
+    #root .navbar-menu-button { width: 48px !important; height: 48px !important; padding: 12px !important; background: #161616 !important; }
     #root .plugin-navbar > .relative { flex: 0 0 48px; }
     #root .navbar-menu-button .navbar-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex: none; }
     #root .plugin-header-card > .flex:first-child { position: static; z-index: 2; }
     #root .plugin-account-status:empty { display: none; }
     #root .relative > .brand-mark { display: none !important; }
-    #root .brand-mark { corner-shape: round !important; width: 40px; height: 40px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex: none; background: rgb(var(--ui-border)); border-radius: 100px; }
-    #root .plugin-header-card .top-icon-button { color: rgb(var(--ui-icon)); cursor: pointer; }
+    #root .brand-mark { corner-shape: round !important; width: 40px; height: 40px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex: none; background: #202020; border-radius: 100px; }
+    #root .plugin-header-card .top-icon-button { color: #CCCCCC; cursor: pointer; }
     #root .plugin-header-card .top-icon-button:disabled { cursor: default; }
     #root .plugin-header-card .brand-mark img { width: 16.375px; height: 20.4688px; }
     #root .plugin-header-card .navbar-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex: none; }
@@ -143,25 +140,6 @@
     html.ui-direction-changing .app-menu-drawer { transition: none !important; }
     html.ui-direction-changing .app-menu-drawer[data-state="closed"] { visibility: hidden !important; }
     @media (prefers-reduced-motion: reduce) { .app-menu-drawer { transition: none !important; } }
-
-    #root .top-icon-button, #root .brand-mark { background: rgb(var(--ui-raised)) !important; }
-    #root .navbar-menu-button { background: rgb(var(--ui-surface)) !important; }
-    #root .user-controls { background: transparent !important; }
-    #root .text-brand-dark { color: rgb(var(--ui-on-accent)); }
-    #root .text-brand-teal, #root .text-brand-teal-light { color: rgb(var(--ui-accent-ink)); }
-    .beui-language-select { --color-border-strong: rgb(var(--ui-secondary)); --color-background: rgb(var(--ui-surface)); --color-foreground: rgb(var(--ui-text)); --color-muted-foreground: rgb(var(--ui-secondary)); --color-border: rgb(var(--ui-border)); }
-    .app-menu-backdrop { background: rgb(var(--ui-overlay) / .5) !important; }
-    html[data-theme="light"] #root .text-white, html[data-theme="light"] #root .hover\:text-white:hover { color: rgb(var(--ui-text)); }
-    html[data-theme="light"] #root .text-green-400 { color: #15803d; }
-    html[data-theme="light"] #root .text-red-400 { color: #b91c1c; }
-    html[data-theme="light"] #root .text-blue-400 { color: #1d4ed8; }
-    html[data-theme="light"] #root .text-sky-400 { color: #0369a1; }
-    html[data-theme="light"] #root .text-amber-400 { color: #92400e; }
-    html[data-theme="light"] #root .bg-white\/5, html[data-theme="light"] #root .empty-state-icon { background-color: rgb(0 0 0 / .06); }
-    html[data-theme="light"] #root .plugin-navbar .navbar-icon img { filter: brightness(0) opacity(.92); }
-    html[data-theme="light"] #root .bg-brand-dark\/80 { background-color: rgb(var(--ui-overlay) / .65); }
-    #root input::placeholder { color: rgb(var(--ui-muted)); opacity: 1; }
-    html[data-theme="light"] #root button:focus-visible, html[data-theme="light"] #root input:focus-visible, html[data-theme="light"] #root select:focus-visible { outline: 2px solid rgb(var(--ui-accent-ink)); outline-offset: 2px; }
 </style>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -169,17 +147,17 @@
       theme: {
         extend: {
           colors: {
-            'brand-dark': 'rgb(var(--ui-bg) / <alpha-value>)',
-            'brand-surface': 'rgb(var(--ui-surface) / <alpha-value>)',
-            'brand-border': 'rgb(var(--ui-border) / <alpha-value>)',
+            'brand-dark': '#0C0C0C',
+            'brand-surface': '#161616',
+            'brand-border': '#202020',
             'brand-teal': {
-              DEFAULT: 'rgb(var(--ui-accent) / <alpha-value>)',
-              'light': 'rgb(var(--ui-accent-light) / <alpha-value>)',
+              DEFAULT: '#14F195',
+              'light': '#61FFB8',
             },
             'brand-text': {
-              'primary': 'rgb(var(--ui-text) / <alpha-value>)',
-              'secondary': 'rgb(var(--ui-secondary) / <alpha-value>)',
-              'muted': 'rgb(var(--ui-muted) / <alpha-value>)',
+              'primary': '#F5F5F5',
+              'secondary': '#808080',
+              'muted': '#737373',
             },
           },
           fontFamily: {
@@ -385,28 +363,6 @@ const ARABIC_UI = {
   "Text Styles": "Text Styles",
   "Overrides": "Overrides"
 };
-
-// Theme is independent of interface and translation languages.
-let currentUiTheme = 'dark';
-let uiThemeChosen = false;
-const uiThemeListeners = new Set();
-const getUiTheme = () => currentUiTheme;
-const subscribeUiTheme = listener => { uiThemeListeners.add(listener); return () => uiThemeListeners.delete(listener); };
-function changeUiTheme(theme, persist = true) {
-  if (persist) uiThemeChosen = true;
-  currentUiTheme = theme === 'light' ? 'light' : 'dark';
-  document.documentElement.dataset.theme = currentUiTheme;
-  document.documentElement.style.colorScheme = currentUiTheme;
-  uiThemeListeners.forEach(listener => listener());
-  if (persist) parent.postMessage({ pluginMessage: { type: 'set-ui-theme', payload: { theme: currentUiTheme } } }, '*');
-}
-window.addEventListener('message', event => {
-  if (event.source !== parent) return;
-  const message = event.data?.pluginMessage;
-  if (message?.type === 'ui-theme' && !uiThemeChosen) changeUiTheme(message.payload?.theme, false);
-});
-const THEME_ICON_ASSETS = { dark: 'data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjIwLjUiIGhlaWdodD0iMjAuNSIgdmlld0JveD0iMCAwIDIwLjUgMjAuNSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGcgaWQ9ImVsZW1lbnRzIj4KPHBhdGggaWQ9Ikljb24iIGQ9Ik04Ljc2NjI5IDAuMjkyOTk0QzguOTQ1NzcgMC41MjY1MiA4Ljk3MTk2IDAuODQzNDgyIDguODMzMjMgMS4xMDMyOUM4LjI0OTI3IDIuMTk2OTMgNy45MTc5MiAzLjQ0NjEgNy45MTc5MiA0Ljc3NDg5QzcuOTE3OTIgOS4wODY3IDExLjQxMzMgMTIuNTgyMSAxNS43MjUxIDEyLjU4MjFDMTcuMDUzOSAxMi41ODIxIDE4LjMwMzEgMTIuMjUwOCAxOS4zOTY3IDExLjY2NjhDMTkuNjU2NSAxMS41MjgxIDE5Ljk3MzUgMTEuNTU0MyAyMC4yMDcgMTEuNzMzN0MyMC40NDA2IDExLjkxMzIgMjAuNTQ3NCAxMi4yMTI4IDIwLjQ4MDIgMTIuNDk5NUMxOS40MDU2IDE3LjA4NSAxNS4yOTA5IDIwLjUgMTAuMzc2OSAyMC41QzQuNjQ1ODkgMjAuNSAwIDE1Ljg1NDEgMCAxMC4xMjMyQzAgNS4yMDkwOSAzLjQxNTA1IDEuMDk0NDggOC4wMDA1IDAuMDE5ODE2NkM4LjI4NzI2IC0wLjA0NzM4OTggOC41ODY4MSAwLjA1OTQ2NzggOC43NjYyOSAwLjI5Mjk5NFpNNi44NDYzOCAxLjk3NTg0QzMuNzAwMjUgMy4zNDEwMyAxLjUgNi40NzU4MyAxLjUgMTAuMTIzMkMxLjUgMTUuMDI1NyA1LjQ3NDMxIDE5IDEwLjM3NjkgMTlDMTQuMDI0MiAxOSAxNy4xNTkgMTYuNzk5OCAxOC41MjQyIDEzLjY1MzZDMTcuNjQwMyAxMy45MzIxIDE2LjY5OTggMTQuMDgyMSAxNS43MjUxIDE0LjA4MjFDMTAuNTg0OSAxNC4wODIxIDYuNDE3OTIgOS45MTUxMiA2LjQxNzkyIDQuNzc0ODlDNi40MTc5MiAzLjgwMDIyIDYuNTY3OTcgMi44NTk3NSA2Ljg0NjM4IDEuOTc1ODRaIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZmlsbD0iI0NDQ0NDQyIvPgo8L2c+Cjwvc3ZnPgo=', light: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMxNjE2MTYiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjQiLz48cGF0aCBkPSJNMTIgMnYyIi8+PHBhdGggZD0iTTEyIDIwdjIiLz48cGF0aCBkPSJtNC45MyA0LjkzIDEuNDEgMS40MSIvPjxwYXRoIGQ9Im0xNy42NiAxNy42NiAxLjQxIDEuNDEiLz48cGF0aCBkPSJNMiAxMmgyIi8+PHBhdGggZD0iTTIwIDEyaDIiLz48cGF0aCBkPSJtNi4zNCAxNy42Ni0xLjQxIDEuNDEiLz48cGF0aCBkPSJtMTkuMDcgNC45My0xLjQxIDEuNDEiLz48L3N2Zz4=' };
-
 let currentUiLanguage = 'en';
 let uiLanguageChosen = false;
 const uiLanguageListeners = new Set();
@@ -1714,7 +1670,7 @@ const AppMenu = ({
 }) => {
   const pluginDescription = "A Figma plugin to mirror layouts for RTL/LTR design and translate text layers using AI. It provides a streamlined workflow for localization and right-to-left UI adaptation.";
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: `app-menu-backdrop fixed inset-0 bg-brand-dark bg-opacity-50 z-20 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`,
+    className: `fixed inset-0 bg-brand-dark bg-opacity-50 z-20 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`,
     onClick: onClose
   }), /*#__PURE__*/React.createElement("div", {
     "data-state": isOpen ? "open" : "closed",
@@ -2070,8 +2026,6 @@ const LANGUAGES = [{
 const EmptyState = () => /*#__PURE__*/React.createElement("div", { className: "empty-state flex-1 px-2 pt-2 pb-2 rounded-2xl bg-brand-dark flex items-center" }, /*#__PURE__*/React.createElement("div", { className: "w-full h-full min-h-0 rounded-2xl bg-brand-surface border border-brand-border p-3 flex flex-col items-center justify-center gap-4" }, /*#__PURE__*/React.createElement("div", { className: "w-full flex flex-col items-center gap-2.5 text-center" }, /*#__PURE__*/React.createElement("div", { className: "empty-state-icon p-4 rounded-full bg-white/[0.08]" }, /*#__PURE__*/React.createElement("img", { src: "data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjI2LjE2ODQiIGhlaWdodD0iMjYuMTY1MyIgdmlld0JveD0iMCAwIDI2LjE2ODQgMjYuMTY1MyIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGcgaWQ9ImVsZW1lbnRzIj4KPHBhdGggaWQ9IlRvbmUiIG9wYWNpdHk9IjAuNCIgZD0iTTEuMjQ0NCAxNC4zMjk0QzAuNjU0NzAyIDE0LjMyOTQgMC4zNTkzMTQgMTQuMzI5NCAwLjE3NjA0NyAxNC41MTY0Qy0wLjAwNTk3MjY2IDE0LjcwMzQgLTAuMDAzNTI3OTIgMTQuOTkwMSAwLjAwMTQ1ODkzIDE1LjU3NjFDMC4wMTc2NjYyIDE3LjIwOTMgMC4wNjYzNTEzIDE4LjU4MDcgMC4yMjIxOSAxOS43NDAyQzAuNDU3ODE5IDIxLjQ5OCAwLjk1NjQ0NiAyMi45MzE3IDIuMDk0NjkgMjQuMDc4N0MzLjIzMTcgMjUuMjEzMiA0LjY3MDQzIDI1LjcxMTkgNi40MjA4MSAyNS45NDg4QzcuNTgyNzUgMjYuMDk4NCA4Ljk2MjkyIDI2LjE0ODMgMTAuNTg5OSAyNi4xNjA3QzExLjE3NTggMjYuMTczMiAxMS40Njg3IDI2LjE3MzEgMTEuNjUzMiAyNS45ODYxQzExLjgzOSAyNS44MTE2IDExLjgzOSAyNS41MTI0IDExLjgzOSAyNC45MjY0VjE1LjU3NjFDMTEuODM5IDE0Ljk5MDEgMTEuODM5MSAxNC42OTA5IDExLjY1NTggMTQuNTE2NEMxMS40NzM4IDE0LjMyOTQgMTEuMTc5NSAxNC4zMjk0IDEwLjU5MjMgMTQuMzI5NEgxLjI0NDRaTTI2LjE2MzggMTAuNTg5MkMyNi4xNzYzIDExLjE3NTIgMjYuMTc2MiAxMS40NjE5IDI1Ljk4OTIgMTEuNjQ4OUMyNS44MTQ3IDExLjgzNTkgMjUuNTE1NSAxMS44MzU5IDI0LjkyOTUgMTEuODM1OUgxNS41NzkyQzE0Ljk5MDcgMTEuODM1OSAxNC42OTY1IDExLjgzNTkgMTQuNTE0NSAxMS42NDg5QzE0LjMzMjQgMTEuNDc0NCAxNC4zMzI0IDExLjE3NTIgMTQuMzMyNCAxMC41ODkyVjEuMjM4ODhDMTQuMzMyNCAwLjY1MjkyNiAxNC4zMzI1IDAuMzUzNzE1IDE0LjUxNyAwLjE3OTE3NUMxNC43MDE1IC0wLjAwNzgzMTkyIDE0Ljk5NDUgLTAuMDA3ODgwNjIgMTUuNTc5MiAwLjAwNDU4NjUxQzE3LjIxMjQgMC4wMTcwNTM2IDE4LjU4MzggMC4wNjY5NDY1IDE5Ljc0MzIgMC4yMTY1NTJDMjEuNTAxMSAwLjQ1MzQyOCAyMi45MzQ4IDAuOTUyMTEzIDI0LjA4MTggMi4wODY2MkMyNS4yMTYzIDMuMjMzNiAyNS43MTUgNC42NjczNCAyNS45NTE4IDYuNDEyNzRDMjYuMTAxNCA3LjU4NDY1IDI2LjE1MTMgOC45NTYwMyAyNi4xNjM4IDEwLjU4OTJaIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZmlsbD0iIzYxNjU2QyIvPgo8cGF0aCBpZD0iSWNvbiIgZD0iTTExLjgzOSAxLjIzODg4QzExLjgzOSAwLjY1MjkyNiAxMS44MzkgMC4zNTM3MTUgMTEuNjUzMiAwLjE3OTE3NUMxMS40Njg3IC0wLjAwNzgzMTkyIDExLjE3NTggLTAuMDA3ODgwNjIgMTAuNTg5OSAwLjAwNDU4NjUxQzguOTYyOTIgMC4wMTcwNTM2IDcuNTgyNzUgMC4wNjY5NDY1IDYuNDIwODEgMC4yMTY1NTJDNC42NzA0MyAwLjQ1MzQyOCAzLjIzMTcgMC45NTIxMTMgMi4wOTQ2OSAyLjA4NjYyQzAuOTU2NDQ2IDMuMjMzNiAwLjQ1NzgxOSA0LjY2NzM0IDAuMjIyMTkgNi40MTI3NEMwLjA2NjM1MTMgNy41ODQ2NSAwLjAxNzY2NjIgOC45NTYwMyAwLjAwMTQ1ODkzIDEwLjU4OTJDLTAuMDAzNTI3OTIgMTEuMTc1MiAtMC4wMDU5NzI2NiAxMS40NjE5IDAuMTc2MDQ3IDExLjY0ODlDMC4zNTkzMTQgMTEuODM1OSAwLjY1NDcwMiAxMS44MzU5IDEuMjQ0NCAxMS44MzU5SDEwLjU5MjNDMTEuMTc5NSAxMS44MzU5IDExLjQ3MzggMTEuODM1OSAxMS42NTU4IDExLjY0ODlDMTEuODM5MSAxMS40NzQ0IDExLjgzOSAxMS4xNzUyIDExLjgzOSAxMC41ODkyVjEuMjM4ODhaTTE0LjMzMjQgMjQuOTI2NEMxNC4zMzI0IDI1LjUxMjQgMTQuMzMyNSAyNS44MTE2IDE0LjUxNyAyNS45ODYxQzE0LjcwMTUgMjYuMTczMSAxNC45OTQ1IDI2LjE3MzIgMTUuNTc5MiAyNi4xNjA3QzE3LjIxMjQgMjYuMTQ4MyAxOC41ODM4IDI2LjA5ODQgMTkuNzQzMiAyNS45NDg4QzIxLjUwMTEgMjUuNzExOSAyMi45MzQ4IDI1LjIxMzIgMjQuMDgxOCAyNC4wNzg3QzI1LjIxNjMgMjIuOTMxNyAyNS43MTUgMjEuNDk4IDI1Ljk1MTggMTkuNzQwMkMyNi4xMDE0IDE4LjU4MDcgMjYuMTUxMyAxNy4yMDkzIDI2LjE2MzggMTUuNTc2MUMyNi4xNzYzIDE0Ljk5MDEgMjYuMTc2MiAxNC43MDM0IDI1Ljk4OTIgMTQuNTE2NEMyNS44MTQ3IDE0LjMyOTQgMjUuNTE1NSAxNC4zMjk0IDI0LjkyOTUgMTQuMzI5NEgxNS41NzkyQzE0Ljk5MDcgMTQuMzI5NCAxNC42OTY1IDE0LjMyOTQgMTQuNTE0NSAxNC41MTY0QzE0LjMzMjQgMTQuNjkwOSAxNC4zMzI0IDE0Ljk5MDEgMTQuMzMyNCAxNS41NzYxVjI0LjkyNjRaIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZmlsbD0iIzk0OTc5QyIvPgo8L2c+Cjwvc3ZnPgo=", width: "30", height: "30", alt: "", className: "block" })), /*#__PURE__*/React.createElement("div", { className: "w-full flex flex-col items-center gap-1" }, /*#__PURE__*/React.createElement("p", { className: "w-full text-sm font-medium text-brand-text-primary" }, uiText("No frame selected")), /*#__PURE__*/React.createElement("p", { className: "w-full text-xs leading-normal text-brand-text-secondary" }, uiText("Select a frame or layer to mirror layouts and translate text."))))));
 const App = () => {
   const uiLanguage = React.useSyncExternalStore(subscribeUiLanguage, getUiLanguage);
-  const uiTheme = React.useSyncExternalStore(subscribeUiTheme, getUiTheme);
-  useEffect(() => { parent.postMessage({ pluginMessage: { type: "get-ui-theme" } }, "*"); }, []);
   useEffect(() => { parent.postMessage({ pluginMessage: { type: "get-ui-language" } }, "*"); }, []);
   const [isPro, setIsPro] = useState(false);
   const [trialCount, setTrialCount] = useState(null);
@@ -2742,21 +2696,21 @@ const App = () => {
     className: "flex items-center gap-x-3"
   }, /*#__PURE__*/React.createElement("div", { className: "brand-mark", "aria-label": "RTL Master" }, /*#__PURE__*/React.createElement("img", { src: "data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjE2LjM3NSIgaGVpZ2h0PSIyMC40Njg4IiB2aWV3Qm94PSIwIDAgMTYuMzc1IDIwLjQ2ODgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxnIGlkPSJsb2dvIDEiPgo8cGF0aCBpZD0iVmVjdG9yIiBkPSJNMTUuMzgzIDAuMDMwMjU1M0MxNC44NzA1IDAuMDMwMzI4OSAxNC40NTQ2IDAuNDQ1NzU5IDE0LjQ1NDYgMC45NTgwMzdWMTkuNTEwN0MxNC40NTQ3IDIwLjAyMjkgMTQuODcwNSAyMC40Mzg0IDE1LjM4MyAyMC40Mzg1QzE1Ljg5NTcgMjAuNDM4NSAxNi4zMTE1IDIwLjAyMyAxNi4zMTE1IDE5LjUxMDdWMC45NTgwMzdDMTYuMzExNSAwLjQ0NTY4NSAxNS44OTU3IDAuMDMwMjU1MyAxNS4zODMgMC4wMzAyNTUzWk0zLjA1MTgxIDExLjM5NEMyLjY0MzYgMTEuMzk0IDIuMjkxNDMgMTEuMzkzNyAyLjAwMjUyIDExLjQxOThDMS42OTY5NiAxMS40NDc1IDEuMzk0NDMgMTEuNTA5MSAxLjEwOTI4IDExLjY3MzZDMC41MDE5MjUgMTIuMDIzOSAwLjI0MTUxNSAxMi41NjM5IDAuMTM2OTM5IDEzLjA3NzFDMC4wNTYyMjQzIDEzLjQ3MzIgMC4wNjE3NDc2IDE0LjA3ODUgMC4wNjQ5ODggMTQuNDA4OEMwLjA2MTc0NzYgMTQuNzM5MSAwLjA1NjIyNDMgMTUuMzQzOCAwLjEzNjkzOSAxNS43Mzk4QzAuMjQxNTE1IDE2LjI1MyAwLjUwMTkyNSAxNi43OTM3IDEuMTA5MjggMTcuMTQ0MUMxLjM5NDM2IDE3LjMwODUgMS42OTcwNCAxNy4zNjk0IDIuMDAyNTIgMTcuMzk3MUMyLjI5MTQzIDE3LjQyMzIgMi42NDM2IDE3LjQyMzcgMy4wNTE4MSAxNy40MjM2SDkuNjA5MzlDMTAuMDE3NiAxNy40MjM3IDEwLjM3MDQgMTcuNDIzMyAxMC42NTk0IDE3LjM5NzFDMTAuOTY0OCAxNy4zNjk0IDExLjI2NzUgMTcuMzA4NSAxMS41NTI2IDE3LjE0NDFDMTIuMTYgMTYuNzkzNyAxMi40MjA0IDE2LjI1MyAxMi41MjUgMTUuNzM5OEMxMi42MDU2IDE1LjM0MzggMTIuNjAwMSAxNC43MzkxIDEyLjU5NjkgMTQuNDA4OEMxMi42MDAxIDE0LjA3ODUgMTIuNjA1NyAxMy40NzMyIDEyLjUyNSAxMy4wNzcxQzEyLjQyMDQgMTIuNTY0IDEyLjE1OTggMTIuMDIzOSAxMS41NTI2IDExLjY3MzZDMTEuMjY3NSAxMS41MDkxIDEwLjk2NDggMTEuNDQ3NSAxMC42NTk0IDExLjQxOThDMTAuMzcwNCAxMS4zOTM3IDEwLjAxNzYgMTEuMzk0IDkuNjA5MzkgMTEuMzk0SDMuMDUxODFaTTguNjIxMjIgMy4wNDUwNUM4LjIxMzA4IDMuMDQ1MDUgNy44NjA4NCAzLjA0NDc1IDcuNTcxOTMgMy4wNzA5NUM3LjI2NjQ1IDMuMDk4NjIgNi45NjM3NyAzLjE2MDE1IDYuNjc4NjkgMy4zMjQ2M0M2LjA3MTQ4IDMuNjc1IDUuODEwOTMgNC4yMTUxIDUuNzA2MzUgNC43MjgyNkM1LjYyNTYzIDUuMTI0MjYgNS42MzExNiA1LjcyOTYzIDUuNjM0NCA2LjA1OTkxQzUuNjMxMTYgNi4zOTAyIDUuNjI1NjMgNi45OTQ5MSA1LjcwNjM1IDcuMzkwOTFDNS44MTA5MyA3LjkwNDA3IDYuMDcxMzQgOC40NDQ4MyA2LjY3ODY5IDguNzk1MkM2Ljk2Mzc3IDguOTU5NjggNy4yNjY0NSA5LjAyMDQ3IDcuNTcxOTMgOS4wNDgyMUM3Ljg2MDg0IDkuMDc0MzQgOC4yMTMwOCA5LjA3NDc4IDguNjIxMjIgOS4wNzQ3OEg5LjYwOTM5QzEwLjAxNzYgOS4wNzQ3OCAxMC4zNzA0IDkuMDc0MzQgMTAuNjU5NCA5LjA0ODIxQzEwLjk2NDggOS4wMjA0NyAxMS4yNjc1IDguOTU5NjggMTEuNTUyNiA4Ljc5NTJDMTIuMTU5OSA4LjQ0NDgzIDEyLjQyMDQgNy45MDQwNyAxMi41MjUgNy4zOTA5MUMxMi42MDU2IDYuOTk0OTEgMTIuNjAwMSA2LjM5MDIgMTIuNTk2OSA2LjA1OTkxQzEyLjYwMDEgNS43Mjk2MyAxMi42MDU3IDUuMTI0MjYgMTIuNTI1IDQuNzI4MjZDMTIuNDIwNCA0LjIxNTE3IDEyLjE1OTggMy42NzUwNyAxMS41NTI2IDMuMzI0NjNDMTEuMjY3NSAzLjE2MDE1IDEwLjk2NDkgMy4wOTg2MiAxMC42NTk0IDMuMDcwOTVDMTAuMzcwNCAzLjA0NDc1IDEwLjAxNzYgMy4wNDUwNSA5LjYwOTM5IDMuMDQ1MDVIOC42MjEyMloiIGZpbGw9IiMxNEYxOTUiLz4KPC9nPgo8L3N2Zz4K", width: "16.375", height: "20.469", alt: "", className: "block", style: { flexShrink: 0 } }))), /*#__PURE__*/React.createElement("div", {
     className: "user-controls flex items-center gap-1 p-1 bg-brand-surface",
-    style: { background: "rgb(var(--ui-surface))", border: 0, borderRadius: 9999, width: 128, height: 40, padding: 0, gap: 4, overflow: "visible", justifyContent: "flex-end" }
+    style: { background: "#161616", border: 0, borderRadius: 9999, width: 84, height: 40, padding: 0, gap: 4, overflow: "visible", justifyContent: "flex-end" }
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "top-icon-button flex items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-brand-teal",
-    style: { width: 40, height: 40, padding: 8, boxSizing: "border-box", border: 0, borderRadius: 9999, background: "rgb(var(--ui-raised))" },
+    style: { width: 40, height: 40, padding: 8, boxSizing: "border-box", border: 0, borderRadius: 9999, background: "#202020" },
     "aria-label": uiLanguage === "ar" ? "Switch interface to English" : "تغيير لغة الواجهة إلى العربية",
     title: uiLanguage === "ar" ? "English" : "العربية",
     onClick: () => changeUiLanguage(uiLanguage === "ar" ? "en" : "ar")
-  }, /*#__PURE__*/React.createElement(LanguageIcon, null)), React.createElement("button", { type: "button", className: "top-icon-button navbar-theme-button", onClick: () => changeUiTheme(uiTheme === "dark" ? "light" : "dark"), "aria-label": uiLanguage === "ar" ? (uiTheme === "dark" ? "تفعيل الوضع النهاري" : "تفعيل الوضع الداكن") : (uiTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"), "aria-pressed": uiTheme === "light", title: uiLanguage === "ar" ? (uiTheme === "dark" ? "تفعيل الوضع النهاري" : "تفعيل الوضع الداكن") : (uiTheme === "dark" ? "Switch to light mode" : "Switch to dark mode") }, React.createElement("span", { className: "navbar-icon", "aria-hidden": true }, React.createElement("img", { src: THEME_ICON_ASSETS[uiTheme], alt: "", style: { flexShrink: 0 } }))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(LanguageIcon, null)), /*#__PURE__*/React.createElement("div", {
     ref: settingsButtonRef,
     className: "relative"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setIsSettingsMenuOpen(value => !value),
     className: "top-icon-button flex items-center justify-center rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-teal",
-    style: { width: 40, height: 40, padding: 8, boxSizing: "border-box", border: 0, borderRadius: 9999, background: "rgb(var(--ui-raised))" },
+    style: { width: 40, height: 40, padding: 8, boxSizing: "border-box", border: 0, borderRadius: 9999, background: "#202020" },
     "aria-label": uiText("Settings"),
     "aria-expanded": isSettingsMenuOpen
   }, /*#__PURE__*/React.createElement(NavbarSettingsIcon, null)), isSettingsMenuOpen && /*#__PURE__*/React.createElement("div", {
@@ -2781,7 +2735,7 @@ const App = () => {
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setIsMenuOpen(true),
     className: "top-icon-button navbar-menu-button flex items-center justify-center rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-teal",
-    style: { width: 48, height: 48, padding: 12, boxSizing: "border-box", border: 0, borderRadius: 9999, background: "rgb(var(--ui-surface))" },
+    style: { width: 48, height: 48, padding: 12, boxSizing: "border-box", border: 0, borderRadius: 9999, background: "#161616" },
     "aria-label": uiText("Open menu")
   }, /*#__PURE__*/React.createElement(FigmaInboxIcon, null)))) , /*#__PURE__*/React.createElement("div", { className: "plugin-account-status flex items-center justify-end gap-2 mx-2 mt-2 flex-shrink-0" }, !isPro && trialCount !== null && /*#__PURE__*/React.createElement("div", {
     className: "ui-tag text-xs font-medium text-brand-text-secondary bg-brand-surface px-2 py-1 rounded-md"

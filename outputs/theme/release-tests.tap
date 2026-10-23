@@ -1,0 +1,514 @@
+TAP version 13
+# Subtest: Smart Switch introduction is remembered across plugin launches
+ok 1 - Smart Switch introduction is remembered across plugin launches
+  ---
+  duration_ms: 143.0342
+  type: 'test'
+  ...
+# Subtest: reuses an exact Arabic variant, preserving the instance (mirrorInstances=false)
+ok 2 - reuses an exact Arabic variant, preserving the instance (mirrorInstances=false)
+  ---
+  duration_ms: 60.9695
+  type: 'test'
+  ...
+# Subtest: reuses an exact Arabic variant, preserving the instance (mirrorInstances=true)
+ok 3 - reuses an exact Arabic variant, preserving the instance (mirrorInstances=true)
+  ---
+  duration_ms: 58.2779
+  type: 'test'
+  ...
+# Subtest: selects the matching size, state and type among multiple Arabic variants
+ok 4 - selects the matching size, state and type among multiple Arabic variants
+  ---
+  duration_ms: 54.02
+  type: 'test'
+  ...
+# Subtest: uses native swap without replaying source properties or text defaults
+ok 5 - uses native swap without replaying source properties or text defaults
+  ---
+  duration_ms: 56.0806
+  type: 'test'
+  ...
+# Subtest: accepts the existing ar locale alias and a Direction variant dimension
+ok 6 - accepts the existing ar locale alias and a Direction variant dimension
+  ---
+  duration_ms: 58.8829
+  type: 'test'
+  ...
+# Subtest: supports Language-only sets and accessible remote component sets
+ok 7 - supports Language-only sets and accessible remote component sets
+  ---
+  duration_ms: 59.6702
+  type: 'test'
+  ...
+# Subtest: repeated conversion never mirrors an Arabic instance (initially Arabic=false)
+ok 8 - repeated conversion never mirrors an Arabic instance (initially Arabic=false)
+  ---
+  duration_ms: 57.5308
+  type: 'test'
+  ...
+# Subtest: repeated conversion never mirrors an Arabic instance (initially Arabic=true)
+ok 9 - repeated conversion never mirrors an Arabic instance (initially Arabic=true)
+  ---
+  duration_ms: 50.9663
+  type: 'test'
+  ...
+# Subtest: mixed selection translates and mirrors other nodes while protecting prepared Arabic content
+ok 10 - mixed selection translates and mirrors other nodes while protecting prepared Arabic content
+  ---
+  duration_ms: 55.651
+  type: 'test'
+  ...
+# Subtest: switching an outer instance protects its nested and separately selected descendants
+ok 11 - switching an outer instance protects its nested and separately selected descendants
+  ---
+  duration_ms: 92.84
+  type: 'test'
+  ...
+# Subtest: an unmatched parent retains its flow while a nested instance switches once
+ok 12 - an unmatched parent retains its flow while a nested instance switches once
+  ---
+  duration_ms: 61.5127
+  type: 'test'
+  ...
+# Subtest: direct mirror traversal used by generated variants also protects prepared nested instances
+ok 13 - direct mirror traversal used by generated variants also protects prepared nested instances
+  ---
+  duration_ms: 75.0773
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: no Arabic variant (mirrorInstances=false)
+ok 14 - unchanged fallback: no Arabic variant (mirrorInstances=false)
+  ---
+  duration_ms: 62.644
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: no Arabic variant (mirrorInstances=true)
+ok 15 - unchanged fallback: no Arabic variant (mirrorInstances=true)
+  ---
+  duration_ms: 56.443
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: wrong size (mirrorInstances=false)
+ok 16 - unchanged fallback: wrong size (mirrorInstances=false)
+  ---
+  duration_ms: 47.5741
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: wrong size (mirrorInstances=true)
+ok 17 - unchanged fallback: wrong size (mirrorInstances=true)
+  ---
+  duration_ms: 48.6998
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: wrong state (mirrorInstances=false)
+ok 18 - unchanged fallback: wrong state (mirrorInstances=false)
+  ---
+  duration_ms: 54.1885
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: wrong state (mirrorInstances=true)
+ok 19 - unchanged fallback: wrong state (mirrorInstances=true)
+  ---
+  duration_ms: 44.6337
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: wrong type (mirrorInstances=false)
+ok 20 - unchanged fallback: wrong type (mirrorInstances=false)
+  ---
+  duration_ms: 56.1824
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: wrong type (mirrorInstances=true)
+ok 21 - unchanged fallback: wrong type (mirrorInstances=true)
+  ---
+  duration_ms: 52.1049
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: missing dimension (mirrorInstances=false)
+ok 22 - unchanged fallback: missing dimension (mirrorInstances=false)
+  ---
+  duration_ms: 49.6128
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: missing dimension (mirrorInstances=true)
+ok 23 - unchanged fallback: missing dimension (mirrorInstances=true)
+  ---
+  duration_ms: 53.521
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: extra dimension (mirrorInstances=false)
+ok 24 - unchanged fallback: extra dimension (mirrorInstances=false)
+  ---
+  duration_ms: 58.5694
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: extra dimension (mirrorInstances=true)
+ok 25 - unchanged fallback: extra dimension (mirrorInstances=true)
+  ---
+  duration_ms: 54.9618
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: ambiguous Arabic variants (mirrorInstances=false)
+ok 26 - unchanged fallback: ambiguous Arabic variants (mirrorInstances=false)
+  ---
+  duration_ms: 57.9006
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: ambiguous Arabic variants (mirrorInstances=true)
+ok 27 - unchanged fallback: ambiguous Arabic variants (mirrorInstances=true)
+  ---
+  duration_ms: 44.0279
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: RTL alone (mirrorInstances=false)
+ok 28 - unchanged fallback: RTL alone (mirrorInstances=false)
+  ---
+  duration_ms: 56.4595
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: RTL alone (mirrorInstances=true)
+ok 29 - unchanged fallback: RTL alone (mirrorInstances=true)
+  ---
+  duration_ms: 42.8302
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: Arabic label substring (mirrorInstances=false)
+ok 30 - unchanged fallback: Arabic label substring (mirrorInstances=false)
+  ---
+  duration_ms: 42.2726
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: Arabic label substring (mirrorInstances=true)
+ok 31 - unchanged fallback: Arabic label substring (mirrorInstances=true)
+  ---
+  duration_ms: 52.1616
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: Arabic LTR variant (mirrorInstances=false)
+ok 32 - unchanged fallback: Arabic LTR variant (mirrorInstances=false)
+  ---
+  duration_ms: 79.2915
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: Arabic LTR variant (mirrorInstances=true)
+ok 33 - unchanged fallback: Arabic LTR variant (mirrorInstances=true)
+  ---
+  duration_ms: 52.0927
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: no actual language dimension (mirrorInstances=false)
+ok 34 - unchanged fallback: no actual language dimension (mirrorInstances=false)
+  ---
+  duration_ms: 50.0266
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: no actual language dimension (mirrorInstances=true)
+ok 35 - unchanged fallback: no actual language dimension (mirrorInstances=true)
+  ---
+  duration_ms: 58.8698
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: swap failure (mirrorInstances=false)
+ok 36 - unchanged fallback: swap failure (mirrorInstances=false)
+  ---
+  duration_ms: 58.7697
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: swap failure (mirrorInstances=true)
+ok 37 - unchanged fallback: swap failure (mirrorInstances=true)
+  ---
+  duration_ms: 57.2849
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: locale pass changes an ambiguous source (mirrorInstances=false)
+ok 38 - unchanged fallback: locale pass changes an ambiguous source (mirrorInstances=false)
+  ---
+  duration_ms: 48.2258
+  type: 'test'
+  ...
+# Subtest: unchanged fallback: locale pass changes an ambiguous source (mirrorInstances=true)
+ok 39 - unchanged fallback: locale pass changes an ambiguous source (mirrorInstances=true)
+  ---
+  duration_ms: 59.7321
+  type: 'test'
+  ...
+# Subtest: unrelated conversion path remains unchanged: {"shouldMirror":false}
+ok 40 - unrelated conversion path remains unchanged: {"shouldMirror":false}
+  ---
+  duration_ms: 45.6743
+  type: 'test'
+  ...
+# Subtest: unrelated conversion path remains unchanged: {"smartSwitchComponents":false}
+ok 41 - unrelated conversion path remains unchanged: {"smartSwitchComponents":false}
+  ---
+  duration_ms: 50.7657
+  type: 'test'
+  ...
+# Subtest: unrelated conversion path remains unchanged: {}
+ok 42 - unrelated conversion path remains unchanged: {}
+  ---
+  duration_ms: 42.3889
+  type: 'test'
+  ...
+# Subtest: unrelated conversion path remains unchanged: {"smartSwitchComponents":false,"mirrorInstances":true}
+ok 43 - unrelated conversion path remains unchanged: {"smartSwitchComponents":false,"mirrorInstances":true}
+  ---
+  duration_ms: 59.8305
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports English using Language=English
+ok 44 - Smart Switch supports English using Language=English
+  ---
+  duration_ms: 141.4443
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports English using Language=en
+ok 45 - Smart Switch supports English using Language=en
+  ---
+  duration_ms: 105.9955
+  type: 'test'
+  ...
+# Subtest: missing English variant retains the previous fallback
+ok 46 - missing English variant retains the previous fallback
+  ---
+  duration_ms: 111.9496
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Arabic using Language=Arabic
+ok 47 - Smart Switch supports Arabic using Language=Arabic
+  ---
+  duration_ms: 116.2581
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Arabic using Language=ar
+ok 48 - Smart Switch supports Arabic using Language=ar
+  ---
+  duration_ms: 104.217
+  type: 'test'
+  ...
+# Subtest: missing Arabic variant retains the previous fallback
+ok 49 - missing Arabic variant retains the previous fallback
+  ---
+  duration_ms: 124.435
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Spanish using Language=Spanish
+ok 50 - Smart Switch supports Spanish using Language=Spanish
+  ---
+  duration_ms: 139.3481
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Spanish using Language=es
+ok 51 - Smart Switch supports Spanish using Language=es
+  ---
+  duration_ms: 104.1563
+  type: 'test'
+  ...
+# Subtest: missing Spanish variant retains the previous fallback
+ok 52 - missing Spanish variant retains the previous fallback
+  ---
+  duration_ms: 118.5042
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports French using Language=French
+ok 53 - Smart Switch supports French using Language=French
+  ---
+  duration_ms: 103.9366
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports French using Language=fr
+ok 54 - Smart Switch supports French using Language=fr
+  ---
+  duration_ms: 110.6828
+  type: 'test'
+  ...
+# Subtest: missing French variant retains the previous fallback
+ok 55 - missing French variant retains the previous fallback
+  ---
+  duration_ms: 107.6329
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports German using Language=German
+ok 56 - Smart Switch supports German using Language=German
+  ---
+  duration_ms: 127.128
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports German using Language=de
+ok 57 - Smart Switch supports German using Language=de
+  ---
+  duration_ms: 109.9726
+  type: 'test'
+  ...
+# Subtest: missing German variant retains the previous fallback
+ok 58 - missing German variant retains the previous fallback
+  ---
+  duration_ms: 111.5628
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Japanese using Language=Japanese
+ok 59 - Smart Switch supports Japanese using Language=Japanese
+  ---
+  duration_ms: 109.3854
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Japanese using Language=ja
+ok 60 - Smart Switch supports Japanese using Language=ja
+  ---
+  duration_ms: 97.1532
+  type: 'test'
+  ...
+# Subtest: missing Japanese variant retains the previous fallback
+ok 61 - missing Japanese variant retains the previous fallback
+  ---
+  duration_ms: 136.1071
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Korean using Language=Korean
+ok 62 - Smart Switch supports Korean using Language=Korean
+  ---
+  duration_ms: 139.2765
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Korean using Language=ko
+ok 63 - Smart Switch supports Korean using Language=ko
+  ---
+  duration_ms: 159.6938
+  type: 'test'
+  ...
+# Subtest: missing Korean variant retains the previous fallback
+ok 64 - missing Korean variant retains the previous fallback
+  ---
+  duration_ms: 164.3548
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Portuguese using Language=Portuguese
+ok 65 - Smart Switch supports Portuguese using Language=Portuguese
+  ---
+  duration_ms: 143.9785
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Portuguese using Language=pt
+ok 66 - Smart Switch supports Portuguese using Language=pt
+  ---
+  duration_ms: 155.952
+  type: 'test'
+  ...
+# Subtest: missing Portuguese variant retains the previous fallback
+ok 67 - missing Portuguese variant retains the previous fallback
+  ---
+  duration_ms: 149.8559
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Russian using Language=Russian
+ok 68 - Smart Switch supports Russian using Language=Russian
+  ---
+  duration_ms: 156.3345
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Russian using Language=ru
+ok 69 - Smart Switch supports Russian using Language=ru
+  ---
+  duration_ms: 183.4475
+  type: 'test'
+  ...
+# Subtest: missing Russian variant retains the previous fallback
+ok 70 - missing Russian variant retains the previous fallback
+  ---
+  duration_ms: 123.3815
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Chinese using Language=Chinese
+ok 71 - Smart Switch supports Chinese using Language=Chinese
+  ---
+  duration_ms: 175.7497
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Chinese using Language=zh
+ok 72 - Smart Switch supports Chinese using Language=zh
+  ---
+  duration_ms: 156.4417
+  type: 'test'
+  ...
+# Subtest: missing Chinese variant retains the previous fallback
+ok 73 - missing Chinese variant retains the previous fallback
+  ---
+  duration_ms: 164.104
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Turkish using Language=Turkish
+ok 74 - Smart Switch supports Turkish using Language=Turkish
+  ---
+  duration_ms: 149.2826
+  type: 'test'
+  ...
+# Subtest: Smart Switch supports Turkish using Language=tr
+ok 75 - Smart Switch supports Turkish using Language=tr
+  ---
+  duration_ms: 173.4633
+  type: 'test'
+  ...
+# Subtest: missing Turkish variant retains the previous fallback
+ok 76 - missing Turkish variant retains the previous fallback
+  ---
+  duration_ms: 178.3389
+  type: 'test'
+  ...
+# Subtest: non-Arabic target matching preserves nested content and compatible overrides
+ok 77 - non-Arabic target matching preserves nested content and compatible overrides
+  ---
+  duration_ms: 67.0351
+  type: 'test'
+  ...
+# Subtest: non-Arabic Direction sets select LTR and reject prepared RTL variants
+ok 78 - non-Arabic Direction sets select LTR and reject prepared RTL variants
+  ---
+  duration_ms: 128.5239
+  type: 'test'
+  ...
+# Subtest: non-Arabic target ambiguity and failed swaps retain the existing fallback
+ok 79 - non-Arabic target ambiguity and failed swaps retain the existing fallback
+  ---
+  duration_ms: 232.733
+  type: 'test'
+  ...
+# Subtest: turning Smart Switch off also preserves the previous non-Arabic conversion
+ok 80 - turning Smart Switch off also preserves the previous non-Arabic conversion
+  ---
+  duration_ms: 94.6006
+  type: 'test'
+  ...
+# Subtest: interface language is restored independently from design translation settings
+ok 81 - interface language is restored independently from design translation settings
+  ---
+  duration_ms: 79.5923
+  type: 'test'
+  ...
+# Subtest: interface language stores only supported values
+ok 82 - interface language stores only supported values
+  ---
+  duration_ms: 90.0109
+  type: 'test'
+  ...
+# Subtest: theme preference is restored independently from interface language
+ok 83 - theme preference is restored independently from interface language
+  ---
+  duration_ms: 79.1223
+  type: 'test'
+  ...
+# Subtest: theme updates store only supported values under their own key
+ok 84 - theme updates store only supported values under their own key
+  ---
+  duration_ms: 93.883
+  type: 'test'
+  ...
+1..84
+# tests 84
+# suites 0
+# pass 84
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7921.8681

@@ -1,0 +1,13 @@
+COLORS {
+  card: 'rgb(245, 245, 245)',
+  buttons: 'rgb(224, 224, 224)',
+  root: 'rgb(255, 255, 255)',
+  text: 'rgb(0, 0, 0)'
+}
+SAVED [
+  { type: 'set-ui-theme', payload: { theme: 'dark' } },
+  { type: 'set-ui-theme', payload: { theme: 'light' } },
+  { type: 'set-ui-theme', payload: { theme: 'dark' } },
+  { type: 'set-ui-theme', payload: { theme: 'light' } }
+]
+PASS restored theme, save messages, moon/sun source changes, language independence, light screens and dark restoration without runtime errors
