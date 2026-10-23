@@ -2062,6 +2062,13 @@ async function restoreProAccessFromStoredLicense(storedKey, currentFigmaUser, tr
     return false;
 }
 
+function isInvalidVariantError(error) {
+    const message = String(error && error.message || '').toLowerCase();
+    return message.includes('component set for node has existing errors') ||
+        message.includes('variant set with invalid properties') ||
+        message.includes('component set has invalid variant properties');
+}
+
 function formatUserFacingPluginError(error) {
     const fallbackMessage = 'Something went wrong while processing the selection. Please try again.';
     if (!(error instanceof Error)) return fallbackMessage;
@@ -3662,6 +3669,9 @@ async function mirrorNode(node, isInsideInstance = false, mirrorContext = create
             }
         } catch (error) {
             console.warn(`Could not create or swap the target variant for instance "${node.name}": ${error.message}`);
+            // Broken library icons must not abort the containing frame's conversion.
+            // Leave this instance intact; the parent's traversal continues with siblings.
+            if (isInvalidVariantError(error)) return;
             throw error;
         }
     }
@@ -4179,17 +4189,17 @@ function componentPropertyValue(node, propertyKey, stringValue, booleanValue) {
 async function applyLocalePropertiesToNode(node, toLanguage) {
     if (!node || typeof node.setProperties !== 'function') return false;
 
-    const languageName = getLanguageName(toLanguage);
-    const props = {};
-    const languageKey = getComponentPropertyKey(node, 'Language');
-    const rtlKey = getComponentPropertyKey(node, 'RTL');
-
-    if (languageKey) props[languageKey] = languageName;
-    if (rtlKey) props[rtlKey] = componentPropertyValue(node, rtlKey, toLanguage === 'ar' ? 'True' : 'False', toLanguage === 'ar');
-
-    if (Object.keys(props).length === 0) return false;
-
     try {
+        const languageName = getLanguageName(toLanguage);
+        const props = {};
+        const languageKey = getComponentPropertyKey(node, 'Language');
+        const rtlKey = getComponentPropertyKey(node, 'RTL');
+
+        if (languageKey) props[languageKey] = languageName;
+        if (rtlKey) props[rtlKey] = componentPropertyValue(node, rtlKey, toLanguage === 'ar' ? 'True' : 'False', toLanguage === 'ar');
+
+        if (Object.keys(props).length === 0) return false;
+
         node.setProperties(props);
         return true;
     } catch (error) {
@@ -4454,6 +4464,9 @@ async function ensureTargetVariant(mainComponent, mirrorContext) {
     const componentSet = componentParent && componentParent.type === 'COMPONENT_SET'
         ? componentParent
         : null;
+    // Validate through Figma before renaming siblings or cloning into the set.
+    // Name parsing can hide a broken set that Figma will reject on mutation.
+    if (componentSet) void mainComponent.variantProperties;
     const rawSourceProps = safeGetVariantProperties(mainComponent) || parseVariantNameToProps(mainComponent.name);
     const sourceProps = componentSet
         ? completeVariantProps(componentSet, rawSourceProps)

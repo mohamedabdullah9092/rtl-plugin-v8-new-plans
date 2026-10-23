@@ -398,3 +398,43 @@ test('interface language stores only supported values', async () => {
     await runtime.figma.ui.onmessage({ type: 'set-ui-language', payload: { language: 'unsupported' } });
     assert.deepEqual(writes, [['uiLanguage', 'ar'], ['uiLanguage', 'en']]);
 });
+
+test('broken nested variants are skipped while siblings continue', async () => {
+    const { plugin, calls } = loadPlugin();
+    // Restore real generation so validation happens before any mutation.
+    vm.runInContext(pluginSource.slice(pluginSource.indexOf('async function ensureTargetVariant(mainComponent,')), plugin);
+    const bad = fixture(calls);
+    Object.defineProperty(bad.source, 'variantProperties', { get() {
+        throw new Error('The component set for node has existing errors');
+    } });
+    const good = fixture(calls);
+    good.node.id = 'healthy-instance';
+    good.source.remote = true;
+    const container = frame('root', [bad.node, good.node]);
+    const context = plugin.createMirrorContext({ toLanguage: 'ar' });
+    await plugin.mirrorNode(container, false, context, true);
+    assert.equal(bad.node.children[0].textAlignHorizontal, 'LEFT');
+    assert.equal(good.node.children[0].textAlignHorizontal, 'RIGHT');
+    assert.equal(context.createdVariants.size, 0);
+    assert.equal(bad.source.name, 'Unrelated display name');
+});
+
+test('broken component property reads do not abort locale traversal', async () => {
+    const { plugin, calls } = loadPlugin();
+    const bad = fixture(calls);
+    Object.defineProperty(bad.source, 'variantProperties', { get() {
+        throw new Error('variant set with invalid properties');
+    } });
+    const good = fixture(calls);
+    good.node.id = 'healthy-instance';
+    await plugin.applyLocalePropertiesToNodes([bad.node, good.node], 'ar');
+    assert.equal(calls.locale.length, 1);
+    assert.equal(calls.locale[0].id, 'healthy-instance');
+});
+
+test('unrelated variant creation failures still surface', async () => {
+    const { plugin, calls } = loadPlugin();
+    const { node } = fixture(calls);
+    plugin.ensureTargetVariant = async () => { throw new Error('Unexpected failure'); };
+    await assert.rejects(plugin.mirrorNode(node, false, plugin.createMirrorContext(), true), /Unexpected failure/);
+});

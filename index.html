@@ -109,8 +109,15 @@
       corner-shape: round !important;
       background: transparent;
     }
-      html[lang="ar"] body { font-family: "Segoe UI", Tahoma, sans-serif; }
-    html[lang="ar"] #root .font-sans { font-family: "Segoe UI", Tahoma, sans-serif; }
+      /* Arabic UI typography: use Thmanyah Sans and its stylistic alternates when available. */
+      html[lang="ar"] body,
+      html[lang="ar"] #root,
+      html[lang="ar"] #root .font-sans,
+      html[lang="ar"] .feature-announcement {
+        font-family: "Thmanyah Sans", ThmanyahSans, "Segoe UI", Tahoma, sans-serif;
+        font-feature-settings: "ss01" 1;
+        font-variant-alternates: stylistic(ss01);
+      }
     html[dir="rtl"] #root .text-left { text-align: right; }
     html[dir="rtl"] #root .tracking-widest, html[dir="rtl"] #root .tracking-wider { letter-spacing: normal; }
     html[dir="rtl"] #root .plugin-pill-tabs button { padding-inline: 8px; }
@@ -122,7 +129,6 @@
     html[dir="rtl"] #root .plugin-action-buttons > button { white-space: normal; }
     html[dir="rtl"] #root input[type="password"], html[dir="rtl"] #root input#license-key-input { direction: ltr; text-align: left; }
     /* Complete interface direction, including top-layer dialogs. */
-    html[lang="ar"] #root { font-family: "Segoe UI", Tahoma, sans-serif; }
     html[dir="rtl"] #root .plugin-navbar { direction: rtl; }
     html[dir="rtl"] #root .user-controls { direction: rtl; }
     .plugin-header-card .user-controls > .relative { direction: inherit; }
@@ -135,7 +141,7 @@
     #root .plugin-action-buttons > button { column-gap: 6px; }
     #root .plugin-main-scroll [role="tooltip"] { max-width: calc(100vw - 32px); text-align: start; }
     .feature-announcement { text-align: start; }
-    html[dir="rtl"] .feature-announcement { direction: rtl; font-family: "Segoe UI", Tahoma, sans-serif; }
+    html[dir="rtl"] .feature-announcement { direction: rtl; }
     /* Suppress only direction-change motion; normal drawer open/close still animates. */
     html.ui-direction-changing .app-menu-drawer { transition: none !important; }
     html.ui-direction-changing .app-menu-drawer[data-state="closed"] { visibility: hidden !important; }
