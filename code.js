@@ -3907,11 +3907,21 @@ function restoreInstanceSizing(node, sizing) {
         for (const key of ['layoutAlign', 'layoutGrow', 'minWidth', 'maxWidth', 'minHeight', 'maxHeight']) {
             if (key in sizing && key in node && sizing[key] !== undefined) node[key] = sizing[key];
         }
-        for (const key of ['layoutSizingHorizontal', 'layoutSizingVertical']) {
-            if (key in sizing && key in node && sizing[key] !== undefined) node[key] = sizing[key];
-        }
-        if (sizing.layoutSizingHorizontal !== 'FILL' && typeof node.resizeWithoutConstraints === 'function') {
+        // HUG can override an explicit resize, so restore the old geometry
+        // before restoring the sizing modes. FILL is restored last because it
+        // is controlled by the parent auto-layout frame.
+        if (sizing.layoutSizingHorizontal === 'FILL' && 'layoutSizingHorizontal' in node) {
+            node.layoutSizingHorizontal = 'FILL';
+        } else if ('layoutSizingHorizontal' in node) {
+            // A swapped HUG component recalculates its width from the new
+            // language. Use FIXED temporarily so the old instance width wins.
+            node.layoutSizingHorizontal = 'FIXED';
+            if (typeof node.resizeWithoutConstraints === 'function') node.resizeWithoutConstraints(sizing.width, sizing.height);
+        } else if (typeof node.resizeWithoutConstraints === 'function') {
             node.resizeWithoutConstraints(sizing.width, sizing.height);
+        }
+        if (sizing.layoutSizingVertical && sizing.layoutSizingVertical !== 'FILL' && 'layoutSizingVertical' in node) {
+            node.layoutSizingVertical = sizing.layoutSizingVertical;
         }
     } catch (error) {
         console.warn(`Could not restore instance sizing for "${node.name}": ${error.message}`);
