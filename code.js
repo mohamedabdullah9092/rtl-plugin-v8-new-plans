@@ -3890,6 +3890,34 @@ function isFixedUIElement(node) {
     return false;
 }
 
+function captureInstanceSizing(node) {
+    if (!node || node.type !== 'INSTANCE') return null;
+    const sizing = {};
+    for (const key of ['layoutSizingHorizontal', 'layoutSizingVertical', 'layoutAlign', 'layoutGrow', 'minWidth', 'maxWidth', 'minHeight', 'maxHeight']) {
+        if (key in node) sizing[key] = node[key];
+    }
+    sizing.width = node.width;
+    sizing.height = node.height;
+    return sizing;
+}
+
+function restoreInstanceSizing(node, sizing) {
+    if (!node || !sizing) return;
+    try {
+        for (const key of ['layoutAlign', 'layoutGrow', 'minWidth', 'maxWidth', 'minHeight', 'maxHeight']) {
+            if (key in sizing && key in node && sizing[key] !== undefined) node[key] = sizing[key];
+        }
+        for (const key of ['layoutSizingHorizontal', 'layoutSizingVertical']) {
+            if (key in sizing && key in node && sizing[key] !== undefined) node[key] = sizing[key];
+        }
+        if (sizing.layoutSizingHorizontal !== 'FILL' && typeof node.resizeWithoutConstraints === 'function') {
+            node.resizeWithoutConstraints(sizing.width, sizing.height);
+        }
+    } catch (error) {
+        console.warn(`Could not restore instance sizing for "${node.name}": ${error.message}`);
+    }
+}
+
 async function mirrorNode(node, isInsideInstance = false, mirrorContext = createMirrorContext(), mirrorInstances = false, isInsideFlippedContainer = false) {
     if (isSpatialComposition(node)) return;
     if (await skipInvalidComponent(node, mirrorContext)) return;
@@ -3913,11 +3941,13 @@ async function mirrorNodeUnchecked(node, isInsideInstance, mirrorContext, mirror
 
     if (node.type === 'INSTANCE' && mirrorInstances) {
         try {
+            const originalSizing = captureInstanceSizing(node);
             const mainComponent = await node.getMainComponentAsync();
             if (mainComponent && !mainComponent.remote) {
                 const targetVariant = await ensureTargetVariant(mainComponent, mirrorContext);
                 if (targetVariant && targetVariant.id !== mainComponent.id) {
                     node.swapComponent(targetVariant);
+                    restoreInstanceSizing(node, originalSizing);
                 }
 
                 // The target component owns the mirrored layout. Continuing through this
