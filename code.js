@@ -3896,6 +3896,7 @@ function captureInstanceSizing(node) {
     for (const key of ['layoutSizingHorizontal', 'layoutSizingVertical', 'layoutAlign', 'layoutGrow', 'minWidth', 'maxWidth', 'minHeight', 'maxHeight']) {
         if (key in node) sizing[key] = node[key];
     }
+    sizing.parentLayoutMode = node.parent && 'layoutMode' in node.parent ? node.parent.layoutMode : 'NONE';
     sizing.width = node.width;
     sizing.height = node.height;
     return sizing;
@@ -3910,6 +3911,13 @@ function restoreInstanceSizing(node, sizing) {
         // HUG can override an explicit resize, so restore the old geometry
         // before restoring the sizing modes. FILL is restored last because it
         // is controlled by the parent auto-layout frame.
+        const parentUsesAutoLayout = sizing.parentLayoutMode === 'HORIZONTAL' || sizing.parentLayoutMode === 'VERTICAL';
+        if (!parentUsesAutoLayout && typeof node.resizeWithoutConstraints === 'function') {
+            // Outside Auto Layout there is no Fill/Hug sizing mode to restore;
+            // preserve the actual instance geometry and leave Figma's state alone.
+            node.resizeWithoutConstraints(sizing.width, sizing.height);
+            return;
+        }
         if (sizing.layoutSizingHorizontal === 'FILL' && 'layoutSizingHorizontal' in node) {
             node.layoutSizingHorizontal = 'FILL';
         } else if ('layoutSizingHorizontal' in node) {
