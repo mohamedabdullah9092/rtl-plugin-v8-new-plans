@@ -2840,6 +2840,58 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
     }
 }
 
+function restoreTranslatedTextSegmentStyles(node, originalText, translatedText, segments) {
+    if (!node || !segments || segments.length === 0 || !originalText || !translatedText) return;
+
+    const originalLength = originalText.length;
+    const translatedLength = translatedText.length;
+    const originalLineStarts = [0];
+    const translatedLineStarts = [0];
+    for (let i = 0; i < originalText.length; i++) {
+        if (originalText[i] === '\n') originalLineStarts.push(i + 1);
+    }
+    for (let i = 0; i < translatedText.length; i++) {
+        if (translatedText[i] === '\n') translatedLineStarts.push(i + 1);
+    }
+    const lineIndexAt = (starts, offset) => {
+        let low = 0;
+        let high = starts.length - 1;
+        while (low <= high) {
+            const middle = Math.floor((low + high) / 2);
+            if (starts[middle] <= offset) low = middle + 1;
+            else high = middle - 1;
+        }
+        return Math.max(0, high);
+    };
+    for (const segment of segments) {
+        const originalStartLine = lineIndexAt(originalLineStarts, segment.start);
+        const originalEndLine = lineIndexAt(originalLineStarts, Math.max(segment.start, segment.end - 1));
+        const startLine = Math.min(originalStartLine, translatedLineStarts.length - 1);
+        const endLine = Math.min(originalEndLine, translatedLineStarts.length - 1);
+        const lineStartOffset = translatedLineStarts[startLine];
+        const lineEndOffset = endLine + 1 < translatedLineStarts.length
+            ? translatedLineStarts[endLine + 1] - 1
+            : translatedLength;
+        const start = originalLineStarts.length > 1
+            ? lineStartOffset
+            : Math.max(0, Math.min(translatedLength, Math.round((segment.start / originalLength) * translatedLength)));
+        const end = originalLineStarts.length > 1
+            ? Math.max(start, lineEndOffset)
+            : Math.max(start, Math.min(translatedLength, Math.round((segment.end / originalLength) * translatedLength)));
+        if (end <= start) continue;
+
+        try {
+            if (segment.fontSize && segment.fontSize !== figma.mixed) node.setRangeFontSize(start, end, segment.fontSize);
+            if (segment.fontName && segment.fontName !== figma.mixed) node.setRangeFontName(start, end, segment.fontName);
+            // Apply fills last. Figma can reset range fills when a font range
+            // is changed after the paint range was applied.
+            if (segment.fills && Array.isArray(segment.fills)) node.setRangeFills(start, end, segment.fills);
+        } catch (error) {
+            console.warn(`Could not restore translated text styling for "${node.name}": ${error.message}`);
+        }
+    }
+}
+
 function sendProgress(step, stepLabel, processed, total, substep, totalSteps) {
     figma.ui.postMessage({ type: 'progress-update', payload: { step, stepLabel, processed, total, substep, totalSteps } });
 }
@@ -2872,13 +2924,20 @@ async function processNodesInPlace(payload, shouldMirror) {
             await mirrorNode(selection[i], false, mirrorContext, mirrorInstances);
             sendProgress(currentStep, 'Mirroring layout', i + 1, selection.length, `Mirroring node ${i + 1} of ${selection.length}`, totalSteps);
         }
+    } else {
+        // Translate Only still needs a locale variant for nested component
+        // instances. Their text is owned by the nested main component and
+        // cannot be reliably edited through the parent instance. Prepare the
+        // connected target variants without mirroring the surrounding layout.
+        for (const node of selection) {
+            await prepareNestedVariantsForTranslation(node, mirrorContext);
+        }
     }
 
     if (translateText) {
         const nodesForTranslation = [...selection];
-        if (mirrorInstances) {
-            nodesForTranslation.push(...mirrorContext.createdVariants.values());
-        }
+        nodesForTranslation.push(...mirrorContext.createdVariants.values());
+        nodesForTranslation.push(...mirrorContext.targetVariants.values());
 
         currentStep++;
         sendProgress(currentStep, 'Finding text layers', 0, 0, 'Scanning selected nodes...', totalSteps);
@@ -2894,6 +2953,31 @@ async function processNodesInPlace(payload, shouldMirror) {
     } else {
         if (shouldMirror) figma.notify('Selection mirrored successfully!');
         figma.ui.postMessage({ type: 'action-complete' });
+    }
+}
+
+async function prepareNestedVariantsForTranslation(root, mirrorContext) {
+    if (!root || !('children' in root)) return;
+
+    const children = Array.from(root.children);
+    for (const child of children) {
+        if (child.type === 'INSTANCE') {
+            try {
+                const mainComponent = await child.getMainComponentAsync();
+                if (mainComponent && !mainComponent.remote) {
+                    const targetVariant = await ensureTargetVariant(mainComponent, mirrorContext, false);
+                    if (targetVariant && targetVariant.id !== mainComponent.id) {
+                        const originalSizing = captureInstanceSizing(child);
+                        child.swapComponent(targetVariant);
+                        restoreInstanceSizing(child, originalSizing);
+                    }
+                    continue;
+                }
+            } catch (error) {
+                console.warn(`Could not prepare nested translation variant for "${child.name}": ${error.message}`);
+            }
+        }
+        await prepareNestedVariantsForTranslation(child, mirrorContext);
     }
 }
 
@@ -3198,6 +3282,13 @@ async function handleCreateVariantUnchecked(payload) {
         for (const newVariant of newVariants) {
             await mirrorNode(newVariant, false, mirrorContext, mirrorInstances);
         }
+    } else {
+        // Create Variant + Translate Only must still localize nested component
+        // instances. The parent variant is cloned, so prepare and swap its
+        // nested locale variants without mirroring the parent layout.
+        for (const newVariant of newVariants) {
+            await prepareNestedVariantsForTranslation(newVariant, mirrorContext);
+        }
     }
     pendingVariantCreation.nestedComponentSetIds = Array.from(new Set(
         Array.from(mirrorContext.createdVariants.values())
@@ -3208,7 +3299,10 @@ async function handleCreateVariantUnchecked(payload) {
 
     if (translateText) {
         const textNodes = [];
-        const translationRoots = newVariants.concat(Array.from(mirrorContext.createdVariants.values()));
+        const translationRoots = newVariants.concat(
+            Array.from(mirrorContext.createdVariants.values()),
+            Array.from(mirrorContext.targetVariants.values())
+        );
         const seenTextNodeIds = new Set();
         for (const root of translationRoots) {
             for (const textNode of findTextNodes([root], mirrorContext.smartSwitchedNodeIds)) {
@@ -3614,7 +3708,9 @@ async function applyTranslationsToNodes(translations, onProgress, options = {}) 
                     }
                 }
 
+                const translatedTextSegments = node.getStyledTextSegments(['fontName', 'fontSize', 'fills']);
                 node.characters = item.newCharacters;
+                restoreTranslatedTextSegmentStyles(node, item.characters, item.newCharacters, translatedTextSegments);
                 if (localeFontVariables.length > 0) {
                     const changedLocaleFont = await applyLocaleFontVariableToNode(node, localeFontVariables, originalSegments);
                     if (changedLocaleFont) localeFontChanges++;
@@ -3635,6 +3731,10 @@ async function applyTranslationsToNodes(translations, onProgress, options = {}) 
                         }
                     }
                 }
+                // Font-variable and numeric-style passes may touch the text
+                // ranges. Reapply the complete original segment palette last
+                // so mixed-color paragraphs cannot collapse to one fill.
+                restoreTranslatedTextSegmentStyles(node, item.characters, item.newCharacters, translatedTextSegments);
                 successCount++;
             } catch (e) {
                 failedCount++;
@@ -4724,7 +4824,7 @@ async function getComponentParentAsync(component) {
  * properties are captured before cloning because a duplicate clone temporarily
  * puts a Figma component set into an invalid state.
  */
-async function ensureTargetVariant(mainComponent, mirrorContext) {
+async function ensureTargetVariant(mainComponent, mirrorContext, mirrorLayout = true) {
     if (!mainComponent || mainComponent.type !== 'COMPONENT' || mainComponent.remote) {
         return null;
     }
@@ -4768,7 +4868,7 @@ async function ensureTargetVariant(mainComponent, mirrorContext) {
         const existingTarget = findVariantByProps(componentSet, targetProps);
         if (existingTarget) {
             mirrorContext.targetVariants.set(mainComponent.id, existingTarget);
-            await ensureTargetVariantIsMirrored(existingTarget, mirrorContext, mainComponent.id);
+            if (mirrorLayout) await ensureTargetVariantIsMirrored(existingTarget, mirrorContext, mainComponent.id);
             return existingTarget;
         }
     } else if (
@@ -4776,7 +4876,7 @@ async function ensureTargetVariant(mainComponent, mirrorContext) {
         sourceProps.Language === targetProps.Language
     ) {
         mirrorContext.targetVariants.set(mainComponent.id, mainComponent);
-        await ensureTargetVariantIsMirrored(mainComponent, mirrorContext, mainComponent.id);
+        if (mirrorLayout) await ensureTargetVariantIsMirrored(mainComponent, mirrorContext, mainComponent.id);
         return mainComponent;
     }
 
@@ -4845,7 +4945,7 @@ async function ensureTargetVariant(mainComponent, mirrorContext) {
     mirrorContext.targetVariants.set(mainComponent.id, newVariant);
     mirrorContext.createdVariants.set(newVariant.id, newVariant);
 
-    await ensureTargetVariantIsMirrored(newVariant, mirrorContext, mainComponent.id);
+    if (mirrorLayout) await ensureTargetVariantIsMirrored(newVariant, mirrorContext, mainComponent.id);
     fitComponentSetToChildren(targetComponentSet);
     return newVariant;
 }
