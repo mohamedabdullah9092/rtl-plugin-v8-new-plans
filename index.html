@@ -71,6 +71,11 @@
     #root .user-controls { box-sizing: border-box !important; display: flex; flex-direction: row; justify-content: flex-end; align-items: center; position: static; inset: auto; width: 84px; height: 40px; flex: 0 0 84px; background: transparent !important; border: 0 !important; border-radius: 9999px !important; corner-shape: round !important; gap: 4px !important; padding: 0 !important; overflow: visible !important; }
     #root .top-icon-button { box-sizing: border-box !important; display: flex; flex-direction: column; justify-content: center; align-items: center; flex: none; gap: 10px; background: #202020 !important; border: 0 !important; width: 40px !important; height: 40px !important; padding: 8px !important; border-radius: 9999px !important; corner-shape: round !important; }
     .plugin-main-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+    .limited-offer-banner { flex: 0 0 auto; min-height: 30px; display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; padding: 4px 28px 4px 8px; position: relative; background: #168447; color: #F5FFF9; border-radius: 0; font-size: 11px; font-weight: 700; text-align: center; overflow: hidden; }
+    .limited-offer-discount { color: #D7FA76; font-size: 12px; font-weight: 900; text-shadow: 0 0 5px rgba(215, 250, 118, .72); }
+    .limited-offer-cta { border: 0 !important; background: #D7FA76 !important; color: #000000 !important; border-radius: 100px !important; padding: 4px 13px; font-size: 11px; font-weight: 800; line-height: 1.1; cursor: pointer; }
+    .limited-offer-cta:hover { background: #E4FF9B; }
+    .limited-offer-banner-close { position: absolute; inset-inline-end: 8px; top: 50%; transform: translateY(-50%); border: 0; background: transparent !important; color: rgba(255,255,255,.8) !important; font-size: 18px !important; line-height: 1; padding: 2px 5px !important; }
     .plugin-action-footer { position: relative; isolation: isolate; background: #0C0C0C; }
     .plugin-action-footer::before {
       content: "";
@@ -125,6 +130,7 @@
     #root .navbar-menu-button .navbar-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex: none; }
     #root .plugin-header-card > .flex:first-child { position: static; z-index: 2; }
     #root .plugin-account-status:empty { display: none; }
+    #root .plugin-account-status { position: absolute; top: 40px; right: 104px; left: auto; inset-inline-start: auto; inset-inline-end: 104px; z-index: 4; margin: 0 !important; display: flex; align-items: center; gap: 4px; direction: ltr; transform: translateY(-50%); }
     #root .relative > .brand-mark { display: none !important; }
     #root .brand-mark { corner-shape: round !important; width: 40px; height: 40px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex: none; background: #202020; border-radius: 100px; }
     #root .plugin-header-card .top-icon-button { color: #CCCCCC; cursor: pointer; }
@@ -140,10 +146,8 @@
     }
     /* Keep the subscribed user's PRO badge beside the brand mark. */
     #root .plugin-account-status > .ui-tag:last-child {
-      position: absolute;
-      inset-inline-start: 60px;
-      top: 40px;
-      transform: translateY(-50%);
+      position: static;
+      transform: none;
       z-index: 3;
       margin: 0;
       color: #FACC15 !important;
@@ -151,6 +155,12 @@
       border-color: rgba(250, 204, 21, 0.42) !important;
     }
     #root .plugin-header-card .navbar-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex: none; }
+    #root .plugin-header-card > .flex:first-child { column-gap: 4px !important; }
+    #root .plugin-header-card .plugin-account-status { transform: translateX(20px) !important; }
+    #root .plugin-header-card .plugin-account-status > button { padding-top: 4px !important; padding-bottom: 4px !important; }
+    #root .plugin-header-card .plugin-account-status > button { color: #D7FA76 !important; border-color: #D7FA76 !important; background: rgba(215, 250, 118, 0.12) !important; }
+    #root .plugin-header-card .plugin-account-status > .ui-tag:last-child { color: #D7FA76 !important; border-color: #D7FA76 !important; background: rgba(215, 250, 118, 0.12) !important; }
+    #root .plugin-header-card .plugin-account-status > .ui-tag:last-child { position: static !important; inset: auto !important; transform: none !important; margin: 0 !important; }
     #root .plugin-navbar .navbar-icon-menu { transform: scaleX(-1); }
     #root .user-controls {
       border-radius: 9999px !important;
@@ -185,6 +195,11 @@
     .plugin-main-scroll > div, .plugin-main-scroll .flex > div { min-width: 0; }
     #root .plugin-header-card button:focus-visible { outline-offset: 2px; }
     #root .plugin-header-card [class*="top-full"] { max-width: calc(100vw - 16px); }
+    #root > .plugin-account-status { position: absolute; top: 40px; right: 104px; left: auto; transform: translateY(-50%); z-index: 3; margin: 0 !important; }
+    #root > .plugin-account-status .ui-tag { white-space: nowrap; }
+    #root > .plugin-account-status { display: none !important; }
+    #root .plugin-account-status-legacy { display: none !important; }
+    #root .plugin-header-card .plugin-account-status { display: flex !important; position: static; transform: none; inset: auto; margin: 0; }
     #root input[dir="ltr"] { text-align: left; unicode-bidi: isolate; }
     #root .plugin-action-buttons > button { column-gap: 6px; }
     /* Shiny CTA for the primary Mirror & Translate action. The supplied
@@ -542,6 +557,14 @@ const ARABIC_UI = {
   "Component Set": "Component Set",
   "Text Styles": "Text Styles",
   "Overrides": "Overrides"
+  ,"Limited time:": "لفترة محدودة:"
+  ,"OFF": "خصم"
+  ,"Pro plans": "باقات Pro"
+  ,"Limited offer": "عرض محدود"
+  ,"OFF": "خصم"
+  ,"View offer": "عرض الخصم"
+  ,"Get Offer": "احصل على العرض"
+  ,"Close offer": "إغلاق العرض"
 };
 let currentUiLanguage = 'en';
 let uiLanguageChosen = false;
@@ -2033,17 +2056,19 @@ const UpgradeScreen = ({
   }, uiText("Monthly")), /*#__PURE__*/React.createElement("button", {
     onClick: () => setIsYearly(true),
     className: `px-4 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap ${isYearly ? 'bg-brand-dark text-brand-teal shadow' : 'text-brand-text-secondary hover:text-white'}`
-  }, uiText("Yearly (-32%)")))), /*#__PURE__*/React.createElement("div", {
+  }, uiText("Yearly (-75%)")))), /*#__PURE__*/React.createElement("div", {
     className: "space-y-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-center"
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-3xl font-bold text-white"
-  }, isYearly ? '$7.5' : '$11', " ", /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-sm font-normal text-brand-text-muted line-through mr-2"
+  }, isYearly ? '$90' : '$11'), isYearly ? '$22.5' : '$2.75', " ", /*#__PURE__*/React.createElement("span", {
     className: "text-sm font-normal text-brand-text-secondary"
   }, uiText("/month"))), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-brand-text-muted mt-0.5"
-  }, uiText(isYearly ? 'Billed $90/year. Cancel anytime.' : 'Billed monthly. Cancel anytime.'))), /*#__PURE__*/React.createElement(Button, {
+  }, uiText(isYearly ? 'Billed $22.5/year after 75% discount. Cancel anytime.' : 'Billed monthly at 75% off. Cancel anytime.'))), /*#__PURE__*/React.createElement(Button, {
     onClick: handleUpgradeClick
   }, uiText("Upgrade Now"))), /*#__PURE__*/React.createElement("div", {
     className: "relative"
@@ -2237,6 +2262,24 @@ const LANGUAGES = [{
   name: 'Turkish'
 }];
 const EmptyState = () => /*#__PURE__*/React.createElement("div", { className: "empty-state flex-1 px-2 pt-2 pb-2 rounded-2xl bg-brand-dark flex items-center" }, /*#__PURE__*/React.createElement("div", { className: "w-full h-full min-h-0 rounded-2xl bg-brand-surface border border-brand-border p-3 flex flex-col items-center justify-center gap-4" }, /*#__PURE__*/React.createElement("div", { className: "w-full flex flex-col items-center gap-2.5 text-center" }, /*#__PURE__*/React.createElement("div", { className: "empty-state-icon p-4 rounded-full bg-white/[0.08]" }, /*#__PURE__*/React.createElement("img", { src: "data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjI2LjE2ODQiIGhlaWdodD0iMjYuMTY1MyIgdmlld0JveD0iMCAwIDI2LjE2ODQgMjYuMTY1MyIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGcgaWQ9ImVsZW1lbnRzIj4KPHBhdGggaWQ9IlRvbmUiIG9wYWNpdHk9IjAuNCIgZD0iTTEuMjQ0NCAxNC4zMjk0QzAuNjU0NzAyIDE0LjMyOTQgMC4zNTkzMTQgMTQuMzI5NCAwLjE3NjA0NyAxNC41MTY0Qy0wLjAwNTk3MjY2IDE0LjcwMzQgLTAuMDAzNTI3OTIgMTQuOTkwMSAwLjAwMTQ1ODkzIDE1LjU3NjFDMC4wMTc2NjYyIDE3LjIwOTMgMC4wNjYzNTEzIDE4LjU4MDcgMC4yMjIxOSAxOS43NDAyQzAuNDU3ODE5IDIxLjQ5OCAwLjk1NjQ0NiAyMi45MzE3IDIuMDk0NjkgMjQuMDc4N0MzLjIzMTcgMjUuMjEzMiA0LjY3MDQzIDI1LjcxMTkgNi40MjA4MSAyNS45NDg4QzcuNTgyNzUgMjYuMDk4NCA4Ljk2MjkyIDI2LjE0ODMgMTAuNTg5OSAyNi4xNjA3QzExLjE3NTggMjYuMTczMiAxMS40Njg3IDI2LjE3MzEgMTEuNjUzMiAyNS45ODYxQzExLjgzOSAyNS44MTE2IDExLjgzOSAyNS41MTI0IDExLjgzOSAyNC45MjY0VjE1LjU3NjFDMTEuODM5IDE0Ljk5MDEgMTEuODM5MSAxNC42OTA5IDExLjY1NTggMTQuNTE2NEMxMS40NzM4IDE0LjMyOTQgMTEuMTc5NSAxNC4zMjk0IDEwLjU5MjMgMTQuMzI5NEgxLjI0NDRaTTI2LjE2MzggMTAuNTg5MkMyNi4xNzYzIDExLjE3NTIgMjYuMTc2MiAxMS40NjE5IDI1Ljk4OTIgMTEuNjQ4OUMyNS44MTQ3IDExLjgzNTkgMjUuNTE1NSAxMS44MzU5IDI0LjkyOTUgMTEuODM1OUgxNS41NzkyQzE0Ljk5MDcgMTEuODM1OSAxNC42OTY1IDExLjgzNTkgMTQuNTE0NSAxMS42NDg5QzE0LjMzMjQgMTEuNDc0NCAxNC4zMzI0IDExLjE3NTIgMTQuMzMyNCAxMC41ODkyVjEuMjM4ODhDMTQuMzMyNCAwLjY1MjkyNiAxNC4zMzI1IDAuMzUzNzE1IDE0LjUxNyAwLjE3OTE3NUMxNC43MDE1IC0wLjAwNzgzMTkyIDE0Ljk5NDUgLTAuMDA3ODgwNjIgMTUuNTc5MiAwLjAwNDU4NjUxQzE3LjIxMjQgMC4wMTcwNTM2IDE4LjU4MzggMC4wNjY5NDY1IDE5Ljc0MzIgMC4yMTY1NTJDMjEuNTAxMSAwLjQ1MzQyOCAyMi45MzQ4IDAuOTUyMTEzIDI0LjA4MTggMi4wODY2MkMyNS4yMTYzIDMuMjMzNiAyNS43MTUgNC42NjczNCAyNS45NTE4IDYuNDEyNzRDMjYuMTAxNCA3LjU4NDY1IDI2LjE1MTMgOC45NTYwMyAyNi4xNjM4IDEwLjU4OTJaIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZmlsbD0iIzYxNjU2QyIvPgo8cGF0aCBpZD0iSWNvbiIgZD0iTTExLjgzOSAxLjIzODg4QzExLjgzOSAwLjY1MjkyNiAxMS44MzkgMC4zNTM3MTUgMTEuNjUzMiAwLjE3OTE3NUMxMS40Njg3IC0wLjAwNzgzMTkyIDExLjE3NTggLTAuMDA3ODgwNjIgMTAuNTg5OSAwLjAwNDU4NjUxQzguOTYyOTIgMC4wMTcwNTM2IDcuNTgyNzUgMC4wNjY5NDY1IDYuNDIwODEgMC4yMTY1NTJDNC42NzA0MyAwLjQ1MzQyOCAzLjIzMTcgMC45NTIxMTMgMi4wOTQ2OSAyLjA4NjYyQzAuOTU2NDQ2IDMuMjMzNiAwLjQ1NzgxOSA0LjY2NzM0IDAuMjIyMTkgNi40MTI3NEMwLjA2NjM1MTMgNy41ODQ2NSAwLjAxNzY2NjIgOC45NTYwMyAwLjAwMTQ1ODkzIDEwLjU4OTJDLTAuMDAzNTI3OTIgMTEuMTc1MiAtMC4wMDU5NzI2NiAxMS40NjE5IDAuMTc2MDQ3IDExLjY0ODlDMC4zNTkzMTQgMTEuODM1OSAwLjY1NDcwMiAxMS44MzU5IDEuMjQ0NCAxMS44MzU5SDEwLjU5MjNDMTEuMTc5NSAxMS44MzU5IDExLjQ3MzggMTEuODM1OSAxMS42NTU4IDExLjY0ODlDMTEuODM5MSAxMS40NzQ0IDExLjgzOSAxMS4xNzUyIDExLjgzOSAxMC41ODkyVjEuMjM4ODhaTTE0LjMzMjQgMjQuOTI2NEMxNC4zMzI0IDI1LjUxMjQgMTQuMzMyNSAyNS44MTE2IDE0LjUxNyAyNS45ODYxQzE0LjcwMTUgMjYuMTczMSAxNC45OTQ1IDI2LjE3MzIgMTUuNTc5MiAyNi4xNjA3QzE3LjIxMjQgMjYuMTQ4MyAxOC41ODM4IDI2LjA5ODQgMTkuNzQzMiAyNS45NDg4QzIxLjUwMTEgMjUuNzExOSAyMi45MzQ4IDI1LjIxMzIgMjQuMDgxOCAyNC4wNzg3QzI1LjIxNjMgMjIuOTMxNyAyNS43MTUgMjEuNDk4IDI1Ljk1MTggMTkuNzQwMkMyNi4xMDE0IDE4LjU4MDcgMjYuMTUxMyAxNy4yMDkzIDI2LjE2MzggMTUuNTc2MUMyNi4xNzYzIDE0Ljk5MDEgMjYuMTc2MiAxNC43MDM0IDI1Ljk4OTIgMTQuNTE2NEMyNS44MTQ3IDE0LjMyOTQgMjUuNTE1NSAxNC4zMjk0IDI0LjkyOTUgMTQuMzI5NEgxNS41NzkyQzE0Ljk5MDcgMTQuMzI5NCAxNC42OTY1IDE0LjMyOTQgMTQuNTE0NSAxNC41MTY0QzE0LjMzMjQgMTQuNjkwOSAxNC4zMzI0IDE0Ljk5MDEgMTQuMzMyNCAxNS41NzYxVjI0LjkyNjRaIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZmlsbD0iIzk0OTc5QyIvPgo8L2c+Cjwvc3ZnPgo=", width: "30", height: "30", alt: "", className: "block" })), /*#__PURE__*/React.createElement("div", { className: "w-full flex flex-col items-center gap-1" }, /*#__PURE__*/React.createElement("p", { className: "w-full text-sm font-medium text-brand-text-primary" }, uiText("No frame selected")), /*#__PURE__*/React.createElement("p", { className: "w-full text-xs leading-normal text-brand-text-secondary" }, uiText("Select a frame or layer to mirror layouts and translate text."))))));
+const LimitedOfferBanner = ({ onOpen, onClose }) => /*#__PURE__*/React.createElement("div", {
+  className: "limited-offer-banner",
+  role: "button",
+  tabIndex: 0,
+  onClick: onOpen,
+  onKeyDown: event => {
+    if (event.key === 'Enter' || event.key === ' ') onOpen();
+  }
+}, /*#__PURE__*/React.createElement("span", null, uiText("Limited time:"), " ", /*#__PURE__*/React.createElement("span", {
+  className: "limited-offer-discount"
+}, "75%"), " ", /*#__PURE__*/React.createElement("span", {
+  className: "limited-offer-discount"
+}, uiText("OFF")), " ", uiText("Pro plans")), /*#__PURE__*/React.createElement("button", {
+  type: "button",
+  className: "limited-offer-banner-close",
+  "aria-label": uiText("Close offer"),
+  onClick: event => { event.stopPropagation(); onClose(); }
+}, "×"));
 const App = () => {
   const uiLanguage = React.useSyncExternalStore(subscribeUiLanguage, getUiLanguage);
   useEffect(() => { parent.postMessage({ pluginMessage: { type: "get-ui-language" } }, "*"); }, []);
@@ -2244,6 +2287,7 @@ const App = () => {
   const [trialCount, setTrialCount] = useState(null);
   const [isStatusLoading, setIsStatusLoading] = useState(true);
   const [showUpgradeScreen, setShowUpgradeScreen] = useState(false);
+  const [showLimitedOffer, setShowLimitedOffer] = useState(true);
   const [geminiApiKey, setGeminiApiKey] = useState(null);
   const [openaiApiKey, setOpenaiApiKey] = useState(null);
   const apiKeysDataRef = useRef({
@@ -2897,7 +2941,10 @@ const App = () => {
   const mainButtonText = translateText ? 'Mirror & Translate' : 'Mirror Only';
   return /*#__PURE__*/React.createElement("div", {
     className: "bg-brand-dark text-brand-text-primary font-sans flex flex-col h-full relative"
-  }, onboardingStatus === 'pending' && /*#__PURE__*/React.createElement(OnboardingTour, {
+  }, showLimitedOffer && !isPro && /*#__PURE__*/React.createElement(LimitedOfferBanner, {
+    onOpen: () => setShowUpgradeScreen(true),
+    onClose: () => setShowLimitedOffer(false)
+  }), onboardingStatus === 'pending' && /*#__PURE__*/React.createElement(OnboardingTour, {
     tourConfig: tourConfig,
     onComplete: handleOnboardingComplete
   }), /*#__PURE__*/React.createElement(AppMenu, {
@@ -2911,6 +2958,16 @@ const App = () => {
   }), /*#__PURE__*/React.createElement("header", { className: "plugin-navbar", "data-figma-node": "1103:7294" }, React.createElement("div", { className: "plugin-header-card" }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-x-3"
   }, /*#__PURE__*/React.createElement("div", { className: "brand-mark", "aria-label": "RTL Master" }, /*#__PURE__*/React.createElement("img", { src: "data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjE2LjM3NSIgaGVpZ2h0PSIyMC40Njg4IiB2aWV3Qm94PSIwIDAgMTYuMzc1IDIwLjQ2ODgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxnIGlkPSJsb2dvIDEiPgo8cGF0aCBpZD0iVmVjdG9yIiBkPSJNMTUuMzgzIDAuMDMwMjU1M0MxNC44NzA1IDAuMDMwMzI4OSAxNC40NTQ2IDAuNDQ1NzU5IDE0LjQ1NDYgMC45NTgwMzdWMTkuNTEwN0MxNC40NTQ3IDIwLjAyMjkgMTQuODcwNSAyMC40Mzg0IDE1LjM4MyAyMC40Mzg1QzE1Ljg5NTcgMjAuNDM4NSAxNi4zMTE1IDIwLjAyMyAxNi4zMTE1IDE5LjUxMDdWMC45NTgwMzdDMTYuMzExNSAwLjQ0NTY4NSAxNS44OTU3IDAuMDMwMjU1MyAxNS4zODMgMC4wMzAyNTUzWk0zLjA1MTgxIDExLjM5NEMyLjY0MzYgMTEuMzk0IDIuMjkxNDMgMTEuMzkzNyAyLjAwMjUyIDExLjQxOThDMS42OTY5NiAxMS40NDc1IDEuMzk0NDMgMTEuNTA5MSAxLjEwOTI4IDExLjY3MzZDMC41MDE5MjUgMTIuMDIzOSAwLjI0MTUxNSAxMi41NjM5IDAuMTM2OTM5IDEzLjA3NzFDMC4wNTYyMjQzIDEzLjQ3MzIgMC4wNjE3NDc2IDE0LjA3ODUgMC4wNjQ5ODggMTQuNDA4OEMwLjA2MTc0NzYgMTQuNzM5MSAwLjA1NjIyNDMgMTUuMzQzOCAwLjEzNjkzOSAxNS43Mzk4QzAuMjQxNTE1IDE2LjI1MyAwLjUwMTkyNSAxNi43OTM3IDEuMTA5MjggMTcuMTQ0MUMxLjM5NDM2IDE3LjMwODUgMS42OTcwNCAxNy4zNjk0IDIuMDAyNTIgMTcuMzk3MUMyLjI5MTQzIDE3LjQyMzIgMi42NDM2IDE3LjQyMzcgMy4wNTE4MSAxNy40MjM2SDkuNjA5MzlDMTAuMDE3NiAxNy40MjM3IDEwLjM3MDQgMTcuNDIzMyAxMC42NTk0IDE3LjM5NzFDMTAuOTY0OCAxNy4zNjk0IDExLjI2NzUgMTcuMzA4NSAxMS41NTI2IDE3LjE0NDFDMTIuMTYgMTYuNzkzNyAxMi40MjA0IDE2LjI1MyAxMi41MjUgMTUuNzM5OEMxMi42MDU2IDE1LjM0MzggMTIuNjAwMSAxNC43MzkxIDEyLjU5NjkgMTQuNDA4OEMxMi42MDAxIDE0LjA3ODUgMTIuNjA1NyAxMy40NzMyIDEyLjUyNSAxMy4wNzcxQzEyLjQyMDQgMTIuNTY0IDEyLjE1OTggMTIuMDIzOSAxMS41NTI2IDExLjY3MzZDMTEuMjY3NSAxMS41MDkxIDEwLjk2NDggMTEuNDQ3NSAxMC42NTk0IDExLjQxOThDMTAuMzcwNCAxMS4zOTM3IDEwLjAxNzYgMTEuMzk0IDkuNjA5MzkgMTEuMzk0SDMuMDUxODFaTTguNjIxMjIgMy4wNDUwNUM4LjIxMzA4IDMuMDQ1MDUgNy44NjA4NCAzLjA0NDc1IDcuNTcxOTMgMy4wNzA5NUM3LjI2NjQ1IDMuMDk4NjIgNi45NjM3NyAzLjE2MDE1IDYuNjc4NjkgMy4zMjQ2M0M2LjA3MTQ4IDMuNjc1IDUuODEwOTMgNC4yMTUxIDUuNzA2MzUgNC43MjgyNkM1LjYyNTYzIDUuMTI0MjYgNS42MzExNiA1LjcyOTYzIDUuNjM0NCA2LjA1OTkxQzUuNjMxMTYgNi4zOTAyIDUuNjI1NjMgNi45OTQ5MSA1LjcwNjM1IDcuMzkwOTFDNS44MTA5MyA3LjkwNDA3IDYuMDcxMzQgOC40NDQ4MyA2LjY3ODY5IDguNzk1MkM2Ljk2Mzc3IDguOTU5NjggNy4yNjY0NSA5LjAyMDQ3IDcuNTcxOTMgOS4wNDgyMUM3Ljg2MDg0IDkuMDc0MzQgOC4yMTMwOCA5LjA3NDc4IDguNjIxMjIgOS4wNzQ3OEg5LjYwOTM5QzEwLjAxNzYgOS4wNzQ3OCAxMC4zNzA0IDkuMDc0MzQgMTAuNjU5NCA5LjA0ODIxQzEwLjk2NDggOS4wMjA0NyAxMS4yNjc1IDguOTU5NjggMTEuNTUyNiA4Ljc5NTJDMTIuMTU5OSA4LjQ0NDgzIDEyLjQyMDQgNy45MDQwNyAxMi41MjUgNy4zOTA5MUMxMi42MDU2IDYuOTk0OTEgMTIuNjAwMSA2LjM5MDIgMTIuNTk2OSA2LjA1OTkxQzEyLjYwMDEgNS43Mjk2MyAxMi42MDU3IDUuMTI0MjYgMTIuNTI1IDQuNzI4MjZDMTIuNDIwNCA0LjIxNTE3IDEyLjE1OTggMy42NzUwNyAxMS41NTI2IDMuMzI0NjNDMTEuMjY3NSAzLjE2MDE1IDEwLjk2NDkgMy4wOTg2MiAxMC42NTk0IDMuMDcwOTVDMTAuMzcwNCAzLjA0NDc1IDEwLjAxNzYgMy4wNDUwNSA5LjYwOTM5IDMuMDQ1MDVIOC42MjEyMloiIGZpbGw9IiMxNEYxOTUiLz4KPC9nPgo8L3N2Zz4K", width: "16.375", height: "20.469", alt: "", className: "block", style: { flexShrink: 0 } }))), /*#__PURE__*/React.createElement("div", {
+    className: "plugin-account-status flex items-center justify-end gap-2 flex-shrink-0"
+  }, !isPro && trialCount !== null && /*#__PURE__*/React.createElement("div", {
+    className: "ui-tag text-xs font-medium text-brand-text-secondary bg-brand-surface px-2 py-1 rounded-md"
+  }, uiLanguage === "ar" ? `${trialCount} من 10 استخدامات تجريبية` : `${trialCount} / 10 trials`), isPro && /*#__PURE__*/React.createElement("div", {
+    className: "ui-tag text-xs font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-1 rounded-full border border-brand-teal/30"
+  }, "PRO"), !isPro && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowUpgradeScreen(true),
+    className: "text-xs font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-1 rounded-full border border-brand-teal/30 hover:bg-brand-teal/20 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-brand-dark focus:ring-brand-teal",
+    "aria-label": uiText("Upgrade to Pro")
+  }, uiText("GO PRO"))), /*#__PURE__*/React.createElement("div", {
     className: "user-controls flex items-center gap-1 p-1 bg-brand-surface",
     style: { background: "#161616", border: 0, borderRadius: 9999, width: 84, height: 40, padding: 0, gap: 4, overflow: "visible", justifyContent: "flex-end" }
   }, /*#__PURE__*/React.createElement("button", {
@@ -2953,7 +3010,7 @@ const App = () => {
     className: "top-icon-button navbar-menu-button flex items-center justify-center rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-teal",
     style: { width: 48, height: 48, padding: 12, boxSizing: "border-box", border: 0, borderRadius: 9999, background: "#161616" },
     "aria-label": uiText("Open menu")
-  }, /*#__PURE__*/React.createElement(FigmaInboxIcon, null)))) , /*#__PURE__*/React.createElement("div", { className: "plugin-account-status flex items-center justify-end gap-2 mx-2 mt-2 flex-shrink-0" }, !isPro && trialCount !== null && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(FigmaInboxIcon, null)))) , /*#__PURE__*/React.createElement("div", { className: "plugin-account-status-legacy flex items-center justify-end gap-2 mx-2 mt-2 flex-shrink-0" }, !isPro && trialCount !== null && /*#__PURE__*/React.createElement("div", {
     className: "ui-tag text-xs font-medium text-brand-text-secondary bg-brand-surface px-2 py-1 rounded-md"
   }, uiLanguage === "ar" ? `${trialCount} من 10 استخدامات تجريبية` : `${trialCount} / 10 trials`), isPro && /*#__PURE__*/React.createElement("div", {
     className: "ui-tag text-xs font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-1 rounded-full border border-brand-teal/30"
