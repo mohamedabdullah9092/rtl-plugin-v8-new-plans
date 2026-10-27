@@ -131,8 +131,8 @@
     #root .plugin-header-card .top-icon-button:disabled { cursor: default; }
     #root .plugin-header-card .brand-mark img { width: 16.375px; height: 20.4688px; }
     #root .app-menu-drawer a[aria-label] {
-      border-radius: 9999px !important;
-      corner-shape: round !important;
+      border-radius: 20px !important;
+      corner-shape: superellipse(2) !important;
     }
     #root .app-menu-drawer a[aria-label] > div {
       border-radius: 9999px !important;
@@ -206,6 +206,8 @@
       isolation: isolate;
       position: relative;
       overflow: hidden;
+      box-sizing: border-box !important;
+      flex: 0 0 56px;
       padding: 0 2.5rem;
       height: 56px;
       min-height: 56px;
@@ -214,7 +216,8 @@
       line-height: 1.2;
       font-weight: 500;
       border: 2px solid transparent !important;
-      border-radius: 9999px !important;
+      border-radius: 20px !important;
+      corner-shape: superellipse(2) !important;
       color: var(--shiny-cta-fg) !important;
       background: linear-gradient(var(--shiny-cta-bg), var(--shiny-cta-bg)) padding-box,
         conic-gradient(
@@ -287,7 +290,9 @@
       width: 100%;
       text-align: center;
     }
-    #root .plugin-action-buttons > button.soft-primary {
+    #root .plugin-action-buttons > button.translate-only-button {
+      box-sizing: border-box !important;
+      flex: 0 0 56px;
       height: 56px;
       min-height: 56px;
       padding-top: 0;
@@ -1460,6 +1465,7 @@ const Button = ({
   children,
   variant = 'primary',
   isLoading = false,
+  className = '',
   ...props
 }) => {
   const baseClasses = 'w-full flex items-center justify-center font-semibold py-3 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-brand-dark focus:ring-brand-teal disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98]';
@@ -1469,7 +1475,7 @@ const Button = ({
     'soft-primary': 'bg-brand-teal/10 hover:bg-brand-teal/20 text-brand-teal border border-brand-teal/30'
   };
   return /*#__PURE__*/React.createElement("button", {
-    className: `${baseClasses} ${variantClasses[variant]}`,
+    className: `${baseClasses} ${variantClasses[variant]} ${className}`,
     ...props
   }, children);
 };
@@ -3194,7 +3200,8 @@ const App = () => {
     onClick: () => handleAction('translate-only'),
     disabled: isLoading || !translateText,
     isLoading: isLoading && !progress,
-    variant: "soft-primary"
+    variant: "soft-primary",
+    className: "translate-only-button"
   }, uiText("Translate Only"))) : /*#__PURE__*/React.createElement(Button, {
     onClick: handleChangeFont,
     disabled: isFontChanging || !selectedFont,
