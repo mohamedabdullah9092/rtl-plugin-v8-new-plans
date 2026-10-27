@@ -130,6 +130,26 @@
     #root .plugin-header-card .top-icon-button { color: #CCCCCC; cursor: pointer; }
     #root .plugin-header-card .top-icon-button:disabled { cursor: default; }
     #root .plugin-header-card .brand-mark img { width: 16.375px; height: 20.4688px; }
+    #root .app-menu-drawer a[aria-label] {
+      border-radius: 9999px !important;
+      corner-shape: round !important;
+    }
+    #root .app-menu-drawer a[aria-label] > div {
+      border-radius: 9999px !important;
+      corner-shape: round !important;
+    }
+    /* Keep the subscribed user's PRO badge beside the brand mark. */
+    #root .plugin-account-status > .ui-tag:last-child {
+      position: absolute;
+      inset-inline-start: 60px;
+      top: 40px;
+      transform: translateY(-50%);
+      z-index: 3;
+      margin: 0;
+      color: #FACC15 !important;
+      background: rgba(250, 204, 21, 0.12) !important;
+      border-color: rgba(250, 204, 21, 0.42) !important;
+    }
     #root .plugin-header-card .navbar-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex: none; }
     #root .plugin-navbar .navbar-icon-menu { transform: scaleX(-1); }
     #root .user-controls {
@@ -167,6 +187,127 @@
     #root .plugin-header-card [class*="top-full"] { max-width: calc(100vw - 16px); }
     #root input[dir="ltr"] { text-align: left; unicode-bidi: isolate; }
     #root .plugin-action-buttons > button { column-gap: 6px; }
+    /* Shiny CTA for the primary Mirror & Translate action. The supplied
+       component is adapted to the plugin's dark surface and compact footer. */
+    #root .plugin-action-buttons > button.shiny-cta {
+      --shiny-cta-bg: #F5F5F5;
+      --shiny-cta-bg-subtle: #183329;
+      --shiny-cta-fg: #0C0C0C;
+      --shiny-cta-highlight: #14F195;
+      --shiny-cta-highlight-subtle: #61FFB8;
+      --gradient-angle: 0deg;
+      --gradient-angle-offset: 0deg;
+      --gradient-percent: 5%;
+      --gradient-shine: #ffffff;
+      --mouse-x: 50%;
+      --mouse-y: 50%;
+      --duration: 3s;
+      --shadow-size: 2px;
+      isolation: isolate;
+      position: relative;
+      overflow: hidden;
+      padding: 0 2.5rem;
+      height: 56px;
+      min-height: 56px;
+      font-family: "Google Sans", sans-serif;
+      font-size: 1.125rem;
+      line-height: 1.2;
+      font-weight: 500;
+      border: 2px solid transparent !important;
+      border-radius: 9999px !important;
+      color: var(--shiny-cta-fg) !important;
+      background: linear-gradient(var(--shiny-cta-bg), var(--shiny-cta-bg)) padding-box,
+        conic-gradient(
+          from calc(var(--gradient-angle) - var(--gradient-angle-offset)),
+          transparent,
+          var(--shiny-cta-highlight) var(--gradient-percent),
+          var(--gradient-shine) calc(var(--gradient-percent) * 2),
+          var(--shiny-cta-highlight) calc(var(--gradient-percent) * 3),
+          transparent calc(var(--gradient-percent) * 4)
+        ) border-box !important;
+      box-shadow: inset 0 0 0 1px #14F195,
+        inset 0 0 22px rgba(20, 241, 149, 0.18),
+        0 0 0 1px rgba(20, 241, 149, 0.38) !important;
+      transition: 800ms cubic-bezier(0.25, 1, 0.5, 1);
+      transition-property: --gradient-angle-offset, --gradient-percent, --gradient-shine;
+      animation: shiny-gradient-angle var(--duration) linear infinite,
+        shiny-gradient-angle calc(var(--duration) / 0.4) linear infinite reverse paused;
+      animation-composition: add;
+      white-space: nowrap;
+    }
+    @property --gradient-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+    @property --gradient-angle-offset { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+    @property --gradient-percent { syntax: "<percentage>"; initial-value: 5%; inherits: false; }
+    @property --gradient-shine { syntax: "<color>"; initial-value: white; inherits: false; }
+    #root .plugin-action-buttons > button.shiny-cta::before,
+    #root .plugin-action-buttons > button.shiny-cta::after {
+      content: "";
+      pointer-events: none;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      translate: -50% -50%;
+      z-index: -1;
+    }
+    #root .plugin-action-buttons > button.shiny-cta::before {
+      width: calc(100% - var(--shadow-size) * 3);
+      height: calc(100% - var(--shadow-size) * 3);
+      background: radial-gradient(circle at 2px 2px, #000000 0.5px, transparent 0) padding-box;
+      background-size: 4px 4px;
+      background-repeat: space;
+      mask-image: radial-gradient(circle 72px at var(--mouse-x) var(--mouse-y), black 0%, rgba(0, 0, 0, 0.88) 48%, transparent 100%);
+      border-radius: inherit;
+      opacity: 0.38;
+      transition: opacity 220ms ease;
+      animation: shiny-dots 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+    #root .plugin-action-buttons > button.shiny-cta::after {
+      width: 100%;
+      aspect-ratio: 1;
+      background: linear-gradient(90deg, transparent 18%, rgba(20, 241, 149, 0.68) 62%, transparent 100%);
+      mask-image: radial-gradient(ellipse 72% 92% at 82% 50%, transparent 18%, black 72%);
+      opacity: 0.38;
+      animation: shiny-shimmer var(--duration) linear infinite;
+    }
+    #root .plugin-action-buttons > button.shiny-cta:hover,
+    #root .plugin-action-buttons > button.shiny-cta:focus-visible {
+      --gradient-percent: 20%;
+      --gradient-angle-offset: 95deg;
+      --gradient-shine: var(--shiny-cta-highlight-subtle);
+      animation-play-state: running;
+    }
+    #root .plugin-action-buttons > button.shiny-cta:hover::after,
+    #root .plugin-action-buttons > button.shiny-cta:focus-visible::after { animation-play-state: running; }
+    #root .plugin-action-buttons > button.shiny-cta:hover::before,
+    #root .plugin-action-buttons > button.shiny-cta:focus-visible::before { opacity: 0.62; }
+    #root .plugin-action-buttons > button.shiny-cta .shiny-cta-label {
+      position: relative;
+      z-index: 1;
+      display: block;
+      width: 100%;
+      text-align: center;
+    }
+    #root .plugin-action-buttons > button.soft-primary {
+      height: 56px;
+      min-height: 56px;
+      padding-top: 0;
+      padding-bottom: 0;
+      border-radius: 9999px !important;
+      corner-shape: round !important;
+    }
+    #root .plugin-action-buttons > button.shiny-cta:active { translate: 0 1px; }
+    @keyframes shiny-gradient-angle { to { --gradient-angle: 360deg; } }
+    @keyframes shiny-dots {
+      0% { background-position: 0 0; opacity: 0.3; }
+      35% { opacity: 0.55; }
+      100% { background-position: 12px 12px; opacity: 0.3; }
+    }
+    @keyframes shiny-shimmer { to { rotate: 360deg; } }
+    @media (prefers-reduced-motion: reduce) {
+      #root .plugin-action-buttons > button.shiny-cta,
+      #root .plugin-action-buttons > button.shiny-cta::before,
+      #root .plugin-action-buttons > button.shiny-cta::after { animation: none; }
+    }
     #root .plugin-main-scroll [role="tooltip"] { max-width: calc(100vw - 32px); text-align: start; }
     .feature-announcement { text-align: start; }
     html[dir="rtl"] .feature-announcement { direction: rtl; }
@@ -1630,6 +1771,8 @@ const WhatsappIcon = ({
   className: className
 }, /*#__PURE__*/React.createElement("path", {
   d: "M21 11.5a8.38 8.38 0 0 1-.9 3.8 a8.5 8.5 0 0 1-7.6 4.7 a8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M8.8 9.2c.2 2.5 2.1 4.4 4.6 4.6l1.1-1.1c.2-.2.5-.2.7-.1l1.3.6c.3.1.4.4.3.7-.2.9-.9 1.5-1.8 1.5-3.8 0-6.8-3-6.8-6.8 0-.9.6-1.6 1.5-1.8.3-.1.6 0 .7.3l.6 1.3c.1.2.1.5-.1.7L8.8 9.2z"
 }));
 const EmailIcon = ({
   className
@@ -1638,7 +1781,7 @@ const EmailIcon = ({
   viewBox: "0 0 24 24",
   fill: "none",
   stroke: "currentColor",
-  strokeWidth: "1.5",
+  strokeWidth: "2",
   strokeLinecap: "round",
   strokeLinejoin: "round",
   className: className
@@ -1770,7 +1913,7 @@ const AppMenu = ({
   }, uiText("Contact & Support")), /*#__PURE__*/React.createElement("p", {
     className: "text-brand-text-secondary"
   }, uiText("have questions? We're here!")), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-center gap-x-2 pt-3"
+    className: "flex items-center justify-start gap-x-2 pt-3"
   }, /*#__PURE__*/React.createElement("a", {
     href: "https://www.facebook.com/mohamed.abdullah.845751/",
     target: "_blank",
@@ -2806,7 +2949,9 @@ const App = () => {
     "aria-label": uiText("Open menu")
   }, /*#__PURE__*/React.createElement(FigmaInboxIcon, null)))) , /*#__PURE__*/React.createElement("div", { className: "plugin-account-status flex items-center justify-end gap-2 mx-2 mt-2 flex-shrink-0" }, !isPro && trialCount !== null && /*#__PURE__*/React.createElement("div", {
     className: "ui-tag text-xs font-medium text-brand-text-secondary bg-brand-surface px-2 py-1 rounded-md"
-  }, uiLanguage === "ar" ? `${trialCount} من 10 استخدامات تجريبية` : `${trialCount} / 10 trials`), !isPro && /*#__PURE__*/React.createElement("button", {
+  }, uiLanguage === "ar" ? `${trialCount} من 10 استخدامات تجريبية` : `${trialCount} / 10 trials`), isPro && /*#__PURE__*/React.createElement("div", {
+    className: "ui-tag text-xs font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-1 rounded-full border border-brand-teal/30"
+  }, "PRO"), !isPro && /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowUpgradeScreen(true),
     className: "text-xs font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-1 rounded-full border border-brand-teal/30 hover:bg-brand-teal/20 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-brand-dark focus:ring-brand-teal",
     "aria-label": uiText("Upgrade to Pro")
@@ -2991,8 +3136,61 @@ const App = () => {
     onClick: () => handleAction('mirror-translate'),
     disabled: isLoading,
     isLoading: isLoading,
-    variant: "primary"
-  }, uiText(mainButtonText), /*#__PURE__*/React.createElement(SparkleIcon, null)), /*#__PURE__*/React.createElement(Button, {
+    variant: "primary",
+    className: "shiny-cta",
+    onMouseEnter: event => {
+      if (event.currentTarget._shinyIdleFrame) {
+        cancelAnimationFrame(event.currentTarget._shinyIdleFrame);
+        event.currentTarget._shinyIdleFrame = 0;
+      }
+      event.currentTarget._shinyPointerTarget = null;
+    },
+    onMouseMove: event => {
+      const button = event.currentTarget;
+      const rect = button.getBoundingClientRect();
+      button._shinyPointerTarget = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
+      if (button._shinyPointerFrame) return;
+      const animatePointer = () => {
+        const target = button._shinyPointerTarget;
+        if (!target) {
+          button._shinyPointerFrame = 0;
+          return;
+        }
+        const currentX = parseFloat(getComputedStyle(button).getPropertyValue('--mouse-x')) || target.x;
+        const currentY = parseFloat(getComputedStyle(button).getPropertyValue('--mouse-y')) || target.y;
+        const nextX = currentX + (target.x - currentX) * 0.14;
+        const nextY = currentY + (target.y - currentY) * 0.14;
+        button.style.setProperty('--mouse-x', `${nextX}px`);
+        button.style.setProperty('--mouse-y', `${nextY}px`);
+        button._shinyPointerFrame = requestAnimationFrame(animatePointer);
+      };
+      button._shinyPointerFrame = requestAnimationFrame(animatePointer);
+    },
+    onMouseLeave: event => {
+      const button = event.currentTarget;
+      button._shinyPointerTarget = null;
+      if (button._shinyPointerFrame) {
+        cancelAnimationFrame(button._shinyPointerFrame);
+        button._shinyPointerFrame = 0;
+      }
+      const rect = button.getBoundingClientRect();
+      const startedAt = performance.now();
+      const animateIdle = now => {
+        const elapsed = (now - startedAt) / 1000;
+        const x = rect.width * 0.5 + Math.sin(elapsed * 0.82) * rect.width * 0.38;
+        const y = rect.height * 0.5 + Math.cos(elapsed * 0.68) * rect.height * 0.35;
+        button.style.setProperty('--mouse-x', `${x}px`);
+        button.style.setProperty('--mouse-y', `${y}px`);
+        button._shinyIdleFrame = requestAnimationFrame(animateIdle);
+      };
+      button._shinyIdleFrame = requestAnimationFrame(animateIdle);
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "shiny-cta-label"
+  }, uiText(mainButtonText))), /*#__PURE__*/React.createElement(Button, {
     onClick: () => handleAction('translate-only'),
     disabled: isLoading || !translateText,
     isLoading: isLoading && !progress,
