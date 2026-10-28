@@ -4091,6 +4091,28 @@ function mirrorAutoLayoutAlignment(node) {
     else if (node[property] === 'MAX') node[property] = 'MIN';
 }
 
+function mirrorGradientFills(node) {
+    if (!node || !Array.isArray(node.fills) || node.fills === figma.mixed) return;
+    const gradients = node.fills.filter(fill => fill && fill.visible !== false &&
+        typeof fill.type === 'string' && fill.type.startsWith('GRADIENT') &&
+        Array.isArray(fill.gradientTransform));
+    if (gradients.length === 0) return;
+
+    const mirroredFills = node.fills.map(fill => {
+        if (!fill || fill.visible === false || typeof fill.type !== 'string' ||
+            !fill.type.startsWith('GRADIENT') || !Array.isArray(fill.gradientTransform)) return fill;
+        const [[a, c, tx], [b, d, ty]] = fill.gradientTransform;
+        return {
+            ...fill,
+            gradientTransform: [
+                [-a, c, a + tx],
+                [-b, d, b + ty]
+            ]
+        };
+    });
+    node.fills = mirroredFills;
+}
+
 function setChildPosition(child, x, y, parentTransform = null) {
     // Groups recalculate their origin after each child moves. Rebase each
     // planned position against the CURRENT origin, using the original axes.
@@ -4375,6 +4397,10 @@ async function mirrorNodeUnchecked(node, isInsideInstance, mirrorContext, mirror
             node.strokeLeftWeight = strokeRightWeight;
             node.strokeRightWeight = strokeLeftWeight;
         }
+
+        // Mirror gradient direction together with the horizontal layout so the
+        // visual flow does not remain anchored to the pre-mirror orientation.
+        mirrorGradientFills(node);
     } catch (e) {
         console.warn(`Skipping property modification for node "${node.name}" (${node.id}) due to a read-only error: ${e.message}`);
     }
@@ -4838,6 +4864,20 @@ async function applyLocalePropertiesToNodes(nodes, toLanguage, mirrorContext = n
 
 // Only reuse a variant explicitly matching the target locale. Unmatched instances continue through
 // the existing locale/mirror flow, including its optional variant generation.
+function hasTextCharacterOverride(textNode) {
+    for (let parent = textNode?.parent; parent; parent = parent.parent) {
+        if (parent.type !== 'INSTANCE') continue;
+        const overrides = Array.isArray(parent.overrides) ? parent.overrides : [];
+        const override = overrides.find(item => item && item.id === textNode.id);
+        if (override && Array.isArray(override.overriddenFields)) {
+            if (override.overriddenFields.some(field => field === 'characters')) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 async function trySwitchToExistingLocaleVariant(node, mirrorContext) {
     if (mirrorContext.options.smartSwitchComponents !== true) return false;
     if (mirrorContext.smartSwitchedNodeIds.has(node.id)) return true;
@@ -4877,7 +4917,10 @@ async function trySwitchToExistingLocaleVariant(node, mirrorContext) {
         if (matches.length !== 1) return false;
 
         const sourceTextNodes = findTextNodes([node]);
-        const sourceText = sourceTextNodes.map(textNode => textNode.characters);
+        const sourceText = sourceTextNodes.map(textNode => ({
+            characters: textNode.characters,
+            hasOverride: hasTextCharacterOverride(textNode)
+        }));
         const subtreeIds = [];
         const collectIds = root => {
             subtreeIds.push(root.id);
@@ -4894,7 +4937,8 @@ async function trySwitchToExistingLocaleVariant(node, mirrorContext) {
             // Existing locale variants may already contain translated copy.
             // Requeue only cloned/source-equivalent text; this avoids sending
             // finished target-language content through translation again.
-            if (textNode.characters === sourceText[index] && !sourceTextNodes[index]?.userOverride) {
+            const source = sourceText[index];
+            if (source && !sourceTextNodes[index]?.userOverride && (source.hasOverride || textNode.characters === source.characters)) {
                 mirrorContext.smartSwitchTranslationNodes.push(textNode);
             }
         });
