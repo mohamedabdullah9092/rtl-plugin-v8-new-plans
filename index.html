@@ -563,7 +563,7 @@ const ARABIC_UI = {
   "GO PRO": "الترقية إلى Pro",
   "NEW": "جديد",
   "About Smart Switch Components": "كيف تختار الإضافة Component المناسب للغة؟",
-  "Switch components to a matching variant in the target language when available, while keeping their component connection.": "إذا جهّزت Variant باللغة المطلوبة، تستخدمه الإضافة بدل عكس التصميم من جديد. يظل العنصر مرتبطًا بـ Component الأصلي.",
+  "Switch components to a matching variant in the target language when available, while keeping their component connection.": "إذا كان هناك Variant باللغة المطلوبة، ستستخدمه الإضافة بدلًا من عكس التصميم. يظل العنصر مرتبطًا بالـComponent الأصلي.",
   "Mirror Main Components": "عكس Main Components",
   "Create or reuse a mirrored target variant, arrange it beside its source, then swap the local nested instance to it.": "تجهّز نسخة معكوسة من Main Component وتضعها بجانب الأصل، ثم تستخدمها داخل تصميمك بدل النسخة الحالية.",
   "Create as Variant": "إنشاء Variant جديد",
@@ -3222,7 +3222,7 @@ const App = () => {
     options: LANGUAGES.filter(lang => lang.code !== 'auto'),
     disabled: !translateText || isLoading
   }))))), /*#__PURE__*/React.createElement("section", {
-    className: "bg-brand-surface rounded-xl border border-brand-border overflow-hidden",
+    className: "bg-brand-surface rounded-xl border border-brand-border overflow-visible",
     "aria-labelledby": "smart-switch-group-title"
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
@@ -3230,10 +3230,14 @@ const App = () => {
     className: "w-full flex items-center justify-between gap-3 px-4 py-3 text-start hover:bg-brand-dark/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-teal",
     "aria-expanded": showSmartSwitchOptions,
     "aria-controls": "smart-switch-options"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center min-w-0"
   }, /*#__PURE__*/React.createElement("span", {
     id: "smart-switch-group-title",
     className: "font-semibold text-brand-text-primary"
-  }, uiText("Smart Switch")), /*#__PURE__*/React.createElement("svg", {
+  }, uiText("Smart Switch")), /*#__PURE__*/React.createElement("span", {
+    className: "ui-tag ms-2 px-1.5 rounded-full border border-brand-teal/25 bg-brand-teal/10 text-brand-teal text-[9px] leading-4 font-bold"
+  }, uiText("NEW"))), /*#__PURE__*/React.createElement("svg", {
     xmlns: "http://www.w3.org/2000/svg",
     viewBox: "0 0 20 20",
     fill: "none",
@@ -3249,7 +3253,7 @@ const App = () => {
     id: "smart-switch-options",
     className: `grid transition-[grid-template-rows,opacity] duration-200 ease-out ${showSmartSwitchOptions ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`
   }, /*#__PURE__*/React.createElement("div", {
-    className: "min-h-0 overflow-hidden"
+    className: `min-h-0 ${showSmartSwitchOptions ? 'overflow-visible' : 'overflow-hidden'}`
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-brand-dark rounded-2xl p-2 mx-1 mb-1 border border-brand-border/40 space-y-2"
   }, /*#__PURE__*/React.createElement("div", {
@@ -3260,9 +3264,7 @@ const App = () => {
     className: "flex items-center group relative"
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-medium text-brand-text-primary"
-  }, uiText("Smart Switch Components")), /*#__PURE__*/React.createElement("span", {
-    className: "ui-tag ms-1.5 px-1.5 rounded-full border border-brand-teal/25 bg-brand-teal/10 text-brand-teal text-[9px] leading-4 font-bold"
-  }, uiText("NEW")), /*#__PURE__*/React.createElement("div", {
+  }, uiText("Smart Switch Components")), /*#__PURE__*/React.createElement("div", {
     className: "ms-1.5 group/smart-info relative"
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
@@ -3272,7 +3274,7 @@ const App = () => {
   }, /*#__PURE__*/React.createElement(InfoIcon, null)), /*#__PURE__*/React.createElement("div", {
     id: "smart-switch-description",
     role: "tooltip",
-    className: "absolute -start-48 bottom-full mb-2 w-56 p-2.5 text-xs text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover/smart-info:opacity-100 group-focus-within/smart-info:opacity-100 transition-opacity pointer-events-none z-10"
+    className: "absolute start-auto end-0 top-full mt-2 w-56 max-w-[calc(100vw-32px)] p-2.5 text-start text-xs leading-5 text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover/smart-info:opacity-100 group-focus-within/smart-info:opacity-100 transition-opacity pointer-events-none z-30"
   }, uiText("Switch components to a matching variant in the target language when available, while keeping their component connection.")))), /*#__PURE__*/React.createElement(ToggleSwitch, {
     checked: smartSwitchComponents,
     onChange: setSmartSwitchComponents,
@@ -3286,9 +3288,7 @@ const App = () => {
     className: "flex items-center group relative"
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-medium text-brand-text-primary"
-  }, uiText("Smart Switch Text Styles")), /*#__PURE__*/React.createElement("span", {
-    className: "ui-tag ms-1.5 px-1.5 rounded-full border border-brand-teal/25 bg-brand-teal/10 text-brand-teal text-[9px] leading-4 font-bold"
-  }, uiText("NEW")), /*#__PURE__*/React.createElement("div", {
+  }, uiText("Smart Switch Text Styles")), /*#__PURE__*/React.createElement("div", {
     className: "ms-1.5 group/smart-info relative"
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
@@ -3298,7 +3298,7 @@ const App = () => {
   }, /*#__PURE__*/React.createElement(InfoIcon, null)), /*#__PURE__*/React.createElement("div", {
     id: "smart-switch-text-styles-description",
     role: "tooltip",
-    className: "absolute -start-48 bottom-full mb-2 w-56 p-2.5 text-xs text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover/smart-info:opacity-100 group-focus-within/smart-info:opacity-100 transition-opacity pointer-events-none z-10"
+    className: "absolute start-auto end-0 top-full mt-2 w-56 max-w-[calc(100vw-32px)] p-2.5 text-start text-xs leading-5 text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover/smart-info:opacity-100 group-focus-within/smart-info:opacity-100 transition-opacity pointer-events-none z-30"
   }, uiText("Use the target language mode of typography variables while keeping text styles linked.")))), /*#__PURE__*/React.createElement(ToggleSwitch, {
     checked: smartSwitchTextStyles,
     onChange: value => { smartSwitchTextStylesRef.current = value; setSmartSwitchTextStyles(value); },
