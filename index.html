@@ -71,6 +71,13 @@
     #root .user-controls { box-sizing: border-box !important; display: flex; flex-direction: row; justify-content: flex-end; align-items: center; position: static; inset: auto; width: 84px; height: 40px; flex: 0 0 84px; background: transparent !important; border: 0 !important; border-radius: 9999px !important; corner-shape: round !important; gap: 4px !important; padding: 0 !important; overflow: visible !important; }
     #root .top-icon-button { box-sizing: border-box !important; display: flex; flex-direction: column; justify-content: center; align-items: center; flex: none; gap: 10px; background: #202020 !important; border: 0 !important; width: 40px !important; height: 40px !important; padding: 8px !important; border-radius: 9999px !important; corner-shape: round !important; }
     .plugin-main-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+    #root .progress-cancel-button {
+      width: 28px;
+      height: 28px;
+      border-radius: 9999px !important;
+      corner-shape: round !important;
+      margin-inline-start: 4px;
+    }
     .limited-offer-banner { flex: 0 0 auto; min-height: 30px; display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; padding: 4px 28px 4px 8px; position: relative; background: #168447; color: #F5FFF9; border-radius: 0; font-size: 11px; font-weight: 700; text-align: center; overflow: hidden; }
     .limited-offer-discount { color: #D7FA76; font-size: 12px; font-weight: 900; text-shadow: 0 0 5px rgba(215, 250, 118, .72); }
     .limited-offer-cta { border: 0 !important; background: #D7FA76 !important; color: #000000 !important; border-radius: 100px !important; padding: 4px 13px; font-size: 11px; font-weight: 800; line-height: 1.1; cursor: pointer; }
@@ -200,6 +207,84 @@
     #root > .plugin-account-status { display: none !important; }
     #root .plugin-account-status-legacy { display: none !important; }
     #root .plugin-header-card .plugin-account-status { display: flex !important; position: static; transform: none; inset: auto; margin: 0; }
+    #root .plugin-header-card .plugin-account-status {
+      transform: none !important;
+      margin-inline-start: auto !important;
+      margin-inline-end: 4px !important;
+    }
+    html[dir="rtl"] #root .plugin-header-card .plugin-account-status {
+      margin-inline-start: 4px !important;
+      margin-inline-end: auto !important;
+    }
+    #root .plugin-header-card .plugin-account-status > .ui-tag.premium-pro-badge {
+      position: relative !important;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      width: 66px;
+      height: 26px;
+      padding: 0 9px;
+      box-sizing: border-box;
+      overflow: hidden;
+      isolation: isolate;
+      border-radius: 9999px !important;
+      corner-shape: round !important;
+      border: 1px solid #D7FA76 !important;
+      color: #D7FA76 !important;
+      background:
+        radial-gradient(ellipse at 22% 0%, rgba(215, 250, 118, .22), transparent 72%),
+        repeating-linear-gradient(125deg, transparent 0 5px, rgba(215, 250, 118, .045) 5px 6px),
+        linear-gradient(115deg, #35401f, #1c2316 58%, #2d371c) !important;
+      box-shadow: inset 0 1px 0 rgba(215, 250, 118, .3), inset 0 -1px 0 rgba(0, 0, 0, .32), 0 1px 5px rgba(0, 0, 0, .2);
+    }
+    #root .premium-pro-badge::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(110deg, transparent 25%, rgba(215, 250, 118, .12) 42%, transparent 58%);
+    }
+    #root .premium-pro-badge svg { flex: 0 0 13px; position: relative; }
+    #root .premium-pro-badge .premium-pro-label {
+      position: relative;
+      font: 800 10px/1 "Google Sans", sans-serif;
+      letter-spacing: 1.1px;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, .45);
+    }
+    #root .plugin-header-card .plugin-account-status > button.premium-go-pro {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      height: 28px;
+      padding: 0 9px !important;
+      white-space: nowrap;
+      overflow: hidden;
+      border-radius: 9999px !important;
+      corner-shape: round !important;
+      border: 1px solid #D7FA76 !important;
+      color: #D7FA76 !important;
+      background: radial-gradient(ellipse at 20% 0%, rgba(215, 250, 118, .22), transparent 75%),
+        repeating-linear-gradient(125deg, transparent 0 5px, rgba(215, 250, 118, .045) 5px 6px),
+        linear-gradient(115deg, #35401f, #1c2316 58%, #2d371c) !important;
+      box-shadow: inset 0 1px 0 rgba(215, 250, 118, .3), 0 1px 5px rgba(0, 0, 0, .2);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    #root .premium-go-pro svg { flex-shrink: 0; }
+    #root .plugin-header-card .plugin-account-status > button.premium-go-pro:hover {
+      background: linear-gradient(115deg, #405025, #29351b) !important;
+    }
+    .navbar-trial-compact { display: none; }
+    html[dir="rtl"] .navbar-trial-full { display: none; }
+    html[dir="rtl"] .navbar-trial-compact { display: inline; }
+    @media (max-width: 360px) {
+      .navbar-trial-full { display: none; }
+      .navbar-trial-compact { display: inline; }
+      #root .plugin-header-card .navbar-trial { padding-inline: 5px; font-size: 10px; }
+    }
     #root input[dir="ltr"] { text-align: left; unicode-bidi: isolate; }
     #root .plugin-action-buttons > button { column-gap: 6px; }
     /* Shiny CTA for the primary Mirror & Translate action. The supplied
@@ -216,23 +301,23 @@
       --gradient-shine: #ffffff;
       --mouse-x: 50%;
       --mouse-y: 50%;
-      --duration: 3s;
+      --duration: 7s;
       --shadow-size: 2px;
       isolation: isolate;
       position: relative;
       overflow: hidden;
       box-sizing: border-box !important;
-      flex: 0 0 56px;
+      flex: 0 0 48px;
       padding: 0 2.5rem;
-      height: 56px;
-      min-height: 56px;
+      height: 48px;
+      min-height: 48px;
       font-family: "Google Sans", sans-serif;
       font-size: 1.125rem;
       line-height: 1.2;
       font-weight: 500;
       border: 2px solid transparent !important;
-      border-radius: 20px !important;
-      corner-shape: superellipse(2) !important;
+      border-radius: 9999px !important;
+      corner-shape: round !important;
       color: var(--shiny-cta-fg) !important;
       background: linear-gradient(var(--shiny-cta-bg), var(--shiny-cta-bg)) padding-box,
         conic-gradient(
@@ -307,15 +392,20 @@
     }
     #root .plugin-action-buttons > button.translate-only-button {
       box-sizing: border-box !important;
-      flex: 0 0 56px;
-      height: 56px;
-      min-height: 56px;
+      flex: 0 0 48px;
+      height: 48px;
+      min-height: 48px;
       padding-top: 0;
       padding-bottom: 0;
       border-radius: 9999px !important;
       corner-shape: round !important;
     }
-    #root .plugin-action-buttons > button.shiny-cta:active { translate: 0 1px; }
+    #root .plugin-action-buttons > button.shiny-cta,
+    #root .plugin-action-buttons > button.translate-only-button {
+      transform: none !important;
+      scale: none !important;
+      translate: none !important;
+    }
     @keyframes shiny-gradient-angle { to { --gradient-angle: 360deg; } }
     @keyframes shiny-dots {
       0% { background-position: 0 0; opacity: 0.3; }
@@ -3017,14 +3107,25 @@ const App = () => {
   }, /*#__PURE__*/React.createElement("div", { className: "brand-mark", "aria-label": "RTL Master" }, /*#__PURE__*/React.createElement("img", { src: "data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjE2LjM3NSIgaGVpZ2h0PSIyMC40Njg4IiB2aWV3Qm94PSIwIDAgMTYuMzc1IDIwLjQ2ODgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxnIGlkPSJsb2dvIDEiPgo8cGF0aCBpZD0iVmVjdG9yIiBkPSJNMTUuMzgzIDAuMDMwMjU1M0MxNC44NzA1IDAuMDMwMzI4OSAxNC40NTQ2IDAuNDQ1NzU5IDE0LjQ1NDYgMC45NTgwMzdWMTkuNTEwN0MxNC40NTQ3IDIwLjAyMjkgMTQuODcwNSAyMC40Mzg0IDE1LjM4MyAyMC40Mzg1QzE1Ljg5NTcgMjAuNDM4NSAxNi4zMTE1IDIwLjAyMyAxNi4zMTE1IDE5LjUxMDdWMC45NTgwMzdDMTYuMzExNSAwLjQ0NTY4NSAxNS44OTU3IDAuMDMwMjU1MyAxNS4zODMgMC4wMzAyNTUzWk0zLjA1MTgxIDExLjM5NEMyLjY0MzYgMTEuMzk0IDIuMjkxNDMgMTEuMzkzNyAyLjAwMjUyIDExLjQxOThDMS42OTY5NiAxMS40NDc1IDEuMzk0NDMgMTEuNTA5MSAxLjEwOTI4IDExLjY3MzZDMC41MDE5MjUgMTIuMDIzOSAwLjI0MTUxNSAxMi41NjM5IDAuMTM2OTM5IDEzLjA3NzFDMC4wNTYyMjQzIDEzLjQ3MzIgMC4wNjE3NDc2IDE0LjA3ODUgMC4wNjQ5ODggMTQuNDA4OEMwLjA2MTc0NzYgMTQuNzM5MSAwLjA1NjIyNDMgMTUuMzQzOCAwLjEzNjkzOSAxNS43Mzk4QzAuMjQxNTE1IDE2LjI1MyAwLjUwMTkyNSAxNi43OTM3IDEuMTA5MjggMTcuMTQ0MUMxLjM5NDM2IDE3LjMwODUgMS42OTcwNCAxNy4zNjk0IDIuMDAyNTIgMTcuMzk3MUMyLjI5MTQzIDE3LjQyMzIgMi42NDM2IDE3LjQyMzcgMy4wNTE4MSAxNy40MjM2SDkuNjA5MzlDMTAuMDE3NiAxNy40MjM3IDEwLjM3MDQgMTcuNDIzMyAxMC42NTk0IDE3LjM5NzFDMTAuOTY0OCAxNy4zNjk0IDExLjI2NzUgMTcuMzA4NSAxMS41NTI2IDE3LjE0NDFDMTIuMTYgMTYuNzkzNyAxMi40MjA0IDE2LjI1MyAxMi41MjUgMTUuNzM5OEMxMi42MDU2IDE1LjM0MzggMTIuNjAwMSAxNC43MzkxIDEyLjU5NjkgMTQuNDA4OEMxMi42MDAxIDE0LjA3ODUgMTIuNjA1NyAxMy40NzMyIDEyLjUyNSAxMy4wNzcxQzEyLjQyMDQgMTIuNTY0IDEyLjE1OTggMTIuMDIzOSAxMS41NTI2IDExLjY3MzZDMTEuMjY3NSAxMS41MDkxIDEwLjk2NDggMTEuNDQ3NSAxMC42NTk0IDExLjQxOThDMTAuMzcwNCAxMS4zOTM3IDEwLjAxNzYgMTEuMzk0IDkuNjA5MzkgMTEuMzk0SDMuMDUxODFaTTguNjIxMjIgMy4wNDUwNUM4LjIxMzA4IDMuMDQ1MDUgNy44NjA4NCAzLjA0NDc1IDcuNTcxOTMgMy4wNzA5NUM3LjI2NjQ1IDMuMDk4NjIgNi45NjM3NyAzLjE2MDE1IDYuNjc4NjkgMy4zMjQ2M0M2LjA3MTQ4IDMuNjc1IDUuODEwOTMgNC4yMTUxIDUuNzA2MzUgNC43MjgyNkM1LjYyNTYzIDUuMTI0MjYgNS42MzExNiA1LjcyOTYzIDUuNjM0NCA2LjA1OTkxQzUuNjMxMTYgNi4zOTAyIDUuNjI1NjMgNi45OTQ5MSA1LjcwNjM1IDcuMzkwOTFDNS44MTA5MyA3LjkwNDA3IDYuMDcxMzQgOC40NDQ4MyA2LjY3ODY5IDguNzk1MkM2Ljk2Mzc3IDguOTU5NjggNy4yNjY0NSA5LjAyMDQ3IDcuNTcxOTMgOS4wNDgyMUM3Ljg2MDg0IDkuMDc0MzQgOC4yMTMwOCA5LjA3NDc4IDguNjIxMjIgOS4wNzQ3OEg5LjYwOTM5QzEwLjAxNzYgOS4wNzQ3OCAxMC4zNzA0IDkuMDc0MzQgMTAuNjU5NCA5LjA0ODIxQzEwLjk2NDggOS4wMjA0NyAxMS4yNjc1IDguOTU5NjggMTEuNTUyNiA4Ljc5NTJDMTIuMTU5OSA4LjQ0NDgzIDEyLjQyMDQgNy45MDQwNyAxMi41MjUgNy4zOTA5MUMxMi42MDU2IDYuOTk0OTEgMTIuNjAwMSA2LjM5MDIgMTIuNTk2OSA2LjA1OTkxQzEyLjYwMDEgNS43Mjk2MyAxMi42MDU3IDUuMTI0MjYgMTIuNTI1IDQuNzI4MjZDMTIuNDIwNCA0LjIxNTE3IDEyLjE1OTggMy42NzUwNyAxMS41NTI2IDMuMzI0NjNDMTEuMjY3NSAzLjE2MDE1IDEwLjk2NDkgMy4wOTg2MiAxMC42NTk0IDMuMDcwOTVDMTAuMzcwNCAzLjA0NDc1IDEwLjAxNzYgMy4wNDUwNSA5LjYwOTM5IDMuMDQ1MDVIOC42MjEyMloiIGZpbGw9IiMxNEYxOTUiLz4KPC9nPgo8L3N2Zz4K", width: "16.375", height: "20.469", alt: "", className: "block", style: { flexShrink: 0 } }))), /*#__PURE__*/React.createElement("div", {
     className: "plugin-account-status flex items-center justify-end gap-2 flex-shrink-0"
   }, !isPro && trialCount !== null && /*#__PURE__*/React.createElement("div", {
-    className: "ui-tag text-xs font-medium text-brand-text-secondary bg-brand-surface px-2 py-1 rounded-md"
-  }, uiLanguage === "ar" ? `${trialCount} من 10 استخدامات تجريبية` : `${trialCount} / 10 trials`), isPro && /*#__PURE__*/React.createElement("div", {
-    className: "ui-tag text-xs font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-1 rounded-full border border-brand-teal/30"
-  }, "PRO"), !isPro && /*#__PURE__*/React.createElement("button", {
+    className: "ui-tag navbar-trial text-xs font-medium text-brand-text-secondary bg-brand-surface px-2 py-1 rounded-md",
+    title: uiLanguage === "ar" ? `${trialCount} من 10 استخدامات تجريبية` : `${trialCount} / 10 trials`
+  }, React.createElement("span", { className: "navbar-trial-full" }, uiLanguage === "ar" ? `${trialCount} من 10 استخدامات تجريبية` : `${trialCount} / 10 trials`),
+    React.createElement("span", { className: "navbar-trial-compact" }, `${trialCount}/10`)), isPro && /*#__PURE__*/React.createElement("div", {
+    className: "ui-tag premium-pro-badge",
+    title: uiLanguage === "ar" ? "اشتراك PRO" : "PRO membership",
+    "aria-label": uiLanguage === "ar" ? "اشتراك PRO" : "PRO membership"
+  }, React.createElement("svg", { width: 13, height: 13, viewBox: "0 0 16 16", fill: "none", "aria-hidden": true },
+    React.createElement("path", { d: "M4 2.5H12L15 6L8 14L1 6L4 2.5Z", fill: "#96B44B", stroke: "#D7FA76", strokeWidth: .8, strokeLinejoin: "round" }),
+    React.createElement("path", { d: "M4 2.5L6 6L8 2.5L10 6L12 2.5M1 6H15M6 6L8 14L10 6", stroke: "#D7FA76", strokeWidth: .7, strokeLinejoin: "round" }),
+    React.createElement("path", { d: "M4 2.5L1 6H6L4 2.5ZM8 2.5L6 6H10L8 2.5Z", fill: "#EDFFC3", fillOpacity: .65 })
+  ), React.createElement("span", { className: "premium-pro-label" }, "PRO")), !isPro && /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowUpgradeScreen(true),
-    className: "text-xs font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-1 rounded-full border border-brand-teal/30 hover:bg-brand-teal/20 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-brand-dark focus:ring-brand-teal",
+    className: "premium-go-pro focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-teal",
     "aria-label": uiText("Upgrade to Pro")
-  }, uiText("GO PRO"))), /*#__PURE__*/React.createElement("div", {
+  }, React.createElement("svg", { width: 13, height: 13, viewBox: "0 0 16 16", fill: "none", "aria-hidden": true },
+    React.createElement("path", { d: "M4 2.5H12L15 6L8 14L1 6L4 2.5Z", fill: "#96B44B", stroke: "#D7FA76", strokeWidth: .8, strokeLinejoin: "round" }),
+    React.createElement("path", { d: "M4 2.5L6 6L8 2.5L10 6L12 2.5M1 6H15M6 6L8 14L10 6", stroke: "#EDFFC3", strokeWidth: .7, strokeLinejoin: "round" })
+  ), React.createElement("span", null, uiLanguage === "ar" ? "ترقية PRO" : "GO PRO"))), /*#__PURE__*/React.createElement("div", {
     className: "user-controls flex items-center gap-1 p-1 bg-brand-surface",
     style: { background: "#161616", border: 0, borderRadius: 9999, width: 84, height: 40, padding: 0, gap: 4, overflow: "visible", justifyContent: "flex-end" }
   }, /*#__PURE__*/React.createElement("button", {
@@ -3260,13 +3361,13 @@ const App = () => {
   }, React.createElement("bdi", { dir: "ltr" }, `${overallPercent}%`)), /*#__PURE__*/React.createElement("span", {
     className: "text-xs text-brand-text-secondary"
   }, uiText("Progress"))), /*#__PURE__*/React.createElement("span", {
-    className: `text-xs font-medium px-2 py-1 rounded-full ${isError ? 'bg-red-500/10 text-red-400' : isLoading ? 'bg-brand-teal/10 text-brand-teal' : 'bg-green-500/10 text-green-400'}`
+    className: `ms-auto text-xs font-medium px-2 py-1 rounded-full ${isError ? 'bg-red-500/10 text-red-400' : isLoading ? 'bg-brand-teal/10 text-brand-teal' : 'bg-green-500/10 text-green-400'}`
   }, uiText(isError ? 'Error' : isLoading ? currentStep ? currentStep.stepLabel : 'Processing' : 'Done')), isLoading && operationRef.current && /*#__PURE__*/React.createElement("button", {
     type: "button",
     disabled: isCancelling,
     "aria-label": uiText("Cancel operation and undo changes"),
     title: uiText("Cancel operation and undo changes"),
-    className: "ms-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-brand-border text-brand-text-secondary hover:text-red-400 hover:border-red-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-teal disabled:opacity-40",
+    className: "progress-cancel-button flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-brand-border text-brand-text-secondary hover:text-red-400 hover:border-red-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-teal disabled:opacity-40",
     onClick: () => {
       const operation = operationRef.current;
       if (!operation || operation.cancelled) return;
