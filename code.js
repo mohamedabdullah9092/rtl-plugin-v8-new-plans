@@ -2942,6 +2942,9 @@ async function processNodesInPlace(payload, shouldMirror) {
         currentStep++;
         sendProgress(currentStep, 'Finding text layers', 0, 0, 'Scanning selected nodes...', totalSteps);
         const textNodes = findTextNodes(nodesForTranslation, mirrorContext.smartSwitchedNodeIds);
+        for (const textNode of mirrorContext.smartSwitchTranslationNodes) {
+            if (!textNodes.some(node => node.id === textNode.id)) textNodes.push(textNode);
+        }
         if (textNodes.length === 0) {
             figma.notify(shouldMirror ? 'Selection mirrored. No text found to translate.' : 'No text layers found in selection.');
             figma.ui.postMessage({ type: 'action-complete' });
@@ -2987,6 +2990,7 @@ function createMirrorContext(options = {}) {
         createdVariants: new Map(),
         smartSwitchAttempts: new Set(),
         smartSwitchedNodeIds: new Set(),
+        smartSwitchTranslationNodes: [],
         options
     };
 }
@@ -3310,6 +3314,12 @@ async function handleCreateVariantUnchecked(payload) {
                     seenTextNodeIds.add(textNode.id);
                     textNodes.push(textNode);
                 }
+            }
+        }
+        for (const textNode of mirrorContext.smartSwitchTranslationNodes) {
+            if (!seenTextNodeIds.has(textNode.id)) {
+                seenTextNodeIds.add(textNode.id);
+                textNodes.push(textNode);
             }
         }
 
@@ -4658,6 +4668,8 @@ async function trySwitchToExistingLocaleVariant(node, mirrorContext) {
         });
         if (matches.length !== 1) return false;
 
+        const sourceTextNodes = findTextNodes([node]);
+        const sourceText = sourceTextNodes.map(textNode => textNode.characters);
         const subtreeIds = [];
         const collectIds = root => {
             subtreeIds.push(root.id);
@@ -4669,6 +4681,15 @@ async function trySwitchToExistingLocaleVariant(node, mirrorContext) {
             // defaults or restoring the old Language/RTL component properties.
             node.swapComponent(matches[0]);
         }
+        const targetTextNodes = findTextNodes([node]);
+        targetTextNodes.forEach((textNode, index) => {
+            // Existing locale variants may already contain translated copy.
+            // Requeue only cloned/source-equivalent text; this avoids sending
+            // finished target-language content through translation again.
+            if (textNode.characters === sourceText[index] && !sourceTextNodes[index]?.userOverride) {
+                mirrorContext.smartSwitchTranslationNodes.push(textNode);
+            }
+        });
         collectIds(node);
         // Include old descendant IDs: a swap can replace selected nested nodes.
         subtreeIds.forEach(id => mirrorContext.smartSwitchedNodeIds.add(id));
