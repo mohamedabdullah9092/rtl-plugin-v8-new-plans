@@ -490,6 +490,10 @@ const ARABIC_UI = {
   "Progress": "تقدّم العملية",
   "Error": "تعذّر إكمال العملية",
   "Processing": "جارٍ التنفيذ…",
+  "Cancel operation and undo changes": "إلغاء العملية والتراجع عن تغييراتها",
+  "Cancelling and restoring changes...": "جارٍ الإلغاء واستعادة التصميم…",
+  "Operation cancelled. Changes restored.": "تم إلغاء العملية والتراجع عن تغييراتها.",
+  "Operation already completed.": "اكتملت العملية بالفعل.",
   "Done": "اكتملت العملية",
   "Processing selection...": "جارٍ تجهيز العناصر المحدّدة…",
   "Please select a font first": "اختر الخط أولًا",
@@ -2337,6 +2341,8 @@ const App = () => {
   const [selectedFontGroup, setSelectedFontGroup] = useState(''); // e.g. 'Heading', 'Paragraph'
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const operationRef = useRef(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [isError, setIsError] = useState(false);
   const [progress, setProgress] = useState(null);
@@ -2435,6 +2441,9 @@ const App = () => {
   useEffect(() => {
     const handleMessage = async event => {
       if (!event.data.pluginMessage) return;
+      const incomingOperationId = event.data.pluginMessage.operationId;
+      if (incomingOperationId && incomingOperationId !== operationRef.current?.id) return;
+      if (operationRef.current?.cancelled && ['text-nodes-found', 'progress-update', 'translation-progress', 'action-complete'].includes(event.data.pluginMessage.type)) return;
       const {
         type,
         payload
@@ -2533,6 +2542,7 @@ const App = () => {
           } = payload;
           const translatingStep = tStep ? tStep + 1 : 1;
           const onProgressCallback = (processed, total) => {
+            if (incomingOperationId !== operationRef.current?.id || operationRef.current?.cancelled) return;
             setProgress({
               processed,
               total
@@ -2553,6 +2563,7 @@ const App = () => {
             }
             const result = await translateBatch(texts.map(t => t.characters), from, to, apiKeys, onProgressCallback,
               texts.map(t => ({ ...t.context, dictionaryTranslation: t.dictionaryTranslation })), payload.pageContext || {});
+            if (incomingOperationId !== operationRef.current?.id || operationRef.current?.cancelled) return;
             // A key that failed never reaches the user — it is logged for
             // debugging and we quietly fall back to the free translator.
             if (result.errors.length > 0) {
@@ -2568,11 +2579,13 @@ const App = () => {
                 payload: {
                   translations: translationsPayload,
                   toLanguage: to,
-                  smartSwitchTextStyles: smartSwitchTextStylesRef.current
+                  smartSwitchTextStyles: smartSwitchTextStylesRef.current,
+                  operationId: incomingOperationId
                 }
               }
             }, '*');
           } catch (error) {
+            if (incomingOperationId !== operationRef.current?.id || operationRef.current?.cancelled) return;
             console.error('Translation batch failed:', error);
             parent.postMessage({
               pluginMessage: {
@@ -2590,7 +2603,9 @@ const App = () => {
                 }
               }
             }, '*');
-            setIsLoading(false);
+            operationRef.current.cancelled = true;
+            setIsCancelling(true);
+            parent.postMessage({ pluginMessage: { type: 'cancel-action', payload: { operationId: incomingOperationId } } }, '*');
             // Never echo raw provider payloads back to the canvas.
             setStatusMessage('Translation failed. Check your connection and try again.');
             setIsError(true);
@@ -2603,7 +2618,23 @@ const App = () => {
           setStatusMessage(`Applying translation ${payload.processed} of ${payload.total}...`);
           break;
         case 'action-complete':
+          operationRef.current = null;
+          setIsCancelling(false);
           showCompletion('Completed successfully');
+          break;
+        case 'action-cancelled':
+          operationRef.current = null;
+          setIsLoading(false);
+          setIsCancelling(false);
+          setIsError(false);
+          setProgress(null);
+          setCurrentStep(null);
+          setStatusMessage('');
+          break;
+        case 'action-cancel-too-late':
+          operationRef.current = null;
+          setIsCancelling(false);
+          showCompletion('Operation already completed.');
           break;
         case 'available-fonts':
           setAvailableFonts(payload.fonts || []);
@@ -2657,6 +2688,8 @@ const App = () => {
           setVariableModes(payload.modes || []);
           break;
         case 'plugin-error':
+          operationRef.current = null;
+          setIsCancelling(false);
           setIsError(true);
           setStatusMessage(payload.message);
           setIsLoading(false);
@@ -2766,6 +2799,7 @@ const App = () => {
     }
   }, [fromLanguage, toLanguage]);
   const handleAction = useCallback(actionType => {
+    if (operationRef.current) return;
     if (!isPro && trialCount <= 0) {
       setShowUpgradeScreen(true);
       return;
@@ -2775,6 +2809,8 @@ const App = () => {
       completionTimerRef.current = null;
     }
     setIsLoading(true);
+    setIsCancelling(false);
+    operationRef.current = { id: `operation-${Date.now()}-${Math.random().toString(36).slice(2)}`, cancelled: false };
     setStatusMessage('Processing selection...');
     setIsError(false);
     setProgress(null);
@@ -2786,6 +2822,7 @@ const App = () => {
         type: 'run-action',
         payload: {
           actionType: finalActionType,
+          operationId: operationRef.current.id,
           fromLanguage,
           toLanguage,
           translateText,
@@ -3211,7 +3248,7 @@ const App = () => {
     disabled: isFontChanging || !selectedFont || fontStyles.length === 0,
     searchable: false
   }))))), /*#__PURE__*/React.createElement("footer", {
-    className: `plugin-action-footer flex-shrink-0 px-2 pt-2 pb-4 border-t border-brand-border ${hasSelection ? '' : 'hidden'}`
+    className: `plugin-action-footer flex-shrink-0 px-2 pt-2 pb-4 border-t border-brand-border ${hasSelection || isLoading ? '' : 'hidden'}`
   }, (isLoading || statusMessage) && /*#__PURE__*/React.createElement("div", {
     className: "mb-4 p-3 bg-brand-surface rounded-2xl border border-brand-border"
   }, /*#__PURE__*/React.createElement("div", {
@@ -3224,7 +3261,22 @@ const App = () => {
     className: "text-xs text-brand-text-secondary"
   }, uiText("Progress"))), /*#__PURE__*/React.createElement("span", {
     className: `text-xs font-medium px-2 py-1 rounded-full ${isError ? 'bg-red-500/10 text-red-400' : isLoading ? 'bg-brand-teal/10 text-brand-teal' : 'bg-green-500/10 text-green-400'}`
-  }, uiText(isError ? 'Error' : isLoading ? currentStep ? currentStep.stepLabel : 'Processing' : 'Done'))), overallPercent > 0 ? /*#__PURE__*/React.createElement("div", {
+  }, uiText(isError ? 'Error' : isLoading ? currentStep ? currentStep.stepLabel : 'Processing' : 'Done')), isLoading && operationRef.current && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    disabled: isCancelling,
+    "aria-label": uiText("Cancel operation and undo changes"),
+    title: uiText("Cancel operation and undo changes"),
+    className: "ms-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-brand-border text-brand-text-secondary hover:text-red-400 hover:border-red-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-teal disabled:opacity-40",
+    onClick: () => {
+      const operation = operationRef.current;
+      if (!operation || operation.cancelled) return;
+      operation.cancelled = true;
+      setIsCancelling(true);
+      setCurrentStep(null);
+      setStatusMessage('Cancelling and restoring changes...');
+      parent.postMessage({ pluginMessage: { type: 'cancel-action', payload: { operationId: operation.id } } }, '*');
+    }
+  }, React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 16 16", fill: "none", "aria-hidden": true }, React.createElement("path", { d: "M4 4L12 12M12 4L4 12", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" })))), overallPercent > 0 ? /*#__PURE__*/React.createElement("div", {
     className: "w-full bg-brand-dark rounded-full h-2.5 overflow-hidden"
   }, /*#__PURE__*/React.createElement("div", {
     className: "h-2.5 rounded-full transition-all duration-300 ease-out",
