@@ -2425,6 +2425,7 @@ const App = () => {
   // on first launch or after the plugin state is reset.
   const [smartSwitchComponents, setSmartSwitchComponents] = useState(false);
   const [smartSwitchTextStyles, setSmartSwitchTextStyles] = useState(false);
+  const [showSmartSwitchOptions, setShowSmartSwitchOptions] = useState(false);
   const smartSwitchTextStylesRef = useRef(false);
   const [createVariant, setCreateVariant] = useState(false);
   const [variableModes, setVariableModes] = useState([]); // Figma variable modes with font info
@@ -3220,8 +3221,39 @@ const App = () => {
     onChange: e => setToLanguage(e.target.value),
     options: LANGUAGES.filter(lang => lang.code !== 'auto'),
     disabled: !translateText || isLoading
-  }))))), /*#__PURE__*/React.createElement("div", {
-    className: "bg-brand-surface rounded-xl p-4 border border-brand-border"
+  }))))), /*#__PURE__*/React.createElement("section", {
+    className: "bg-brand-surface rounded-xl border border-brand-border overflow-hidden",
+    "aria-labelledby": "smart-switch-group-title"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setShowSmartSwitchOptions(value => !value),
+    className: "w-full flex items-center justify-between gap-3 px-4 py-3 text-start hover:bg-brand-dark/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-teal",
+    "aria-expanded": showSmartSwitchOptions,
+    "aria-controls": "smart-switch-options"
+  }, /*#__PURE__*/React.createElement("span", {
+    id: "smart-switch-group-title",
+    className: "font-semibold text-brand-text-primary"
+  }, uiText("Smart Switch")), /*#__PURE__*/React.createElement("svg", {
+    xmlns: "http://www.w3.org/2000/svg",
+    viewBox: "0 0 20 20",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    className: `h-4 w-4 shrink-0 text-brand-text-secondary transition-transform duration-200 ${showSmartSwitchOptions ? 'rotate-180' : ''}`,
+    "aria-hidden": "true"
+  }, /*#__PURE__*/React.createElement("path", {
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    d: "m5 7.5 5 5 5-5"
+  }))), /*#__PURE__*/React.createElement("div", {
+    id: "smart-switch-options",
+    className: `grid transition-[grid-template-rows,opacity] duration-200 ease-out ${showSmartSwitchOptions ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "min-h-0 overflow-hidden"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-brand-dark rounded-2xl p-2 mx-1 mb-1 border border-brand-border/40 space-y-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-brand-surface rounded-xl p-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between"
   }, /*#__PURE__*/React.createElement("div", {
@@ -3247,7 +3279,7 @@ const App = () => {
     disabled: isLoading,
     ariaLabel: "Smart Switch Components"
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "bg-brand-surface rounded-xl p-4 border border-brand-border"
+    className: "bg-brand-surface rounded-xl p-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between"
   }, /*#__PURE__*/React.createElement("div", {
@@ -3272,7 +3304,7 @@ const App = () => {
     onChange: value => { smartSwitchTextStylesRef.current = value; setSmartSwitchTextStyles(value); },
     disabled: isLoading || !translateText,
     ariaLabel: "Smart Switch Text Styles"
-  }))), /*#__PURE__*/React.createElement("div", {
+  }))))))), /*#__PURE__*/React.createElement("div", {
     className: "bg-brand-surface rounded-xl p-4 border border-brand-border"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between"
