@@ -429,6 +429,9 @@ const ARABIC_UI = {
   "NEW FEATURE": "ميزة جديدة",
   "Close new feature announcement": "إغلاق التعريف بالميزة",
   "Smart Switch Components": "اختيار Component حسب اللغة",
+  "Smart Switch Text Styles": "تبديل وضع لغة الخطوط",
+  "About Smart Switch Text Styles": "كيف يتم تبديل وضع لغة الخطوط؟",
+  "Use the target language mode of typography variables while keeping text styles linked.": "استخدم وضع اللغة المستهدفة لمتغيرات الخط مع الحفاظ على ارتباط أنماط النص.",
   "Use the language variants you already designed.": "استخدم Variants التي جهّزتها لكل لغة.",
   "Switch to a variant matching your target language while keeping the instance linked.": "تختار الإضافة Variant المناسب للغة مع الحفاظ على ارتباط Instance بـ Main Component.",
   "Keep size, state, and compatible text and icon overrides.": "تحافظ على المقاس والحالة، وعلى Overrides للنصوص والأيقونات متى كانت متوافقة.",
@@ -2327,6 +2330,8 @@ const App = () => {
   // Smart Switch is opt-in so enabling it never changes a design implicitly
   // on first launch or after the plugin state is reset.
   const [smartSwitchComponents, setSmartSwitchComponents] = useState(false);
+  const [smartSwitchTextStyles, setSmartSwitchTextStyles] = useState(false);
+  const smartSwitchTextStylesRef = useRef(false);
   const [createVariant, setCreateVariant] = useState(false);
   const [variableModes, setVariableModes] = useState([]); // Figma variable modes with font info
   const [selectedFontGroup, setSelectedFontGroup] = useState(''); // e.g. 'Heading', 'Paragraph'
@@ -2562,7 +2567,8 @@ const App = () => {
                 type: 'apply-translations',
                 payload: {
                   translations: translationsPayload,
-                  toLanguage: to
+                  toLanguage: to,
+                  smartSwitchTextStyles: smartSwitchTextStylesRef.current
                 }
               }
             }, '*');
@@ -3102,6 +3108,32 @@ const App = () => {
     onChange: setSmartSwitchComponents,
     disabled: isLoading,
     ariaLabel: "Smart Switch Components"
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-brand-surface rounded-xl p-4 border border-brand-border"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center group relative"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "font-medium text-brand-text-primary"
+  }, uiText("Smart Switch Text Styles")), /*#__PURE__*/React.createElement("span", {
+    className: "ui-tag ms-1.5 px-1.5 rounded-full border border-brand-teal/25 bg-brand-teal/10 text-brand-teal text-[9px] leading-4 font-bold"
+  }, uiText("NEW")), /*#__PURE__*/React.createElement("div", {
+    className: "ms-1.5 group/smart-info relative"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    "aria-label": uiText("About Smart Switch Text Styles"),
+    "aria-describedby": "smart-switch-text-styles-description",
+    className: "flex text-brand-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-teal rounded-full"
+  }, /*#__PURE__*/React.createElement(InfoIcon, null)), /*#__PURE__*/React.createElement("div", {
+    id: "smart-switch-text-styles-description",
+    role: "tooltip",
+    className: "absolute -start-48 bottom-full mb-2 w-56 p-2.5 text-xs text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover/smart-info:opacity-100 group-focus-within/smart-info:opacity-100 transition-opacity pointer-events-none z-10"
+  }, uiText("Use the target language mode of typography variables while keeping text styles linked.")))), /*#__PURE__*/React.createElement(ToggleSwitch, {
+    checked: smartSwitchTextStyles,
+    onChange: value => { smartSwitchTextStylesRef.current = value; setSmartSwitchTextStyles(value); },
+    disabled: isLoading || !translateText,
+    ariaLabel: "Smart Switch Text Styles"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "bg-brand-surface rounded-xl p-4 border border-brand-border"
   }, /*#__PURE__*/React.createElement("div", {

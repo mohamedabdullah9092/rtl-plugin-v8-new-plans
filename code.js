@@ -2840,7 +2840,7 @@ async function processTextNodesForTranslation(textNodes, fromLanguage, toLanguag
     }
 }
 
-function restoreTranslatedTextSegmentStyles(node, originalText, translatedText, segments) {
+function restoreTranslatedTextSegmentStyles(node, originalText, translatedText, segments, preserveTypography = false) {
     if (!node || !segments || segments.length === 0 || !originalText || !translatedText) return;
 
     const originalLength = originalText.length;
@@ -2881,8 +2881,8 @@ function restoreTranslatedTextSegmentStyles(node, originalText, translatedText, 
         if (end <= start) continue;
 
         try {
-            if (segment.fontSize && segment.fontSize !== figma.mixed) node.setRangeFontSize(start, end, segment.fontSize);
-            if (segment.fontName && segment.fontName !== figma.mixed) node.setRangeFontName(start, end, segment.fontName);
+            if (!preserveTypography && segment.fontSize && segment.fontSize !== figma.mixed) node.setRangeFontSize(start, end, segment.fontSize);
+            if (!preserveTypography && segment.fontName && segment.fontName !== figma.mixed) node.setRangeFontName(start, end, segment.fontName);
             // Apply fills last. Figma can reset range fills when a font range
             // is changed after the paint range was applied.
             if (segment.fills && Array.isArray(segment.fills)) node.setRangeFills(start, end, segment.fills);
@@ -3483,6 +3483,35 @@ function getLanguageModeNames(languageCode) {
     return namesByCode[languageCode] || [languageCode];
 }
 
+function getTypographyModeLanguages(modeName) {
+    const aliases = {
+        ar: ['arabic', 'ara', 'ar', 'عربي', 'عربى', 'عربية', 'العربي', 'العربى', 'العربية'],
+        en: ['english', 'eng', 'en', 'انجليزي', 'انجليزية', 'الانجليزي', 'الانجليزية', 'انكليزي', 'انكليزية', 'الانكليزية'],
+        es: ['spanish', 'espanol', 'castellano', 'spa', 'es', 'اسباني', 'الاسبانية'],
+        fr: ['french', 'francais', 'francaise', 'fra', 'fre', 'fr', 'فرنسي', 'الفرنسية'],
+        de: ['german', 'deutsch', 'deu', 'ger', 'de', 'الماني', 'الالمانية'],
+        ja: ['japanese', 'jpn', 'ja', '日本語', 'ياباني', 'اليابانية'],
+        ko: ['korean', 'kor', 'ko', '한국어', '조선말', 'كوري', 'الكورية'],
+        pt: ['portuguese', 'portugues', 'por', 'pt', 'برتغالي', 'البرتغالية'],
+        ru: ['russian', 'russkiy', 'rus', 'ru', 'русский', 'русскии', 'روسي', 'الروسية'],
+        zh: ['chinese', 'mandarin', 'zho', 'chi', 'zh', '中文', '汉语', '漢語', '简体中文', '繁體中文', 'صيني', 'الصينية'],
+        tr: ['turkish', 'turkce', 'tur', 'tr', 'تركي', 'التركية']
+    };
+    const normalize = value => String(value || '').normalize('NFKD')
+        .replace(/\p{M}/gu, '').replace(/ـ/g, '').toLowerCase();
+    // Split CamelCase before lowercasing; separate script and digit boundaries.
+    let name = String(modeName || '').normalize('NFKC')
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+        .replace(/([\p{L}])(\p{N})|(\p{N})([\p{L}])/gu, '$1$3 $2$4')
+        .replace(/([A-Za-z])(\p{Script=Arabic})|(\p{Script=Arabic})([A-Za-z])/gu, '$1$3 $2$4');
+    // Consume locale subtags as a unit: the AR region in en-AR is Argentina,
+    // not another Arabic-language marker. Slash-separated languages stay distinct.
+    name = name.replace(/(^|[^A-Za-z])(ar|en|es|fr|de|ja|ko|pt|ru|zh|tr)[-_](?:[A-Za-z]{4}[-_])?(?:[A-Za-z]{2}|\d{3})(?=$|[^A-Za-z])/gi, '$1$2');
+    const words = new Set(normalize(name).split(/[^\p{L}\p{N}]+/u).filter(Boolean));
+    return Object.keys(aliases).filter(code => aliases[code].some(alias => words.has(normalize(alias))));
+}
+
 async function getTextStyleName(node) {
     try {
         if (!node || node.textStyleId === figma.mixed || !node.textStyleId) return '';
@@ -3613,6 +3642,82 @@ async function applyLocaleFontVariableToNode(node, localeFontVariables, original
     return true;
 }
 
+// Set modes on the text node only. Never edit a shared style or its variables.
+async function prepareTextStyleLanguageMode(node, languageCode) {
+    const segments = node.characters.length
+        ? node.getStyledTextSegments(['textStyleId', 'fontName', 'fontSize']) : [];
+    const aliases = [];
+    const addAliases = value => {
+        for (const alias of (Array.isArray(value) ? value : [value])) {
+            if (alias && alias.type === 'VARIABLE_ALIAS') aliases.push(alias);
+        }
+    };
+    for (const field of ['fontFamily', 'fontStyle', 'fontWeight']) {
+        addAliases(node.boundVariables && node.boundVariables[field]);
+    }
+    const styleIds = new Set(segments.map(segment => segment.textStyleId).filter(id => typeof id === 'string' && id));
+    if (!segments.length && typeof node.textStyleId === 'string' && node.textStyleId) styleIds.add(node.textStyleId);
+    for (const id of styleIds) {
+        const style = await figma.getStyleByIdAsync(id);
+        for (const field of ['fontFamily', 'fontStyle', 'fontWeight']) {
+            addAliases(style && style.boundVariables && style.boundVariables[field]);
+        }
+    }
+    if (!aliases.length) return { protected: false, changed: false };
+    // Replacing characters cannot reliably map independent typography runs.
+    // Leave such layers intact rather than flatten their style bindings.
+    const typography = new Set(segments.map(segment => JSON.stringify([segment.textStyleId, segment.fontName, segment.fontSize])));
+    if (typography.size > 1) throw new Error('Mixed typography with variable bindings requires manual translation to preserve its ranges.');
+    const targets = new Map();
+    const visited = new Set();
+    const visiting = new Set();
+    async function visit(alias) {
+        const id = alias.id || alias.variableId;
+        if (!id) throw new Error('Invalid typography variable alias.');
+        if (visiting.has(id)) throw new Error('Circular typography variable alias.');
+        if (visited.has(id)) return;
+        visiting.add(id);
+        const variable = await figma.variables.getVariableByIdAsync(id);
+        if (!variable) throw new Error('A typography variable is unavailable.');
+        const collection = await figma.variables.getVariableCollectionByIdAsync(variable.variableCollectionId);
+        if (!collection) throw new Error('A typography variable collection is unavailable.');
+        const matches = collection.modes.filter(mode => {
+            const languages = getTypographyModeLanguages(mode.name);
+            if (!languages.includes(languageCode)) return false;
+            if (languages.length > 1) throw new Error(`Ambiguous languages in mode ${mode.name}.`);
+            return true;
+        });
+        if (matches.length > 1) throw new Error(`Ambiguous language modes in ${collection.name}.`);
+        const modeId = matches.length ? matches[0].modeId
+            : (node.resolvedVariableModes || {})[collection.id] || collection.defaultModeId;
+        if (matches.length) targets.set(collection.id, { collection, modeId });
+        const value = variable.valuesByMode[modeId];
+        if (value && value.type === 'VARIABLE_ALIAS') await visit(value);
+        visiting.delete(id);
+        visited.add(id);
+    }
+    for (const alias of aliases) await visit(alias);
+    const previous = new Map();
+    try {
+        for (const [id, { collection, modeId }] of targets) {
+            previous.set(id, (node.explicitVariableModes || {})[id]);
+            node.setExplicitVariableModeForCollection(collection, modeId);
+        }
+        const fonts = node.characters.length ? node.getRangeAllFontNames(0, node.characters.length) : [node.fontName];
+        for (const font of fonts) {
+            if (!await ensureFontLoaded(font)) throw new Error(`Unavailable typography font: ${font.family} ${font.style}`);
+        }
+    } catch (error) {
+        for (const [id, modeId] of previous) {
+            const { collection } = targets.get(id);
+            if (modeId) node.setExplicitVariableModeForCollection(collection, modeId);
+            else node.clearExplicitVariableModeForCollection(collection);
+        }
+        throw error;
+    }
+    return { protected: true, changed: targets.size > 0 };
+}
+
 async function applyTranslationsToNodes(translations, onProgress, options = {}) {
     let successCount = 0;
     let failedCount = 0;
@@ -3620,6 +3725,7 @@ async function applyTranslationsToNodes(translations, onProgress, options = {}) 
     const total = translations.length;
     const missingFonts = new Set();
     const fontReplacements = new Map();
+    const typographyIssues = [];
 
     // Ensure the font cache is available for this operation.
     if (!availableFontsCache) {
@@ -3644,6 +3750,11 @@ async function applyTranslationsToNodes(translations, onProgress, options = {}) 
 
         if (node && node.type === 'TEXT' && !node.removed) {
             try {
+                const originalCharacters = node.characters;
+                const modeResult = options.smartSwitchTextStyles === true
+                    ? await prepareTextStyleLanguageMode(node, options.toLanguage) : { protected: false, changed: false };
+                if (modeResult.changed) localeFontChanges++;
+                if (modeResult.protected && !modeResult.changed) typographyIssues.push(`${node.name}: no matching typography language mode; binding preserved.`);
                 const originalSegments = node.getStyledTextSegments(['fontName', 'fontSize', 'fills']);
                 const nodeFontFallbacks = new Map(); // Map from missing FontName object to fallback FontName object
 
@@ -3720,8 +3831,8 @@ async function applyTranslationsToNodes(translations, onProgress, options = {}) 
 
                 const translatedTextSegments = node.getStyledTextSegments(['fontName', 'fontSize', 'fills']);
                 node.characters = item.newCharacters;
-                restoreTranslatedTextSegmentStyles(node, item.characters, item.newCharacters, translatedTextSegments);
-                if (localeFontVariables.length > 0) {
+                restoreTranslatedTextSegmentStyles(node, originalCharacters, item.newCharacters, translatedTextSegments, modeResult.protected);
+                if (localeFontVariables.length > 0 && !modeResult.protected) {
                     const changedLocaleFont = await applyLocaleFontVariableToNode(node, localeFontVariables, originalSegments);
                     if (changedLocaleFont) localeFontChanges++;
                 }
@@ -3744,10 +3855,11 @@ async function applyTranslationsToNodes(translations, onProgress, options = {}) 
                 // Font-variable and numeric-style passes may touch the text
                 // ranges. Reapply the complete original segment palette last
                 // so mixed-color paragraphs cannot collapse to one fill.
-                restoreTranslatedTextSegmentStyles(node, item.characters, item.newCharacters, translatedTextSegments);
+                restoreTranslatedTextSegmentStyles(node, originalCharacters, item.newCharacters, translatedTextSegments, modeResult.protected);
                 successCount++;
             } catch (e) {
                 failedCount++;
+                if (options.smartSwitchTextStyles === true) typographyIssues.push(`${node.name}: ${e.message}`);
                 console.error(`Could not update text for node ${item.id}: ${e.message}`);
             }
         } else {
@@ -3764,7 +3876,7 @@ async function applyTranslationsToNodes(translations, onProgress, options = {}) 
     // Clearing them here meant each action re-ran listAvailableFontsAsync()
     // (thousands of entries) and re-loaded fonts it had already loaded — the
     // dictionary pass and the apply pass each paid for it.
-    return { successCount, failedCount, missingFonts, fontReplacements, localeFontChanges };
+    return { successCount, failedCount, missingFonts, fontReplacements, localeFontChanges, typographyIssues };
 }
 
 
@@ -3775,7 +3887,8 @@ async function handleApplyTranslations(payload) {
             payload: { processed, total }
         });
     };
-    const { successCount, failedCount, missingFonts, fontReplacements, localeFontChanges } = await applyTranslationsToNodes(payload.translations, onProgress, { toLanguage: payload.toLanguage });
+    const { successCount, failedCount, missingFonts, fontReplacements, localeFontChanges, typographyIssues } = await applyTranslationsToNodes(payload.translations, onProgress, { toLanguage: payload.toLanguage, smartSwitchTextStyles: payload.smartSwitchTextStyles });
+    if (typographyIssues.length) figma.notify(typographyIssues.slice(0, 3).join('\n'), { timeout: 9000 });
 
     let notificationMessage = `Translated ${successCount} text layer(s).`;
     if (failedCount > 0) {
