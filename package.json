@@ -1,7 +1,9 @@
 {
   "scripts": {
     "build": "node scripts/build-admin-dashboard.mjs",
-    "build:plugin-ui": "node scripts/build-plugin-ui.mjs"
+    "build:plugin-ui": "node scripts/build-dictionary.mjs && node scripts/build-plugin-ui.mjs",
+    "build:dictionary": "node scripts/build-dictionary.mjs",
+    "build:plugin": "npm run build:plugin-ui"
   },
   "private": true,
   "devDependencies": {
