@@ -49,6 +49,43 @@
       border-radius: 9999px !important;
       corner-shape: round;
     }
+    /* Reference-matched iOS switch: compact pill track with a soft inset thumb. */
+    #root .ios26-toggle {
+      position: relative;
+      width: 48px;
+      height: 20px;
+      padding: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #202020;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+        0 1px 4px rgba(0, 0, 0, 0.22);
+      transition: background 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+    }
+    #root .ios26-toggle[aria-checked="true"] {
+      background: #34c759;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+        0 1px 4px rgba(0, 0, 0, 0.16);
+    }
+    #root .ios26-toggle:active:not(:disabled) { transform: scale(0.96); }
+    #root .ios26-toggle > .ios26-toggle-thumb {
+      position: relative;
+      display: block;
+      width: 22px;
+      height: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.58);
+      background: #f4f4f4;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28), inset 0 0 0 1px rgba(0, 0, 0, 0.14);
+      transition: transform 180ms cubic-bezier(.22, 1, .36, 1);
+    }
+    #root .ios26-toggle[aria-checked="true"] > .ios26-toggle-thumb {
+      transform: translateX(18px);
+      background: #fff;
+    }
+    #root .ios26-toggle:focus-visible {
+      outline: 2px solid rgba(54, 220, 190, 0.9);
+      outline-offset: 3px;
+    }
+    #root .ios26-toggle:disabled { opacity: 0.5; }
     .feature-announcement::backdrop { background: rgba(0, 0, 0, 0.6); }
     .beui-language-select { --color-border-strong: #808080; }
     .beui-language-select [aria-haspopup="listbox"],
@@ -1494,10 +1531,10 @@ const ToggleSwitch = ({
   "aria-checked": checked,
   onClick: () => !disabled && onChange(!checked),
   disabled: disabled,
-  className: `relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-brand-surface ${checked ? 'bg-brand-teal' : 'bg-brand-border'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`
+  className: `ios26-toggle inline-flex flex-shrink-0 items-center cursor-pointer ${disabled ? 'cursor-not-allowed' : ''}`
 }, /*#__PURE__*/React.createElement("span", {
   "aria-hidden": "true",
-  className: `pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${checked ? 'translate-x-5' : 'translate-x-0'}`
+  className: "ios26-toggle-thumb pointer-events-none rounded-full"
 }));
 const LanguageSelector = ({
   value,

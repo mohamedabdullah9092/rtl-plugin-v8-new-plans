@@ -2270,6 +2270,7 @@ async function handlePluginMessage(msg) {
                 {
                     let isPro = await figma.clientStorage.getAsync('isPro');
                     let trialCount = await figma.clientStorage.getAsync('trialCount');
+                    const licenseRevoked = await figma.clientStorage.getAsync('licenseRevoked');
                     const currentFigmaUser = getCurrentFigmaUser();
                     const currentFigmaUserId = currentFigmaUser ? currentFigmaUser.id : null;
                     const storedKey = await figma.clientStorage.getAsync('licenseKey');
@@ -2283,6 +2284,11 @@ async function handlePluginMessage(msg) {
                     } else if (typeof trialCount === 'number' && trialCount > FREE_TRIAL_LIMIT) {
                         trialCount = FREE_TRIAL_LIMIT;
                         await figma.clientStorage.setAsync('trialCount', trialCount);
+                    }
+
+                    if (licenseRevoked) {
+                        isPro = false;
+                        await figma.clientStorage.setAsync('isPro', false);
                     }
 
                     // --- Figma User ID Binding Check ---
@@ -2306,6 +2312,7 @@ async function handlePluginMessage(msg) {
                     // If a backend is configured, trust it as the source of truth across devices.
                     (async function backgroundVerify() {
                         try {
+                            if (licenseRevoked) return;
                             if (currentFigmaUserId && ACTIVATION_SERVER_BASE_URL) {
                                 const serverStatus = await fetchServerLicenseStatus(currentFigmaUserId);
                                 const serverCheckSucceeded = !!(serverStatus && serverStatus.success);
@@ -2409,6 +2416,7 @@ async function handlePluginMessage(msg) {
                                     await figma.clientStorage.setAsync('trialCountBeforePro', currentTrialCount);
                                 }
                                 await figma.clientStorage.setAsync('isPro', true);
+                                await figma.clientStorage.deleteAsync('licenseRevoked');
                                 await figma.clientStorage.setAsync('licenseKey', licenseKey.trim());
                                 await figma.clientStorage.setAsync('activatedFigmaUserId', currentFigmaUserId);
                                 void sendTelemetryEvent('license_activation_success', { success: true });
@@ -2442,6 +2450,7 @@ async function handlePluginMessage(msg) {
                                     await figma.clientStorage.setAsync('trialCountBeforePro', currentTrialCount);
                                 }
                                 await figma.clientStorage.setAsync('isPro', true);
+                                await figma.clientStorage.deleteAsync('licenseRevoked');
                                 // Store the key AND the Figma user ID to bind license to this account
                                 await figma.clientStorage.setAsync('licenseKey', licenseKey.trim());
                                 const figmaUserId = currentFigmaUserId;
@@ -2477,6 +2486,9 @@ async function handlePluginMessage(msg) {
                 }
             case 'unsubscribe':
                 {
+                    // Lock cancellation before network cleanup to prevent a
+                    // delayed verification from restoring the old license.
+                    await figma.clientStorage.setAsync('licenseRevoked', true);
                     await figma.clientStorage.setAsync('isPro', false);
                     // Clear license binding data
                     await figma.clientStorage.deleteAsync('licenseKey');
@@ -2489,18 +2501,18 @@ async function handlePluginMessage(msg) {
                             console.warn('Failed to unlink license on activation server', e);
                         }
                     }
-                    let trialCountToRestore = await figma.clientStorage.getAsync('trialCountBeforePro');
-                    if (typeof trialCountToRestore !== 'number') {
-                        trialCountToRestore = FREE_TRIAL_LIMIT;
-                    } else if (trialCountToRestore > FREE_TRIAL_LIMIT) {
-                        trialCountToRestore = FREE_TRIAL_LIMIT;
-                    }
-                    await figma.clientStorage.setAsync('trialCount', trialCountToRestore);
+                    // Cancellation must not replenish trial usage. Keep the
+                    // exact remaining count, clamped only for data safety.
+                    let trialCountAfterCancel = await figma.clientStorage.getAsync('trialCount');
+                    if (typeof trialCountAfterCancel !== 'number') trialCountAfterCancel = 0;
+                    trialCountAfterCancel = Math.max(0, Math.min(FREE_TRIAL_LIMIT, trialCountAfterCancel));
+                    await figma.clientStorage.setAsync('trialCount', trialCountAfterCancel);
+                    await figma.clientStorage.deleteAsync('trialCountBeforePro');
 
                     figma.notify('You have successfully unsubscribed from PRO.');
                     sendUIMessage({
                         type: 'unsubscribe-success',
-                        payload: { isPro: false, trialCount: trialCountToRestore }
+                        payload: { isPro: false, trialCount: trialCountAfterCancel }
                     });
                     break;
                 }
@@ -2550,14 +2562,18 @@ async function handlePluginMessage(msg) {
                 }
             case 'run-action':
                 {
-                    const isPro = await figma.clientStorage.getAsync('isPro');
+                    const [storedIsPro, licenseRevoked] = await Promise.all([
+                        figma.clientStorage.getAsync('isPro'),
+                        figma.clientStorage.getAsync('licenseRevoked')
+                    ]);
+                    const isPro = !!storedIsPro && !licenseRevoked;
                     const feature = getActionFeature(msg.payload);
                     const startedAt = Date.now();
                     const selectionTelemetry = await getSelectionTelemetry();
                     if (!isPro) {
                         let trialCount = await figma.clientStorage.getAsync('trialCount');
                         if (typeof trialCount !== 'number') {
-                            trialCount = FREE_TRIAL_LIMIT;
+                            trialCount = licenseRevoked ? 0 : FREE_TRIAL_LIMIT;
                             await figma.clientStorage.setAsync('trialCount', trialCount);
                         }
                         if (trialCount > 0) {
