@@ -520,6 +520,9 @@ const ARABIC_UI = {
   "Close new feature announcement": "إغلاق التعريف بالميزة",
   "Smart Switch Components": "اختيار Component حسب اللغة",
   "Smart Switch Text Styles": "تبديل وضع لغة الخطوط",
+  "Force Mirror": "العكس الإجباري",
+  "About Force Mirror": "شرح العكس الإجباري",
+  "Detach the Instance, then mirror it as an independent editable element.": "يفصل النسخة المرتبطة، ثم يعكسها كعنصر مستقل قابل للتعديل.",
   "About Smart Switch Text Styles": "كيف يتم تبديل وضع لغة الخطوط؟",
   "Use the target language mode of typography variables while keeping text styles linked.": "استخدم وضع اللغة المستهدفة لمتغيرات الخط مع الحفاظ على ارتباط أنماط النص.",
   "Use the language variants you already designed.": "استخدم Variants التي جهّزتها لكل لغة.",
@@ -2425,6 +2428,7 @@ const App = () => {
   // on first launch or after the plugin state is reset.
   const [smartSwitchComponents, setSmartSwitchComponents] = useState(false);
   const [smartSwitchTextStyles, setSmartSwitchTextStyles] = useState(false);
+  const [forceMirror, setForceMirror] = useState(false);
   const [showSmartSwitchOptions, setShowSmartSwitchOptions] = useState(false);
   const smartSwitchTextStylesRef = useRef(false);
   const [createVariant, setCreateVariant] = useState(false);
@@ -2919,12 +2923,13 @@ const App = () => {
           translateText,
           mirrorInstances,
           smartSwitchComponents,
+          forceMirror,
           createVariant,
           shouldMirror: shouldMirrorPayload
         }
       }
     }, '*');
-  }, [isPro, trialCount, fromLanguage, toLanguage, translateText, mirrorInstances, smartSwitchComponents, createVariant]);
+  }, [isPro, trialCount, fromLanguage, toLanguage, translateText, mirrorInstances, smartSwitchComponents, forceMirror, createVariant]);
   const handleSaveKeys = async ({
     gemini,
     openai
@@ -3298,12 +3303,38 @@ const App = () => {
   }, /*#__PURE__*/React.createElement(InfoIcon, null)), /*#__PURE__*/React.createElement("div", {
     id: "smart-switch-text-styles-description",
     role: "tooltip",
-    className: "absolute start-auto end-0 top-full mt-2 w-56 max-w-[calc(100vw-32px)] p-2.5 text-start text-xs leading-5 text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover/smart-info:opacity-100 group-focus-within/smart-info:opacity-100 transition-opacity pointer-events-none z-30"
+    dir: uiLanguage === "ar" ? "rtl" : "ltr",
+    className: `absolute start-auto end-0 top-full mt-2 w-56 max-w-[calc(100vw-32px)] p-2.5 ${uiLanguage === "ar" ? "text-end" : "text-start"} text-xs leading-5 text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover/smart-info:opacity-100 group-focus-within/smart-info:opacity-100 transition-opacity pointer-events-none z-30`
   }, uiText("Use the target language mode of typography variables while keeping text styles linked.")))), /*#__PURE__*/React.createElement(ToggleSwitch, {
     checked: smartSwitchTextStyles,
     onChange: value => { smartSwitchTextStylesRef.current = value; setSmartSwitchTextStyles(value); },
     disabled: isLoading || !translateText,
     ariaLabel: "Smart Switch Text Styles"
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-brand-surface rounded-xl p-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center group relative"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "font-medium text-brand-text-primary"
+  }, uiText("Force Mirror")), /*#__PURE__*/React.createElement("div", {
+    className: "ms-2 group/force-info relative"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    "aria-label": uiText("About Force Mirror"),
+    "aria-describedby": "force-mirror-description",
+    className: "flex text-brand-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-teal rounded-full"
+  }, /*#__PURE__*/React.createElement(InfoIcon, null)), /*#__PURE__*/React.createElement("div", {
+    id: "force-mirror-description",
+    role: "tooltip",
+    dir: uiLanguage === "ar" ? "rtl" : "ltr",
+    className: `absolute start-0 top-full mt-2 w-56 max-w-[calc(100vw-32px)] p-2.5 ${uiLanguage === "ar" ? "text-end" : "text-start"} text-xs leading-5 text-brand-text-secondary bg-brand-dark rounded-md border border-brand-border shadow-lg opacity-0 group-hover/force-info:opacity-100 group-focus-within/force-info:opacity-100 transition-opacity pointer-events-none z-30`
+  }, uiText("Detach the Instance, then mirror it as an independent editable element.")))), /*#__PURE__*/React.createElement(ToggleSwitch, {
+    checked: forceMirror,
+    onChange: setForceMirror,
+    disabled: isLoading,
+    ariaLabel: "Force Mirror"
   }))))))), /*#__PURE__*/React.createElement("div", {
     className: "bg-brand-surface rounded-xl p-4 border border-brand-border"
   }, /*#__PURE__*/React.createElement("div", {

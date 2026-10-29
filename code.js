@@ -2997,9 +2997,9 @@ function countTotalSteps(shouldMirror, translateText) {
 }
 
 async function processNodesInPlace(payload, shouldMirror) {
-    const { fromLanguage, toLanguage, translateText, mirrorInstances, smartSwitchComponents } = payload;
+    const { fromLanguage, toLanguage, translateText, mirrorInstances, smartSwitchComponents, forceMirror } = payload;
     const selection = figma.currentPage.selection;
-    const mirrorContext = createMirrorContext({ fromLanguage, toLanguage, translateText, smartSwitchComponents });
+    const mirrorContext = createMirrorContext({ fromLanguage, toLanguage, translateText, smartSwitchComponents, forceMirror });
 
     if (selection.length === 0) {
         sendUIMessage({ type: 'plugin-error', payload: { message: 'Please select at least one item to process.' } });
@@ -3014,21 +3014,28 @@ async function processNodesInPlace(payload, shouldMirror) {
         currentStep++;
         sendProgress(currentStep, 'Mirroring layout', 0, selection.length, `Processing ${selection.length} node(s)...`, totalSteps);
         for (let i = 0; i < selection.length; i++) {
-            await mirrorNode(selection[i], false, mirrorContext, mirrorInstances);
+            await mirrorNode(resolveDetachedNode(selection[i], mirrorContext), false, mirrorContext, mirrorInstances);
             sendProgress(currentStep, 'Mirroring layout', i + 1, selection.length, `Mirroring node ${i + 1} of ${selection.length}`, totalSteps);
         }
     } else {
+        if (forceMirror) {
+            for (const node of selection) {
+                if (node.type === 'INSTANCE' && !isIconInstance(node)) detachInstanceForForceMirror(node, mirrorContext);
+                else detachForceMirrorInstancesInTree(node, mirrorContext);
+            }
+        }
         // Translate Only still needs a locale variant for nested component
         // instances. Their text is owned by the nested main component and
         // cannot be reliably edited through the parent instance. Prepare the
         // connected target variants without mirroring the surrounding layout.
         for (const node of selection) {
-            await prepareNestedVariantsForTranslation(node, mirrorContext);
+            if (forceMirror) continue;
+            await prepareNestedVariantsForTranslation(resolveDetachedNode(node, mirrorContext), mirrorContext);
         }
     }
 
     if (translateText) {
-        const nodesForTranslation = [...selection];
+        const nodesForTranslation = selection.map(node => resolveDetachedNode(node, mirrorContext));
         nodesForTranslation.push(...mirrorContext.createdVariants.values());
         nodesForTranslation.push(...mirrorContext.targetVariants.values());
 
@@ -3084,8 +3091,59 @@ function createMirrorContext(options = {}) {
         smartSwitchAttempts: new Set(),
         smartSwitchedNodeIds: new Set(),
         smartSwitchTranslationNodes: [],
+        detachedNodeReplacements: new Map(),
+        forceDetachedSubtreeIds: new Set(),
         options
     };
+}
+
+function resolveDetachedNode(node, mirrorContext) {
+    if (!node || !mirrorContext?.detachedNodeReplacements) return node;
+    return mirrorContext.detachedNodeReplacements.get(node.id) || node;
+}
+
+function isInsideForceDetachedSubtree(node, mirrorContext) {
+    for (let current = node?.parent; current; current = current.parent) {
+        if (mirrorContext.forceDetachedSubtreeIds.has(current.id)) return true;
+    }
+    return false;
+}
+
+function isIconInstance(node) {
+    if (!node || node.type !== 'INSTANCE') return false;
+    // Do not depend on layer names: library icons can be named anything.
+    // An instance without text is treated as a graphic/icon and stays linked.
+    return findTextNodes([node]).length === 0;
+}
+
+function detachInstanceForForceMirror(node, mirrorContext) {
+    if (!node || node.type !== 'INSTANCE') return node;
+    if (isInsideForceDetachedSubtree(node, mirrorContext)) return node;
+    if (typeof node.detachInstance !== 'function') {
+        throw new Error(`Cannot force mirror instance "${node.name}": detachInstance is unavailable.`);
+    }
+    const originalId = node.id;
+    const detachedNode = node.detachInstance();
+    if (!detachedNode || !detachedNode.id) {
+        throw new Error(`Could not detach instance "${node.name}" for force mirror.`);
+    }
+    mirrorContext.detachedNodeReplacements.set(originalId, detachedNode);
+    mirrorContext.forceDetachedSubtreeIds.add(detachedNode.id);
+    return detachedNode;
+}
+
+function detachForceMirrorInstancesInTree(root, mirrorContext) {
+    if (!root || !('children' in root)) return;
+    const pending = Array.from(root.children);
+    while (pending.length) {
+        const node = pending.pop();
+        if (!node) continue;
+        if (node.type === 'INSTANCE') {
+            if (!isIconInstance(node) && !isInsideForceDetachedSubtree(node, mirrorContext)) detachInstanceForForceMirror(node, mirrorContext);
+            continue;
+        }
+        if ('children' in node) pending.push(...node.children);
+    }
 }
 
 async function handleCreateVariant(payload) {
@@ -3109,7 +3167,7 @@ async function handleCreateVariant(payload) {
 }
 
 async function handleCreateVariantUnchecked(payload) {
-    const { fromLanguage, toLanguage, translateText, mirrorInstances, shouldMirror, smartSwitchComponents } = payload;
+    const { fromLanguage, toLanguage, translateText, mirrorInstances, shouldMirror, smartSwitchComponents, forceMirror } = payload;
     const selection = figma.currentPage.selection;
 
     if (selection.length !== 1) {
@@ -3374,7 +3432,7 @@ async function handleCreateVariantUnchecked(payload) {
         originalInstanceId
     };
 
-    const mirrorContext = createMirrorContext({ fromLanguage, toLanguage, translateText, smartSwitchComponents });
+    const mirrorContext = createMirrorContext({ fromLanguage, toLanguage, translateText, smartSwitchComponents, forceMirror });
     if (shouldMirror !== false) {
         for (const newVariant of newVariants) {
             await mirrorNode(newVariant, false, mirrorContext, mirrorInstances);
@@ -4288,7 +4346,12 @@ async function mirrorNode(node, isInsideInstance = false, mirrorContext = create
 }
 
 async function mirrorNodeUnchecked(node, isInsideInstance, mirrorContext, mirrorInstances, isInsideFlippedContainer) {
-    if (await trySwitchToExistingLocaleVariant(node, mirrorContext)) return;
+    if (node.type === 'INSTANCE' && !isIconInstance(node) && !isInsideInstance &&
+        mirrorContext.options.forceMirror === true && !isInsideForceDetachedSubtree(node, mirrorContext)) {
+        node = detachInstanceForForceMirror(node, mirrorContext);
+        isInsideInstance = false;
+    }
+    if (mirrorContext.options.forceMirror !== true && await trySwitchToExistingLocaleVariant(node, mirrorContext)) return;
 
     const geometry = captureChildGeometry(node);
     const progressFills = getProgressFillGeometry(node, geometry);
@@ -4824,7 +4887,8 @@ async function applyLocalePropertiesToNode(node, toLanguage) {
 async function applyLocalePropertiesToNodes(nodes, toLanguage, mirrorContext = null, allowSmartSwitch = true) {
     mirrorContext = mirrorContext || createMirrorContext();
     const stack = Array.from(nodes || []);
-    if (allowSmartSwitch && mirrorContext.options.smartSwitchComponents === true) {
+    if (allowSmartSwitch && mirrorContext.options.smartSwitchComponents === true &&
+        mirrorContext.options.forceMirror !== true) {
         // Match before locale updates can change the source variant. Inspect outer
         // instances first, but retain the original locale traversal for fallbacks.
         const selectedIds = new Set(stack.map(node => node.id));
