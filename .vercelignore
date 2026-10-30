@@ -1,0 +1,10 @@
+node_modules
+activation-backend
+outputs
+vendor
+.wrangler
+.vercel-data
+*.mp4
+*.webm
+*.png
+*.jpg
