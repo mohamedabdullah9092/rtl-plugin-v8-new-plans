@@ -3579,7 +3579,7 @@ const App = () => {
     className: "translate-only-button"
   }, uiText("Translate Only"))) : /*#__PURE__*/React.createElement(Button, {
     onClick: handleChangeFont,
-    disabled: isFontChanging || (!selectedFont && !selectedVariableMode),
+    disabled: isFontChanging || !selectedFont,
     isLoading: isFontChanging,
     variant: "primary"
   }, uiText("Change Font")))), showSmartSwitchAnnouncement && onboardingStatus === 'complete' && !showUpgradeScreen && !showSubscriptionManager && /*#__PURE__*/React.createElement(SmartSwitchAnnouncement, {
