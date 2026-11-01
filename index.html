@@ -612,6 +612,11 @@ const ARABIC_UI = {
   "Add Keys": "أضف مفتاح خدمة ترجمة",
   " for better translations.": " للحصول على نتائج أفضل.",
   "Select Font": "اختر الخط",
+  "Choose Font Source": "اختر مصدر الخط",
+  "Choose Font": "اختيار فونت",
+  "Choose Variable Mode": "اختيار من الـ Variable Mode",
+  "Select Variable Mode": "اختر الـ Variable Mode",
+  "Select a variable mode...": "اختر وضعًا من المتغيرات…",
   "Loading fonts...": "جارٍ تحميل الخطوط…",
   "Select a font...": "اختر خطًا…",
   "Auto-Fit Text": "ضبط حجم النص تلقائيًا",
@@ -3574,7 +3579,7 @@ const App = () => {
     className: "translate-only-button"
   }, uiText("Translate Only"))) : /*#__PURE__*/React.createElement(Button, {
     onClick: handleChangeFont,
-    disabled: isFontChanging || !selectedFont,
+    disabled: isFontChanging || (!selectedFont && !selectedVariableMode),
     isLoading: isFontChanging,
     variant: "primary"
   }, uiText("Change Font")))), showSmartSwitchAnnouncement && onboardingStatus === 'complete' && !showUpgradeScreen && !showSubscriptionManager && /*#__PURE__*/React.createElement(SmartSwitchAnnouncement, {
@@ -3607,6 +3612,14 @@ const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
+window.addEventListener('error', event => {
+  const message = event.error?.stack || event.message || 'Unknown UI error';
+  rootElement.innerHTML = `<pre style="margin:0;padding:16px;color:#ff7b7b;white-space:pre-wrap;font:12px monospace;direction:ltr">${String(message).replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]))}</pre>`;
+});
+window.addEventListener('unhandledrejection', event => {
+  const reason = event.reason?.stack || event.reason || 'Unhandled promise rejection';
+  rootElement.innerHTML = `<pre style="margin:0;padding:16px;color:#ff7b7b;white-space:pre-wrap;font:12px monospace;direction:ltr">${String(reason).replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]))}</pre>`;
+});
 const root = ReactDOM.createRoot(rootElement);
 root.render(/*#__PURE__*/React.createElement(React.StrictMode, null, /*#__PURE__*/React.createElement(ErrorBoundary, null, /*#__PURE__*/React.createElement(App, null))));
 
