@@ -44,6 +44,7 @@
        corner-shape has no effect, so square surfaces stay square. */
     *, *::before, *::after { corner-shape: squircle; }
     #root [class*="rounded"] { border-radius: 28px !important; }
+    #root [role="tablist"], #root [role="tablist"] > [role="tab"] { border-radius: 9999px !important; corner-shape: round !important; }
     #root [role="switch"], #root [role="switch"] > span,
     #root .rounded-full.text-xs, #root .ui-tag {
       border-radius: 9999px !important;
@@ -2513,6 +2514,8 @@ const App = () => {
   const [selectedFont, setSelectedFont] = useState(null);
   const [fontStyles, setFontStyles] = useState([]); // [NEW] Available weights for selected font
   const [selectedWeight, setSelectedWeight] = useState(''); // [NEW] Selected weight
+  const [fontSource, setFontSource] = useState('font');
+  const [selectedVariableMode, setSelectedVariableMode] = useState(null);
   const [autoFitText, setAutoFitText] = useState(false); // [NEW] Auto-Fit Text
   const [textLayersCount, setTextLayersCount] = useState(0);
   const [isFontChanging, setIsFontChanging] = useState(false);
@@ -3037,7 +3040,7 @@ const App = () => {
       setShowUpgradeScreen(true);
       return;
     }
-    if (!selectedFont) {
+    if (fontSource === 'font' ? !selectedFont : !selectedVariableMode) {
       setStatusMessage('Please select a font first');
       setIsError(true);
       return;
@@ -3051,11 +3054,12 @@ const App = () => {
         payload: {
           fontFamily: selectedFont,
           fontStyle: selectedWeight || 'Auto Match',
-          autoFit: autoFitText
+          autoFit: fontSource === 'font' && autoFitText,
+          variableMode: fontSource === 'variableMode' ? selectedVariableMode : null
         }
       }
     }, '*');
-  }, [selectedFont, selectedWeight, autoFitText]);
+  }, [selectedFont, selectedWeight, autoFitText, fontSource, selectedVariableMode]);
   const tourConfig = [{
     title: 'Welcome to RTL Master!',
     text: "Let's take a quick tour to see how you can supercharge your RTL design workflow.",
@@ -3429,12 +3433,35 @@ const App = () => {
   }, uiText("No API key found. Using a free service. "), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowApiManager(true),
     className: "font-bold underline hover:text-white"
-  }, uiText("Add Keys")), uiText(" for better translations."))), activeTab === 'fontChanger' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "bg-brand-surface rounded-xl p-4 border border-brand-border"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "block font-medium text-brand-text-primary mb-2"
-  }, uiText("Select Font")), /*#__PURE__*/React.createElement("div", {
-    className: "bg-brand-dark rounded-2xl p-4 -mx-3 -mb-3 border border-brand-border/40"
+  }, uiText("Add Keys")), uiText(" for better translations."))), activeTab === 'fontChanger' && /*#__PURE__*/React.createElement(React.Fragment, null,
+  React.createElement('div', { className: 'bg-brand-surface rounded-xl p-4 border border-brand-border' },
+    React.createElement('label', { className: 'block font-medium text-brand-text-primary mb-2' }, uiText('Select Font')),
+    React.createElement('div', { className: 'bg-brand-dark rounded-2xl p-4 -mx-3 -mb-3 border border-brand-border/40' },
+    React.createElement('div', { role: 'tablist', 'aria-label': uiText('Choose Font Source'), style: { display: 'flex', gap: '4px', padding: '4px', borderRadius: '999px', background: '#171717', border: '1px solid #292929', marginBottom: '12px' } },
+      [['font', 'Select Font'], ['variableMode', 'Choose Variable Mode']].map(([source, label]) =>
+        React.createElement('button', {
+          key: source,
+          type: 'button',
+          role: 'tab',
+          'aria-selected': fontSource === source,
+          disabled: isFontChanging,
+          onClick: () => setFontSource(source),
+          style: { flex: 1, padding: '10px 6px', borderRadius: '999px', border: fontSource === source ? '1px solid rgba(255,255,255,0.65)' : '1px solid transparent', background: fontSource === source ? 'rgba(255,255,255,0.08)' : 'transparent', color: fontSource === source ? '#fff' : '#aaa', fontSize: '12px', fontWeight: 500, cursor: 'pointer' }
+        }, uiText(label))
+      )
+    ),
+  fontSource === 'variableMode' && React.createElement(SearchableSelect, {
+    options: variableModes.map(mode => `${mode.collectionName} / ${mode.modeName}`),
+    value: selectedVariableMode ? `${selectedVariableMode.collectionName} / ${selectedVariableMode.modeName}` : null,
+    onChange: value => setSelectedVariableMode(variableModes.find(mode => `${mode.collectionName} / ${mode.modeName}` === value) || null),
+    placeholder: uiText('Select a variable mode...'),
+    disabled: isFontChanging,
+    searchable: false
+  }), /*#__PURE__*/React.createElement("div", {
+    style: { display: fontSource === 'font' ? undefined : 'none' },
+    className: ""
+  }, /*#__PURE__*/React.createElement("div", {
+    className: ""
   }, availableFonts.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "flex min-h-[72px] items-center justify-center text-center text-brand-text-secondary"
   }, uiText("Loading fonts...")) : /*#__PURE__*/React.createElement(SearchableSelect, {
@@ -3444,7 +3471,8 @@ const App = () => {
     placeholder: uiText("Select a font..."),
     disabled: isFontChanging,
     recentOptions: recentFonts
-  }))), /*#__PURE__*/React.createElement("div", {
+  }))))), /*#__PURE__*/React.createElement("div", {
+    style: { display: fontSource === 'font' ? undefined : 'none' },
     className: "bg-brand-surface rounded-xl p-4 border border-brand-border"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-3"
@@ -3579,7 +3607,7 @@ const App = () => {
     className: "translate-only-button"
   }, uiText("Translate Only"))) : /*#__PURE__*/React.createElement(Button, {
     onClick: handleChangeFont,
-    disabled: isFontChanging || !selectedFont,
+    disabled: isFontChanging || (fontSource === 'font' ? !selectedFont : !selectedVariableMode),
     isLoading: isFontChanging,
     variant: "primary"
   }, uiText("Change Font")))), showSmartSwitchAnnouncement && onboardingStatus === 'complete' && !showUpgradeScreen && !showSubscriptionManager && /*#__PURE__*/React.createElement(SmartSwitchAnnouncement, {

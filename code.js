@@ -8007,6 +8007,18 @@ async function handleChangeFont(payload) {
                 }
             };
             collectFonts(modeRoots);
+            // A mode can resolve a different font family or weight than the
+            // currently rendered text. Preload available styles for both.
+            const affectedFamilies = new Set([
+                ...Array.from(fontsToLoad.values(), font => font.family),
+                ...modeFontFamilies
+            ]);
+            const availableModeFonts = await figma.listAvailableFontsAsync();
+            for (const { fontName } of availableModeFonts) {
+                if (affectedFamilies.has(fontName.family)) {
+                    fontsToLoad.set(`${fontName.family}::${fontName.style}`, fontName);
+                }
+            }
             for (const font of fontsToLoad.values()) {
                 await figma.loadFontAsync(font);
             }
