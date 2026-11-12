@@ -5960,44 +5960,35 @@ async function handlePluginMessage(msg) {
             case 'get-variable-modes':
                 {
                     try {
-                        const collections = await figma.variables.getLocalVariableCollectionsAsync();
-                        const allModes = [];
-                        const seen = new Set();
-                        for (const col of collections) {
-                            const collectionLooksTypography = /font|typeface|typo|text.?style/i.test(col.name || '');
-                            for (const mode of col.modes) {
-                                const fonts = [];
-                                let hasFontVariable = false;
-                                for (const vid of col.variableIds) {
-                                    try {
-                                        const v = await figma.variables.getVariableByIdAsync(vid);
-                                        if (!v) continue;
-                                        if (typographyVariableProperty(v) === 'fontFamily' || /font|typeface|typo/i.test(v.name || '')) {
-                                            hasFontVariable = true;
-                                        }
-                                        const raw = v.valuesByMode[mode.modeId];
-                                        // Only collect string values that look like font family names.
-                                        if (typeof raw === 'string' && raw.trim().length > 0) {
-                                            fonts.push(raw);
-                                        }
-                                    } catch (e) { /* skip */ }
+                        // Library availability and local collections belong to
+                        // the current Figma file, so never reuse another
+                        // file's cached modes.
+                        const fileIdentity = String(figma.fileKey || figma.root && figma.root.id || 'current-file')
+                            .replace(/[^a-zA-Z0-9._:-]/g, '_');
+                        const cacheKey = `rtl-master:variable-modes:v3:${fileIdentity}`;
+                        const cached = figma.clientStorage && await figma.clientStorage.getAsync(cacheKey);
+                        if (cached && Array.isArray(cached.modes)) {
+                            sendUIMessage({ type: 'variable-modes', payload: cached });
+                            // Show cached modes immediately, then silently
+                            // reconcile local and library changes in the
+                            // background so newly created local variables are
+                            // never hidden by an older cache.
+                            getAvailableVariableModes().then(async fresh => {
+                                if (figma.clientStorage) {
+                                    await figma.clientStorage.setAsync(cacheKey, fresh);
                                 }
-                                const key = `${col.name}::${mode.name}`;
-                                if (!hasFontVariable && !collectionLooksTypography) continue;
-                                if (seen.has(key)) continue;
-                                seen.add(key);
-                                allModes.push({
-                                    collectionName: col.name,
-                                    modeId: mode.modeId,
-                                    modeName: mode.name,
-                                    fonts: [...new Set(fonts)],
-                                });
-                            }
+                                sendUIMessage({ type: 'variable-modes', payload: fresh });
+                            }).catch(error => console.warn('Could not refresh cached variable modes:', error));
+                            break;
                         }
-                        sendUIMessage({ type: 'variable-modes', payload: { modes: allModes } });
+                        const payload = await getAvailableVariableModes();
+                        if (figma.clientStorage) {
+                            await figma.clientStorage.setAsync(cacheKey, payload);
+                        }
+                        sendUIMessage({ type: 'variable-modes', payload });
                     } catch (e) {
                         console.warn('Failed to get variable modes:', e);
-                        sendUIMessage({ type: 'variable-modes', payload: { modes: [] } });
+                        sendUIMessage({ type: 'variable-modes', payload: { modes: [], warnings: ['Could not read variable modes.'] } });
                     }
                     break;
                 }
@@ -6019,8 +6010,13 @@ async function handlePluginMessage(msg) {
                             trialCount = FREE_TRIAL_LIMIT;
                             await figma.clientStorage.setAsync('trialCount', trialCount);
                         }
-                        if (trialCount <= 0) {
-                            // Check eligibility before running; charge only after success.
+                        if (trialCount > 0) {
+                            trialCount--;
+                            await figma.clientStorage.setAsync('trialCount', trialCount);
+                            sendUIMessage({ type: 'user-status-updated', payload: { trialCount } });
+                            void sendTelemetryEvent('trial_used', { feature, trialCount, ...selectionTelemetry });
+                        } else {
+                            // Should be caught by UI, but double check
                             void sendTelemetryEvent('trial_exhausted', { feature, trialCount, ...selectionTelemetry, success: false });
                             sendUIMessage({ type: 'plugin-error', payload: { message: 'Trial expired. Please upgrade to Pro.' } });
                             return;
@@ -6032,13 +6028,6 @@ async function handlePluginMessage(msg) {
                         metadata: { autoFit: !!msg.payload.autoFit }
                     });
                     const fontResult = await handleChangeFont(msg.payload);
-                    if (!isPro && fontResult && fontResult.success) {
-                        const storedTrialCount = await figma.clientStorage.getAsync('trialCount');
-                        const trialCount = Math.max(0, (typeof storedTrialCount === 'number' ? storedTrialCount : FREE_TRIAL_LIMIT) - 1);
-                        await figma.clientStorage.setAsync('trialCount', trialCount);
-                        sendUIMessage({ type: 'user-status-updated', payload: { trialCount } });
-                        void sendTelemetryEvent('trial_used', { feature, trialCount, ...selectionTelemetry });
-                    }
                     void sendTelemetryEvent(fontResult && fontResult.success ? 'feature_completed' : 'feature_failed', {
                         feature,
                         durationMs: Date.now() - startedAt,
@@ -6984,19 +6973,16 @@ async function getLocaleFontVariables(languageCode) {
     if (!languageCode || languageCode === 'auto') return [];
 
     const targetModeNames = getLanguageModeNames(languageCode).map(normalizeName);
-    const collections = await figma.variables.getLocalVariableCollectionsAsync();
+    const { entries: collections } = await getAvailableTypographyCollections();
     const entries = [];
 
-    for (const collection of collections) {
+    for (const { collection, variables } of collections) {
         const targetMode = collection.modes.find((mode) => targetModeNames.includes(normalizeName(mode.name)));
         if (!targetMode) continue;
 
-        for (const variableId of collection.variableIds) {
+        for (const variable of getFontFamilyVariables(collection, variables)) {
             try {
-                const variable = await figma.variables.getVariableByIdAsync(variableId);
-                if (!variable || variable.resolvedType !== 'STRING') continue;
-
-                const rawFontFamily = variable.valuesByMode[targetMode.modeId];
+                const rawFontFamily = await resolveTypographyVariableValue(variable, targetMode.modeId);
                 if (typeof rawFontFamily !== 'string' || !rawFontFamily.trim()) continue;
 
                 entries.push({
@@ -7883,7 +7869,168 @@ async function countTextLayersInSelection() {
     return count;
 }
 
+// Share concurrent requests, but rescan on the next request so newly enabled
+// libraries and published updates do not require restarting the plugin.
+let typographyCollectionsRequest = null;
+
+async function mapVariableItems(items, callback) {
+    const results = new Array(items.length);
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(4, items.length) }, async () => {
+        while (next < items.length) {
+            const index = next++;
+            results[index] = await callback(items[index]);
+        }
+    }));
+    return results;
+}
+
+function collectionLooksTypography(collection) {
+    return /font|typeface|typo|text.?style/i.test(collection.name || '');
+}
+
+function isTypographyVariable(variable) {
+    return variable && (variable.resolvedType === 'STRING' || variable.resolvedType === 'FLOAT') &&
+        (typographyVariableProperty(variable) !== null || /font|typeface|typo/i.test(variable.name || ''));
+}
+
+async function getAvailableTypographyCollections() {
+    if (typographyCollectionsRequest) return typographyCollectionsRequest;
+    typographyCollectionsRequest = (async () => {
+        const entries = new Map();
+        const warnings = new Set();
+        try {
+            const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
+            for (const collection of localCollections) {
+                const variables = await mapVariableItems(collection.variableIds, async id => {
+                    try {
+                        return await figma.variables.getVariableByIdAsync(id);
+                    } catch (error) {
+                        warnings.add(`Some variables in "${collection.name}" could not be read.`);
+                        return null;
+                    }
+                });
+                entries.set(collection.key || collection.id, {
+                    collection, variables: variables.filter(Boolean), libraryName: '', remote: !!collection.remote
+                });
+            }
+        } catch (error) {
+            console.warn('Could not read local variable collections:', error);
+            warnings.add('Local variable collections could not be read.');
+        }
+
+        try {
+            const libraryCollections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
+            const libraryEntries = await mapVariableItems(libraryCollections, async descriptor => {
+                if (entries.has(descriptor.key)) return null;
+                try {
+                    const descriptors = await figma.teamLibrary.getVariablesInLibraryCollectionAsync(descriptor.key);
+                    // Descriptors expose no scopes or values. Import strings
+                    // and numbers even with names like "Body" to discover
+                    // FONT_FAMILY / FONT_SIZE without relying on token names.
+                    const candidates = descriptors.filter(variable =>
+                        variable.resolvedType === 'STRING' || variable.resolvedType === 'FLOAT');
+                    const variables = (await mapVariableItems(candidates, async variable => {
+                        try {
+                            return await figma.variables.importVariableByKeyAsync(variable.key);
+                        } catch (error) {
+                            warnings.add(`Some variables in "${descriptor.libraryName} / ${descriptor.name}" could not be read.`);
+                            return null;
+                        }
+                    })).filter(Boolean);
+                    if (!variables.length) return null;
+                    const collection = await figma.variables.getVariableCollectionByIdAsync(variables[0].variableCollectionId);
+                    if (!collection) throw new Error('Library variable collection is unavailable.');
+                    return { collection, variables, libraryName: descriptor.libraryName, remote: true };
+                } catch (error) {
+                    console.warn('Could not read library variable collection:', descriptor.name, error);
+                    warnings.add(`Library collection "${descriptor.libraryName} / ${descriptor.name}" could not be read.`);
+                    return null;
+                }
+            });
+            for (const entry of libraryEntries.filter(Boolean)) {
+                const key = entry.collection.key || entry.collection.id;
+                if (!entries.has(key)) entries.set(key, entry);
+            }
+        } catch (error) {
+            console.warn('Could not read library variable collections:', error);
+            warnings.add('Library variable collections could not be read.');
+        }
+        return { entries: Array.from(entries.values()), warnings: Array.from(warnings) };
+    })();
+    try {
+        return await typographyCollectionsRequest;
+    } finally {
+        typographyCollectionsRequest = null;
+    }
+}
+
+function getFontFamilyVariables(collection, variables) {
+    const strings = variables.filter(variable => variable.resolvedType === 'STRING');
+    const families = strings.filter(variable => typographyVariableProperty(variable) === 'fontFamily');
+    // Older files use plain string variables without typography scopes.
+    return families.length ? families : strings.filter(variable => !typographyVariableProperty(variable));
+}
+
+async function resolveTypographyVariableValue(variable, modeId, consumer = null, seen = new Set(), modes = new Map()) {
+    if (!variable || seen.has(variable.id)) return undefined;
+    seen.add(variable.id);
+    modes.set(variable.variableCollectionId, modeId);
+    const value = variable.valuesByMode[modeId];
+    if (!value || value.type !== 'VARIABLE_ALIAS') return value;
+    const target = await figma.variables.getVariableByIdAsync(value.id);
+    if (!target) return undefined;
+    const collection = await figma.variables.getVariableCollectionByIdAsync(target.variableCollectionId);
+    if (!collection) return undefined;
+    const targetModeId = modes.get(collection.id) ||
+        (consumer && consumer.resolvedVariableModes || {})[collection.id] || collection.defaultModeId;
+    return resolveTypographyVariableValue(target, targetModeId, consumer, seen, modes);
+}
+
+async function getAvailableVariableModes() {
+    const { entries, warnings } = await getAvailableTypographyCollections();
+    const modes = [];
+    for (const { collection, variables, libraryName, remote } of entries) {
+        if (!collectionLooksTypography(collection) && !variables.some(isTypographyVariable)) continue;
+        const familyVariables = getFontFamilyVariables(collection, variables);
+        for (const mode of collection.modes) {
+            const fonts = [];
+            for (const variable of familyVariables) {
+                try {
+                    const value = await resolveTypographyVariableValue(variable, mode.modeId);
+                    if (typeof value === 'string' && value.trim()) fonts.push(value.trim());
+                } catch (error) {
+                    console.warn('Could not resolve a variable font family:', error);
+                }
+            }
+            modes.push({
+                collectionId: collection.id, collectionKey: collection.key, collectionName: collection.name,
+                modeId: mode.modeId, modeName: mode.name, fonts: [...new Set(fonts)], libraryName, remote
+            });
+        }
+    }
+    return { modes, warnings };
+}
+
+async function resolveVariableModeCollection(variableMode) {
+    const { entries } = await getAvailableTypographyCollections();
+    const matches = entries.filter(({ collection }) => {
+        if (variableMode.collectionKey) return collection.key === variableMode.collectionKey;
+        if (variableMode.collectionId) return collection.id === variableMode.collectionId;
+        return collection.name === variableMode.collectionName;
+    });
+    // Older UI payloads only contain names; never guess between duplicates.
+    return matches.length === 1 ? matches[0] : null;
+}
+
 function typographyVariableProperty(variable) {
+    const scopeProperties = {
+        FONT_FAMILY: 'fontFamily', FONT_STYLE: 'fontStyle', FONT_WEIGHT: 'fontWeight',
+        FONT_SIZE: 'fontSize', LINE_HEIGHT: 'lineHeight', LETTER_SPACING: 'letterSpacing'
+    };
+    for (const scope of variable && variable.scopes || []) {
+        if (scopeProperties[scope]) return scopeProperties[scope];
+    }
     const name = String(variable && variable.name || '').toLowerCase().replace(/[\s_-]+/g, '/');
     if (/(^|[/])font[/]?(family|typeface)$/.test(name) || /font.*family|family.*font/.test(name)) return 'fontFamily';
     if (/font.*(size|scale)|(^|[/])size$/.test(name)) return 'fontSize';
@@ -7913,6 +8060,39 @@ async function bindTypographyVariablesToNode(node, collection, modeId) {
     return bindings;
 }
 
+async function bindClosestFontSizeVariableToNode(node, collection, variables, modeId, allowStyled = false) {
+    if (!node || !collection || typeof node.setBoundVariable !== 'function') return null;
+    const directBinding = node.boundVariables && node.boundVariables.fontSize;
+    if (directBinding || (node.textStyleId && !allowStyled)) return null;
+    const currentSize = typeof node.fontSize === 'number' && node.fontSize !== figma.mixed
+        ? node.fontSize : null;
+    if (currentSize === null) return null;
+    const candidates = (variables || []).filter(variable => typographyVariableProperty(variable) === 'fontSize');
+    let closest = null;
+    let distance = Infinity;
+    for (const variable of candidates) {
+        try {
+            const value = await resolveTypographyVariableValue(variable, modeId, node);
+            if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+            const nextDistance = Math.abs(value - currentSize);
+            if (nextDistance < distance) {
+                closest = variable;
+                distance = nextDistance;
+            }
+        } catch (error) {
+            console.warn('Could not resolve font size variable:', error && error.message);
+        }
+    }
+    if (!closest) return null;
+    try {
+        node.setBoundVariable('fontSize', closest);
+        return closest;
+    } catch (error) {
+        console.warn('Could not bind closest font size variable:', error && error.message);
+        return null;
+    }
+}
+
 async function handleChangeFont(payload) {
     let { fontFamily, fontStyle, autoFit } = payload;
     const variableMode = payload && payload.variableMode;
@@ -7929,9 +8109,9 @@ async function handleChangeFont(payload) {
 
     try {
         let modeFontFamilies = [];
-        if (variableMode && variableMode.collectionName && variableMode.modeId) {
-            const collections = await figma.variables.getLocalVariableCollectionsAsync();
-            const collection = collections.find(item => item.name === variableMode.collectionName);
+        if (variableMode && variableMode.modeId) {
+            const entry = await resolveVariableModeCollection(variableMode);
+            const collection = entry && entry.collection;
             const mode = collection && collection.modes.find(item => item.modeId === variableMode.modeId);
             if (!collection || !mode) {
                 const message = `Variable mode "${variableMode.modeName || variableMode.modeId}" not found.`;
@@ -7940,19 +8120,21 @@ async function handleChangeFont(payload) {
             }
             variableModeCollection = collection;
             variableModeTarget = mode;
-            const fontSizeVariables = [];
-            for (const variableId of collection.variableIds) {
-                const variable = await figma.variables.getVariableByIdAsync(variableId);
-                if (variable && variable.resolvedType === 'FLOAT' &&
-                    (typographyVariableProperty(variable) === 'fontSize' || (variable.scopes || []).includes('FONT_SIZE'))) {
-                    fontSizeVariables.push(variable);
+            const consumers = [];
+            const collectModeConsumers = nodes => {
+                for (const node of nodes) {
+                    if (node.type === 'TEXT') consumers.push(node);
+                    else if ('children' in node) collectModeConsumers(node.children);
                 }
-                const raw = variable && variable.resolvedType === 'STRING'
-                    ? variable.valuesByMode[mode.modeId] : null;
-                if (typeof raw === 'string' && raw.trim()) {
-                    modeFontFamilies.push(raw.trim());
-                    if (!variableModeFontVariable && (/font|family|typeface/i.test(variable.name || '') || variable.resolvedType === 'STRING')) {
-                        variableModeFontVariable = variable;
+            };
+            collectModeConsumers(selection);
+            if (!consumers.length) consumers.push(...selection);
+            for (const variable of getFontFamilyVariables(collection, entry.variables)) {
+                for (const consumer of consumers) {
+                    const raw = await resolveTypographyVariableValue(variable, mode.modeId, consumer);
+                    if (typeof raw === 'string' && raw.trim()) {
+                        modeFontFamilies.push(raw.trim());
+                        if (!variableModeFontVariable) variableModeFontVariable = variable;
                     }
                 }
             }
@@ -7960,7 +8142,9 @@ async function handleChangeFont(payload) {
                 fontFamily = modeFontFamilies.find(value => normalizeName(value) === normalizeName(fontFamily)) || modeFontFamilies[0];
             }
 
-            // Apply the mode to selected parents so descendants can inherit it.
+            // Match Figma's native Apply variable mode behavior. Applying the
+            // mode to the selected parent lets descendants inherit it while
+            // preserving component/instance bindings and avoiding font loads.
             const selectedSet = new Set(selection.map(node => node && node.id).filter(Boolean));
             const modeRoots = selection.filter(node => {
                 let parent = node && node.parent;
@@ -7970,26 +8154,32 @@ async function handleChangeFont(payload) {
                 }
                 return true;
             });
-            const collectModeTextNodes = nodes => {
+            // Give unstyled text a single typography style before applying
+            // the mode. The style carries all typography bindings together.
+            const localTextStyles = await figma.getLocalTextStylesAsync();
+            const collectUnstyledTextNodes = nodes => {
                 const result = [];
                 for (const node of nodes) {
                     if (node.type === 'TEXT') {
-                        result.push(node);
+                        const styleId = node.textStyleId;
+                        const boundFamily = node.boundVariables && node.boundVariables.fontFamily;
+                        if (!styleId && !boundFamily) result.push(node);
                     } else if ('children' in node) {
-                        result.push(...collectModeTextNodes(node.children));
+                        result.push(...collectUnstyledTextNodes(node.children));
                     }
                 }
                 return result;
             };
-            // Capture original sizes before mode changes can alter their values.
-            // Keep each run of mixed-size text independent and retain text styles.
-            const originalSizeRuns = new Map(collectModeTextNodes(modeRoots).map(node => [node,
-                typeof node.fontSize === 'number'
-                    ? [{ start: 0, end: node.characters.length, fontSize: node.fontSize }]
-                    : node.getStyledTextSegments(['fontSize']).map(segment => ({
-                        start: segment.start, end: segment.end, fontSize: segment.fontSize
-                    }))
-            ]));
+            const unstyledTextNodes = collectUnstyledTextNodes(modeRoots);
+            for (const textNode of unstyledTextNodes) {
+                const size = typeof textNode.fontSize === 'number' ? textNode.fontSize : 16;
+                const bestStyle = localTextStyles
+                    .filter(style => typeof style.fontSize === 'number')
+                    .sort((a, b) => Math.abs(a.fontSize - size) - Math.abs(b.fontSize - size))[0];
+                if (bestStyle && typeof textNode.setTextStyleIdAsync === 'function') {
+                    await textNode.setTextStyleIdAsync(bestStyle.id);
+                }
+            }
             const fontsToLoad = new Map();
             const collectFonts = nodes => {
                 for (const node of nodes) {
@@ -8030,14 +8220,21 @@ async function handleChangeFont(payload) {
                     appliedCount++;
                 }
             }
-            // Keep existing font-family bindings; size bindings are chosen below.
+            const typographyVariables = entry.variables || [];
+            for (const textNode of unstyledTextNodes) {
+                await bindClosestFontSizeVariableToNode(textNode, collection, typographyVariables, mode.modeId, true);
+            }
+            // Bind only fontFamily for unstyled text. Existing fontWeight,
+            // fontSize, lineHeight, and other properties remain unchanged.
             if (variableModeFontVariable) {
                 const unboundTextNodes = [];
                 const collectUnboundTextNodes = nodes => {
                     for (const node of nodes) {
                         if (node.type === 'TEXT') {
                             const boundFontFamily = node.boundVariables && node.boundVariables.fontFamily;
-                            if (!boundFontFamily) unboundTextNodes.push(node);
+                            // Styles may own font bindings that are not listed
+                            // on the node. Preserve linked and mixed styles.
+                            if (!boundFontFamily && !node.textStyleId) unboundTextNodes.push(node);
                         } else if ('children' in node) {
                             collectUnboundTextNodes(node.children);
                         }
@@ -8054,64 +8251,18 @@ async function handleChangeFont(payload) {
                     }
                 }
             }
-            let sizeBoundCount = 0;
-            const sizeBindingFailures = [];
-            if (fontSizeVariables.length) {
-                for (const [textNode, runs] of originalSizeRuns) {
-                    try {
-                        // Figma resolves aliases using the text's effective mode,
-                        // including explicit overrides on nested text layers.
-                        const candidates = [];
-                        for (const variable of fontSizeVariables) {
-                            try {
-                                const { value } = variable.resolveForConsumer(textNode);
-                                if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-                                    candidates.push({ variable, value });
-                                }
-                            } catch (error) {
-                                console.warn('Could not resolve font size variable:', error && error.message);
-                            }
-                        }
-                        if (!candidates.length) throw new Error('No valid font size variables are available for this text.');
-                        if (!runs.length) throw new Error('Could not read the current font size.');
-                        const plan = runs.map(run => {
-                            if (!Number.isFinite(run.fontSize) || run.fontSize <= 0) throw new Error('Invalid current font size.');
-                            const closest = candidates.reduce((best, candidate) => {
-                                const distance = Math.abs(candidate.value - run.fontSize);
-                                const bestDistance = Math.abs(best.value - run.fontSize);
-                                return distance < bestDistance || (distance === bestDistance && candidate.value < best.value)
-                                    ? candidate : best;
-                            });
-                            return { ...run, variable: closest.variable };
-                        });
-                        for (const run of plan) {
-                            if (plan.length === 1) textNode.setBoundVariable('fontSize', run.variable);
-                            else textNode.setRangeBoundVariable(run.start, run.end, 'fontSize', run.variable);
-                        }
-                        sizeBoundCount++;
-                    } catch (error) {
-                        sizeBindingFailures.push({ nodeId: textNode.id, message: error.message });
-                    }
-                }
-            }
-            const success = appliedCount > 0 && sizeBindingFailures.length === 0;
-            const sizeSummary = fontSizeVariables.length
-                ? ` Nearest font size variable bound on ${sizeBoundCount}/${originalSizeRuns.size} text layer(s).`
-                : ' No font size variables found in this collection; no size bindings were changed.';
-            const message = `Applied variable mode "${mode.name}" to ${appliedCount} selected layer(s).${sizeSummary}` +
-                (sizeBindingFailures.length ? ` Size binding failed on ${sizeBindingFailures.length} text layer(s); applied changes remain in the document.` : '');
             sendUIMessage({
                 type: 'font-change-progress',
                 payload: { processed: appliedCount, total: appliedCount }
             });
             sendUIMessage({
-                type: success ? 'font-change-complete' : 'font-change-error',
-                payload: { message, sizeBoundCount, sizeBindingFailures }
+                type: 'font-change-complete',
+                payload: { message: `Applied variable mode "${mode.name}" to ${appliedCount} selected layer(s).` }
             });
             return {
-                success,
-                errorCode: sizeBindingFailures.length ? 'font_size_binding_failed' : appliedCount > 0 ? undefined : 'no_variable_mode_targets',
-                message
+                success: appliedCount > 0,
+                errorCode: appliedCount > 0 ? undefined : 'no_variable_mode_targets',
+                message: `Applied variable mode to ${appliedCount} selected layer(s).`
             };
         }
 
@@ -8250,11 +8401,6 @@ async function handleChangeFont(payload) {
             }
         }
 
-        if (changedCount === 0) {
-            const message = 'No text layers could be changed. Check for missing or unavailable fonts.';
-            sendUIMessage({ type: 'font-change-error', payload: { message } });
-            return { success: false, errorCode: 'no_text_layers_changed', message };
-        }
         sendUIMessage({
             type: 'font-change-complete',
             payload: { message: `Successfully changed font for ${changedCount} text layer(s).` }
