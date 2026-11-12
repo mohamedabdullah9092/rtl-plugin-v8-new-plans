@@ -8100,9 +8100,9 @@ function getCurrentFontWeight(node) {
     if (/extra.?light|ultra.?light/.test(style)) return 200;
     if (/light/.test(style)) return 300;
     if (/medium/.test(style)) return 500;
+    if (/extra.?bold|ultra.?bold/.test(style)) return 800;
     if (/semi.?bold|demi.?bold/.test(style)) return 600;
     if (/bold/.test(style)) return 700;
-    if (/extra.?bold|ultra.?bold/.test(style)) return 800;
     if (/black|heavy/.test(style)) return 900;
     return 400;
 }
@@ -8110,7 +8110,14 @@ function getCurrentFontWeight(node) {
 async function bindClosestFontWeightVariableToNode(node, collection, variables, modeId, allowStyled = false) {
     if (!node || !collection || typeof node.setBoundVariable !== 'function') return null;
     const directBinding = node.boundVariables && node.boundVariables.fontWeight;
-    if (directBinding || (node.textStyleId && !allowStyled)) return null;
+    if (directBinding) return null;
+    if (node.textStyleId && node.textStyleId !== figma.mixed && typeof figma.getStyleByIdAsync === 'function') {
+        try {
+            const style = await figma.getStyleByIdAsync(node.textStyleId);
+            if (style && style.boundVariables && style.boundVariables.fontWeight) return null;
+        } catch (error) { /* keep the node-level fallback available */ }
+    }
+    if (node.textStyleId && !allowStyled) return null;
     const currentWeight = getCurrentFontWeight(node);
     const candidates = (variables || []).filter(variable => typographyVariableProperty(variable) === 'fontWeight');
     let closest = null;
@@ -8218,6 +8225,14 @@ async function handleChangeFont(payload) {
                 return result;
             };
             const unstyledTextNodes = collectUnstyledTextNodes(modeRoots);
+            const allModeTextNodes = [];
+            const collectAllModeTextNodes = nodes => {
+                for (const node of nodes) {
+                    if (node.type === 'TEXT') allModeTextNodes.push(node);
+                    else if ('children' in node) collectAllModeTextNodes(node.children);
+                }
+            };
+            collectAllModeTextNodes(modeRoots);
             for (const textNode of unstyledTextNodes) {
                 const size = typeof textNode.fontSize === 'number' ? textNode.fontSize : 16;
                 const bestStyle = localTextStyles
@@ -8268,7 +8283,7 @@ async function handleChangeFont(payload) {
                 }
             }
             const typographyVariables = entry.variables || [];
-            for (const textNode of unstyledTextNodes) {
+            for (const textNode of allModeTextNodes) {
                 await bindClosestFontSizeVariableToNode(textNode, collection, typographyVariables, mode.modeId, true);
                 await bindClosestFontWeightVariableToNode(textNode, collection, typographyVariables, mode.modeId, true);
             }
