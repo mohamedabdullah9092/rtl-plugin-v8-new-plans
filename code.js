@@ -6019,13 +6019,8 @@ async function handlePluginMessage(msg) {
                             trialCount = FREE_TRIAL_LIMIT;
                             await figma.clientStorage.setAsync('trialCount', trialCount);
                         }
-                        if (trialCount > 0) {
-                            trialCount--;
-                            await figma.clientStorage.setAsync('trialCount', trialCount);
-                            sendUIMessage({ type: 'user-status-updated', payload: { trialCount } });
-                            void sendTelemetryEvent('trial_used', { feature, trialCount, ...selectionTelemetry });
-                        } else {
-                            // Should be caught by UI, but double check
+                        if (trialCount <= 0) {
+                            // Check eligibility before running; charge only after success.
                             void sendTelemetryEvent('trial_exhausted', { feature, trialCount, ...selectionTelemetry, success: false });
                             sendUIMessage({ type: 'plugin-error', payload: { message: 'Trial expired. Please upgrade to Pro.' } });
                             return;
@@ -6037,6 +6032,13 @@ async function handlePluginMessage(msg) {
                         metadata: { autoFit: !!msg.payload.autoFit }
                     });
                     const fontResult = await handleChangeFont(msg.payload);
+                    if (!isPro && fontResult && fontResult.success) {
+                        const storedTrialCount = await figma.clientStorage.getAsync('trialCount');
+                        const trialCount = Math.max(0, (typeof storedTrialCount === 'number' ? storedTrialCount : FREE_TRIAL_LIMIT) - 1);
+                        await figma.clientStorage.setAsync('trialCount', trialCount);
+                        sendUIMessage({ type: 'user-status-updated', payload: { trialCount } });
+                        void sendTelemetryEvent('trial_used', { feature, trialCount, ...selectionTelemetry });
+                    }
                     void sendTelemetryEvent(fontResult && fontResult.success ? 'feature_completed' : 'feature_failed', {
                         feature,
                         durationMs: Date.now() - startedAt,
@@ -7882,7 +7884,7 @@ async function countTextLayersInSelection() {
 }
 
 function typographyVariableProperty(variable) {
-    const name = String(variable && variable.name || '').toLowerCase().replace(/[\\s_-]+/g, '/');
+    const name = String(variable && variable.name || '').toLowerCase().replace(/[\s_-]+/g, '/');
     if (/(^|[/])font[/]?(family|typeface)$/.test(name) || /font.*family|family.*font/.test(name)) return 'fontFamily';
     if (/font.*(size|scale)|(^|[/])size$/.test(name)) return 'fontSize';
     if (/font.*weight|(^|[/])weight$/.test(name)) return 'fontWeight';
@@ -7938,8 +7940,13 @@ async function handleChangeFont(payload) {
             }
             variableModeCollection = collection;
             variableModeTarget = mode;
+            const fontSizeVariables = [];
             for (const variableId of collection.variableIds) {
                 const variable = await figma.variables.getVariableByIdAsync(variableId);
+                if (variable && variable.resolvedType === 'FLOAT' &&
+                    (typographyVariableProperty(variable) === 'fontSize' || (variable.scopes || []).includes('FONT_SIZE'))) {
+                    fontSizeVariables.push(variable);
+                }
                 const raw = variable && variable.resolvedType === 'STRING'
                     ? variable.valuesByMode[mode.modeId] : null;
                 if (typeof raw === 'string' && raw.trim()) {
@@ -7953,9 +7960,7 @@ async function handleChangeFont(payload) {
                 fontFamily = modeFontFamilies.find(value => normalizeName(value) === normalizeName(fontFamily)) || modeFontFamilies[0];
             }
 
-            // Match Figma's native Apply variable mode behavior. Applying the
-            // mode to the selected parent lets descendants inherit it while
-            // preserving component/instance bindings and avoiding font loads.
+            // Apply the mode to selected parents so descendants can inherit it.
             const selectedSet = new Set(selection.map(node => node && node.id).filter(Boolean));
             const modeRoots = selection.filter(node => {
                 let parent = node && node.parent;
@@ -7965,30 +7970,26 @@ async function handleChangeFont(payload) {
                 }
                 return true;
             });
-            // Give unstyled text a single typography style before applying
-            // the mode. The style carries all typography bindings together.
-            const localTextStyles = await figma.getLocalTextStylesAsync();
-            const collectUnstyledTextNodes = nodes => {
+            const collectModeTextNodes = nodes => {
                 const result = [];
                 for (const node of nodes) {
                     if (node.type === 'TEXT') {
-                        const styleId = node.textStyleId;
-                        if (!styleId || styleId === figma.mixed) result.push(node);
+                        result.push(node);
                     } else if ('children' in node) {
-                        result.push(...collectUnstyledTextNodes(node.children));
+                        result.push(...collectModeTextNodes(node.children));
                     }
                 }
                 return result;
             };
-            for (const textNode of collectUnstyledTextNodes(modeRoots)) {
-                const size = typeof textNode.fontSize === 'number' ? textNode.fontSize : 16;
-                const bestStyle = localTextStyles
-                    .filter(style => typeof style.fontSize === 'number')
-                    .sort((a, b) => Math.abs(a.fontSize - size) - Math.abs(b.fontSize - size))[0];
-                if (bestStyle && typeof textNode.setTextStyleIdAsync === 'function') {
-                    await textNode.setTextStyleIdAsync(bestStyle.id);
-                }
-            }
+            // Capture original sizes before mode changes can alter their values.
+            // Keep each run of mixed-size text independent and retain text styles.
+            const originalSizeRuns = new Map(collectModeTextNodes(modeRoots).map(node => [node,
+                typeof node.fontSize === 'number'
+                    ? [{ start: 0, end: node.characters.length, fontSize: node.fontSize }]
+                    : node.getStyledTextSegments(['fontSize']).map(segment => ({
+                        start: segment.start, end: segment.end, fontSize: segment.fontSize
+                    }))
+            ]));
             const fontsToLoad = new Map();
             const collectFonts = nodes => {
                 for (const node of nodes) {
@@ -8029,8 +8030,7 @@ async function handleChangeFont(payload) {
                     appliedCount++;
                 }
             }
-            // Bind only fontFamily for unstyled text. Existing fontWeight,
-            // fontSize, lineHeight, and other properties remain unchanged.
+            // Keep existing font-family bindings; size bindings are chosen below.
             if (variableModeFontVariable) {
                 const unboundTextNodes = [];
                 const collectUnboundTextNodes = nodes => {
@@ -8054,18 +8054,64 @@ async function handleChangeFont(payload) {
                     }
                 }
             }
+            let sizeBoundCount = 0;
+            const sizeBindingFailures = [];
+            if (fontSizeVariables.length) {
+                for (const [textNode, runs] of originalSizeRuns) {
+                    try {
+                        // Figma resolves aliases using the text's effective mode,
+                        // including explicit overrides on nested text layers.
+                        const candidates = [];
+                        for (const variable of fontSizeVariables) {
+                            try {
+                                const { value } = variable.resolveForConsumer(textNode);
+                                if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+                                    candidates.push({ variable, value });
+                                }
+                            } catch (error) {
+                                console.warn('Could not resolve font size variable:', error && error.message);
+                            }
+                        }
+                        if (!candidates.length) throw new Error('No valid font size variables are available for this text.');
+                        if (!runs.length) throw new Error('Could not read the current font size.');
+                        const plan = runs.map(run => {
+                            if (!Number.isFinite(run.fontSize) || run.fontSize <= 0) throw new Error('Invalid current font size.');
+                            const closest = candidates.reduce((best, candidate) => {
+                                const distance = Math.abs(candidate.value - run.fontSize);
+                                const bestDistance = Math.abs(best.value - run.fontSize);
+                                return distance < bestDistance || (distance === bestDistance && candidate.value < best.value)
+                                    ? candidate : best;
+                            });
+                            return { ...run, variable: closest.variable };
+                        });
+                        for (const run of plan) {
+                            if (plan.length === 1) textNode.setBoundVariable('fontSize', run.variable);
+                            else textNode.setRangeBoundVariable(run.start, run.end, 'fontSize', run.variable);
+                        }
+                        sizeBoundCount++;
+                    } catch (error) {
+                        sizeBindingFailures.push({ nodeId: textNode.id, message: error.message });
+                    }
+                }
+            }
+            const success = appliedCount > 0 && sizeBindingFailures.length === 0;
+            const sizeSummary = fontSizeVariables.length
+                ? ` Nearest font size variable bound on ${sizeBoundCount}/${originalSizeRuns.size} text layer(s).`
+                : ' No font size variables found in this collection; no size bindings were changed.';
+            const message = `Applied variable mode "${mode.name}" to ${appliedCount} selected layer(s).${sizeSummary}` +
+                (sizeBindingFailures.length ? ` Size binding failed on ${sizeBindingFailures.length} text layer(s); applied changes remain in the document.` : '');
             sendUIMessage({
                 type: 'font-change-progress',
                 payload: { processed: appliedCount, total: appliedCount }
             });
             sendUIMessage({
-                type: 'font-change-complete',
-                payload: { message: `Applied variable mode "${mode.name}" to ${appliedCount} selected layer(s).` }
+                type: success ? 'font-change-complete' : 'font-change-error',
+                payload: { message, sizeBoundCount, sizeBindingFailures }
             });
             return {
-                success: appliedCount > 0,
-                errorCode: appliedCount > 0 ? undefined : 'no_variable_mode_targets',
-                message: `Applied variable mode to ${appliedCount} selected layer(s).`
+                success,
+                errorCode: sizeBindingFailures.length ? 'font_size_binding_failed' : appliedCount > 0 ? undefined : 'no_variable_mode_targets',
+                message
             };
         }
 
@@ -8204,6 +8250,11 @@ async function handleChangeFont(payload) {
             }
         }
 
+        if (changedCount === 0) {
+            const message = 'No text layers could be changed. Check for missing or unavailable fonts.';
+            sendUIMessage({ type: 'font-change-error', payload: { message } });
+            return { success: false, errorCode: 'no_text_layers_changed', message };
+        }
         sendUIMessage({
             type: 'font-change-complete',
             payload: { message: `Successfully changed font for ${changedCount} text layer(s).` }
