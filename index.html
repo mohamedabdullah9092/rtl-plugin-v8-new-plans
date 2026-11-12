@@ -618,6 +618,11 @@ const ARABIC_UI = {
   "Choose Variable Mode": "اختيار من الـ Variable Mode",
   "Select Variable Mode": "اختر الـ Variable Mode",
   "Select a variable mode...": "اختر وضعًا من المتغيرات…",
+  "Loading variable modes...": "جارٍ تحميل أوضاع المتغيرات…",
+  "No typography variable modes found.": "لم نعثر على أوضاع متغيرات للخطوط.",
+  "Some variable collections could not be loaded. Refresh to try again.": "تعذّر تحميل بعض مجموعات المتغيرات. اضغط تحديث للمحاولة مرة أخرى.",
+  "Local": "محلي",
+  "Library": "مكتبة",
   "Loading fonts...": "جارٍ تحميل الخطوط…",
   "Select a font...": "اختر خطًا…",
   "Auto-Fit Text": "ضبط حجم النص تلقائيًا",
@@ -1692,7 +1697,8 @@ const SearchableSelect = ({
   placeholder,
   disabled,
   searchable = true,
-  recentOptions = []
+  recentOptions = [],
+  getOptionLabel = option => option
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -1711,9 +1717,9 @@ const SearchableSelect = ({
       setQuery('');
     }
   }, [isOpen]);
-  const filteredRecent = recentOptions.filter(option => searchable ? option.toLowerCase().includes(query.toLowerCase()) : true);
+  const filteredRecent = recentOptions.filter(option => searchable ? getOptionLabel(option).toLowerCase().includes(query.toLowerCase()) : true);
   const filteredOptions = options.filter(option => {
-    const matches = searchable ? option.toLowerCase().includes(query.toLowerCase()) : true;
+    const matches = searchable ? getOptionLabel(option).toLowerCase().includes(query.toLowerCase()) : true;
     // If it's in recent, we don't necessarily want to hide it from main list, but let's hide it to avoid duplicates
     return matches && !recentOptions.includes(option);
   });
@@ -1730,7 +1736,7 @@ const SearchableSelect = ({
     onClick: () => !disabled && setIsOpen(!isOpen)
   }, /*#__PURE__*/React.createElement("span", {
     className: `truncate ${!value ? 'text-brand-text-secondary' : ''}`
-  }, uiText(value || placeholder)), /*#__PURE__*/React.createElement("svg", {
+  }, uiText(value ? getOptionLabel(value) : placeholder)), /*#__PURE__*/React.createElement("svg", {
     className: `w-4 h-4 ms-2 transition-transform ${isOpen ? 'transform rotate-180' : ''}`,
     fill: "none",
     stroke: "currentColor",
@@ -1762,7 +1768,7 @@ const SearchableSelect = ({
     key: `recent-${option}`,
     className: `px-4 py-2 text-sm cursor-pointer hover:bg-brand-teal/10 hover:text-brand-teal ${value === option ? 'bg-brand-teal/20 text-brand-teal font-semibold' : 'text-brand-text-primary'}`,
     onClick: () => handleSelect(option)
-  }, uiText(option))), filteredOptions.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, uiText(getOptionLabel(option)))), filteredOptions.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "border-t border-brand-border/50 my-1"
   })), filteredOptions.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, filteredRecent.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "px-4 py-1.5 text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider"
@@ -1770,8 +1776,21 @@ const SearchableSelect = ({
     key: option,
     className: `px-4 py-2 text-sm cursor-pointer hover:bg-brand-teal/10 hover:text-brand-teal ${value === option ? 'bg-brand-teal/20 text-brand-teal font-semibold' : 'text-brand-text-primary'}`,
     onClick: () => handleSelect(option)
-  }, uiText(option))))))));
+  }, uiText(getOptionLabel(option)))))))));
 };
+// Keep asset labels separate from option values: libraries can reuse collection
+// and mode names, but each published collection has its own key.
+function getVariableModeIdentity(mode) {
+  return JSON.stringify([mode.collectionKey || mode.collectionId || mode.collectionName, mode.modeId]);
+}
+function getVariableModeLabel(mode, modes) {
+  const baseLabel = item => `${item.libraryName || uiText(item.remote ? 'Library' : 'Local')} / ${item.collectionName} / ${item.modeName}`;
+  const label = baseLabel(mode);
+  const duplicates = modes.filter(item => baseLabel(item) === label);
+  if (duplicates.length < 2) return label;
+  const index = duplicates.findIndex(item => getVariableModeIdentity(item) === getVariableModeIdentity(mode));
+  return `${label} (${index + 1})`;
+}
 const ApiKeysManager = ({
   initialGeminiKey,
   initialOpenAIKey,
@@ -2490,6 +2509,8 @@ const App = () => {
   const smartSwitchTextStylesRef = useRef(false);
   const [createVariant, setCreateVariant] = useState(false);
   const [variableModes, setVariableModes] = useState([]); // Figma variable modes with font info
+  const [isLoadingVariableModes, setIsLoadingVariableModes] = useState(false);
+  const [variableModeWarnings, setVariableModeWarnings] = useState([]);
   const [selectedFontGroup, setSelectedFontGroup] = useState(''); // e.g. 'Heading', 'Paragraph'
 
   const [isLoading, setIsLoading] = useState(false);
@@ -2519,6 +2540,11 @@ const App = () => {
   const [autoFitText, setAutoFitText] = useState(false); // [NEW] Auto-Fit Text
   const [textLayersCount, setTextLayersCount] = useState(0);
   const [isFontChanging, setIsFontChanging] = useState(false);
+  const requestVariableModes = useCallback(() => {
+    setIsLoadingVariableModes(true);
+    setVariableModeWarnings([]);
+    parent.postMessage({ pluginMessage: { type: 'get-variable-modes' } }, '*');
+  }, []);
 
   // --- Refs for Onboarding Tour ---
   const langSelectorRef = useRef(null);
@@ -2839,7 +2865,15 @@ const App = () => {
           setVariableModes(prev => prev.length ? prev : []);
           break;
         case 'variable-modes':
-          setVariableModes(payload.modes || []);
+          {
+            const modes = payload.modes || [];
+            setVariableModes(modes);
+            setVariableModeWarnings(payload.warnings || []);
+            setIsLoadingVariableModes(false);
+            setSelectedVariableMode(previous => previous
+              ? modes.find(mode => getVariableModeIdentity(mode) === getVariableModeIdentity(previous)) || null
+              : null);
+          }
           break;
         case 'plugin-error':
           operationRef.current = null;
@@ -2883,12 +2917,6 @@ const App = () => {
         type: 'get-available-fonts-for-translate'
       }
     }, '*');
-    parent.postMessage({
-      pluginMessage: {
-        type: 'get-variable-modes'
-      }
-    }, '*');
-
     // Safety timeout: if backend doesn't respond in 4s, force-clear all loading states
     const safetyTimeout = setTimeout(() => {
       setIsStatusLoading(false);
@@ -2918,6 +2946,11 @@ const App = () => {
       }, '*');
     }
   }, [activeTab]);
+
+  // Reload on entry so libraries enabled while the plugin is open appear too.
+  useEffect(() => {
+    if (activeTab === 'fontChanger' && fontSource === 'variableMode') requestVariableModes();
+  }, [activeTab, fontSource, requestVariableModes]);
 
   // Request font styles when a font is selected
   useEffect(() => {
@@ -3450,14 +3483,23 @@ const App = () => {
         }, uiText(label))
       )
     ),
-  fontSource === 'variableMode' && React.createElement(SearchableSelect, {
-    options: variableModes.map(mode => `${mode.collectionName} / ${mode.modeName}`),
-    value: selectedVariableMode ? `${selectedVariableMode.collectionName} / ${selectedVariableMode.modeName}` : null,
-    onChange: value => setSelectedVariableMode(variableModes.find(mode => `${mode.collectionName} / ${mode.modeName}` === value) || null),
-    placeholder: uiText('Select a variable mode...'),
-    disabled: isFontChanging,
-    searchable: false
-  }), /*#__PURE__*/React.createElement("div", {
+  fontSource === 'variableMode' && React.createElement('div', { className: 'space-y-2' },
+    React.createElement(SearchableSelect, {
+      options: variableModes.map(getVariableModeIdentity),
+      value: selectedVariableMode ? getVariableModeIdentity(selectedVariableMode) : null,
+      onChange: value => setSelectedVariableMode(variableModes.find(mode => getVariableModeIdentity(mode) === value) || null),
+      getOptionLabel: value => {
+        const mode = variableModes.find(item => getVariableModeIdentity(item) === value);
+        return mode ? getVariableModeLabel(mode, variableModes) : '';
+      },
+      placeholder: uiText(isLoadingVariableModes ? 'Loading variable modes...' : 'Select a variable mode...'),
+      disabled: isFontChanging || isLoadingVariableModes || variableModes.length === 0,
+      searchable: true
+    }),
+    isLoadingVariableModes && React.createElement('p', { role: 'status', className: 'text-xs text-brand-text-secondary' }, uiText('Loading variable modes...')),
+    !isLoadingVariableModes && variableModes.length === 0 && React.createElement('p', { role: 'status', className: 'text-xs text-brand-text-secondary' }, uiText('No typography variable modes found.')),
+    null
+  ), /*#__PURE__*/React.createElement("div", {
     style: { display: fontSource === 'font' ? undefined : 'none' },
     className: ""
   }, /*#__PURE__*/React.createElement("div", {
@@ -3607,7 +3649,7 @@ const App = () => {
     className: "translate-only-button"
   }, uiText("Translate Only"))) : /*#__PURE__*/React.createElement(Button, {
     onClick: handleChangeFont,
-    disabled: isFontChanging || (fontSource === 'font' ? !selectedFont : !selectedVariableMode),
+    disabled: isFontChanging || (fontSource === 'font' ? !selectedFont : isLoadingVariableModes || !selectedVariableMode),
     isLoading: isFontChanging,
     variant: "primary"
   }, uiText("Change Font")))), showSmartSwitchAnnouncement && onboardingStatus === 'complete' && !showUpgradeScreen && !showSubscriptionManager && /*#__PURE__*/React.createElement(SmartSwitchAnnouncement, {

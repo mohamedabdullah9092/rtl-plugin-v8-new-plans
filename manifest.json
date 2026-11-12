@@ -23,5 +23,5 @@
       "https://rtl-master-activation.mohamedabdullah9092.workers.dev"
     ]
   },
-  "permissions": ["currentuser"]
+  "permissions": ["currentuser", "teamlibrary"]
 }
