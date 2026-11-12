@@ -8093,6 +8093,53 @@ async function bindClosestFontSizeVariableToNode(node, collection, variables, mo
     }
 }
 
+function getCurrentFontWeight(node) {
+    if (typeof node.fontWeight === 'number' && Number.isFinite(node.fontWeight)) return node.fontWeight;
+    const style = node.fontName && node.fontName !== figma.mixed ? String(node.fontName.style || '').toLowerCase() : '';
+    if (/thin|hairline/.test(style)) return 100;
+    if (/extra.?light|ultra.?light/.test(style)) return 200;
+    if (/light/.test(style)) return 300;
+    if (/medium/.test(style)) return 500;
+    if (/semi.?bold|demi.?bold/.test(style)) return 600;
+    if (/bold/.test(style)) return 700;
+    if (/extra.?bold|ultra.?bold/.test(style)) return 800;
+    if (/black|heavy/.test(style)) return 900;
+    return 400;
+}
+
+async function bindClosestFontWeightVariableToNode(node, collection, variables, modeId, allowStyled = false) {
+    if (!node || !collection || typeof node.setBoundVariable !== 'function') return null;
+    const directBinding = node.boundVariables && node.boundVariables.fontWeight;
+    if (directBinding || (node.textStyleId && !allowStyled)) return null;
+    const currentWeight = getCurrentFontWeight(node);
+    const candidates = (variables || []).filter(variable => typographyVariableProperty(variable) === 'fontWeight');
+    let closest = null;
+    let distance = Infinity;
+    let closestValue = Infinity;
+    for (const variable of candidates) {
+        try {
+            const value = await resolveTypographyVariableValue(variable, modeId, node);
+            if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+            const nextDistance = Math.abs(value - currentWeight);
+            if (nextDistance < distance || (nextDistance === distance && value < closestValue)) {
+                closest = variable;
+                distance = nextDistance;
+                closestValue = value;
+            }
+        } catch (error) {
+            console.warn('Could not resolve font weight variable:', error && error.message);
+        }
+    }
+    if (!closest) return null;
+    try {
+        node.setBoundVariable('fontWeight', closest);
+        return closest;
+    } catch (error) {
+        console.warn('Could not bind closest font weight variable:', error && error.message);
+        return null;
+    }
+}
+
 async function handleChangeFont(payload) {
     let { fontFamily, fontStyle, autoFit } = payload;
     const variableMode = payload && payload.variableMode;
@@ -8223,6 +8270,7 @@ async function handleChangeFont(payload) {
             const typographyVariables = entry.variables || [];
             for (const textNode of unstyledTextNodes) {
                 await bindClosestFontSizeVariableToNode(textNode, collection, typographyVariables, mode.modeId, true);
+                await bindClosestFontWeightVariableToNode(textNode, collection, typographyVariables, mode.modeId, true);
             }
             // Bind only fontFamily for unstyled text. Existing fontWeight,
             // fontSize, lineHeight, and other properties remain unchanged.
