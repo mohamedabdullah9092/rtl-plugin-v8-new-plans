@@ -5851,12 +5851,9 @@ async function handlePluginMessage(msg) {
                             trialCount = licenseRevoked ? 0 : FREE_TRIAL_LIMIT;
                             await figma.clientStorage.setAsync('trialCount', trialCount);
                         }
-                        if (trialCount > 0) {
-                            trialCount--;
-                            await figma.clientStorage.setAsync('trialCount', trialCount);
-                            sendUIMessage({ type: 'user-status-updated', payload: { trialCount } });
-                            void sendTelemetryEvent('trial_used', { feature, trialCount, ...selectionTelemetry });
-                        } else {
+                        if (typeof trialCount !== 'number' || !Number.isFinite(trialCount)) trialCount = 0;
+                        trialCount = Math.max(0, Math.min(FREE_TRIAL_LIMIT, Math.floor(trialCount)));
+                        if (trialCount <= 0) {
                             void sendTelemetryEvent('trial_exhausted', { feature, trialCount, ...selectionTelemetry, success: false });
                             sendUIMessage({ type: 'plugin-error', payload: { message: 'Trial expired. Please upgrade to Pro.' } });
                             return;
@@ -6010,12 +6007,9 @@ async function handlePluginMessage(msg) {
                             trialCount = FREE_TRIAL_LIMIT;
                             await figma.clientStorage.setAsync('trialCount', trialCount);
                         }
-                        if (trialCount > 0) {
-                            trialCount--;
-                            await figma.clientStorage.setAsync('trialCount', trialCount);
-                            sendUIMessage({ type: 'user-status-updated', payload: { trialCount } });
-                            void sendTelemetryEvent('trial_used', { feature, trialCount, ...selectionTelemetry });
-                        } else {
+                        if (typeof trialCount !== 'number' || !Number.isFinite(trialCount)) trialCount = 0;
+                        trialCount = Math.max(0, Math.min(FREE_TRIAL_LIMIT, Math.floor(trialCount)));
+                        if (trialCount <= 0) {
                             // Should be caught by UI, but double check
                             void sendTelemetryEvent('trial_exhausted', { feature, trialCount, ...selectionTelemetry, success: false });
                             sendUIMessage({ type: 'plugin-error', payload: { message: 'Trial expired. Please upgrade to Pro.' } });
@@ -6028,6 +6022,14 @@ async function handlePluginMessage(msg) {
                         metadata: { autoFit: !!msg.payload.autoFit }
                     });
                     const fontResult = await handleChangeFont(msg.payload);
+                    if (!isPro && fontResult && fontResult.success) {
+                        const storedTrialCount = await figma.clientStorage.getAsync('trialCount');
+                        const nextTrialCount = Math.max(0, Math.min(FREE_TRIAL_LIMIT,
+                            (typeof storedTrialCount === 'number' ? Math.floor(storedTrialCount) : 0) - 1));
+                        await figma.clientStorage.setAsync('trialCount', nextTrialCount);
+                        sendUIMessage({ type: 'user-status-updated', payload: { trialCount: nextTrialCount } });
+                        void sendTelemetryEvent('trial_used', { feature, trialCount: nextTrialCount, ...selectionTelemetry });
+                    }
                     void sendTelemetryEvent(fontResult && fontResult.success ? 'feature_completed' : 'feature_failed', {
                         feature,
                         durationMs: Date.now() - startedAt,
@@ -8464,6 +8466,11 @@ async function handleChangeFont(payload) {
             }
         }
 
+        if (changedCount === 0) {
+            const message = 'No text layers could be changed. Check for missing or unavailable fonts.';
+            sendUIMessage({ type: 'font-change-error', payload: { message } });
+            return { success: false, errorCode: 'no_text_layers_changed', message };
+        }
         sendUIMessage({
             type: 'font-change-complete',
             payload: { message: `Successfully changed font for ${changedCount} text layer(s).` }
