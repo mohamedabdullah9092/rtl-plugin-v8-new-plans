@@ -112,132 +112,13 @@
       </header>
 
       <section class="view is-visible" data-view-panel="overview">
-        <div class="metrics-grid" id="metrics-grid"></div>
-
-        <div class="content-grid two-up">
-          <article class="panel status-panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">System</p>
-                <h3 id="worker-health">No live data</h3>
-              </div>
-            </div>
-            <p class="status-copy" id="worker-copy">Sign in to load live Cloudflare D1 data.</p>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Risk Snapshot</p>
-                <h3>License Health</h3>
-              </div>
-            </div>
-            <div class="risk-list" id="risk-list"></div>
-          </article>
+        <div class="overview-intro"><div><p class="eyebrow">Your business at a glance</p><h2>Overview</h2><p>Recorded sales, customer activity and the next actions that matter.</p></div><button class="ghost-button" type="button" data-nav-target="users">Manage customers →</button></div>
+        <div class="overview-kpis" id="overview-kpis"></div>
+        <div class="overview-columns">
+          <article class="panel"><div class="panel-head"><div><p class="eyebrow">Sales</p><h3>Recorded revenue</h3></div><button class="ghost-button small" data-nav-target="revenue">View revenue →</button></div><div id="overview-revenue"></div></article>
+          <article class="panel"><div class="panel-head"><div><p class="eyebrow">Next steps</p><h3>Needs attention</h3></div></div><div id="overview-attention"></div></article>
         </div>
-
-        <div class="content-grid three-up insights-grid">
-          <article class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Insights</p>
-                <h3>Feature Usage</h3>
-              </div>
-            </div>
-            <div class="insight-list" id="feature-usage-list"></div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Funnel</p>
-                <h3>Activation Path</h3>
-              </div>
-            </div>
-            <div class="insight-list" id="funnel-list"></div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Quality</p>
-                <h3>Error Hotspots</h3>
-              </div>
-            </div>
-            <div class="insight-list" id="error-hotspots-list"></div>
-          </article>
-        </div>
-
-        <div class="content-grid two-up">
-          <article class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Users</p>
-                <h3>Recent Users</h3>
-              </div>
-              <button class="ghost-button" type="button" data-nav-target="users">Open Users</button>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Plan</th>
-                    <th>Billing</th>
-                    <th>Expiry Date</th>
-                  </tr>
-                </thead>
-                <tbody id="recent-users-table"></tbody>
-              </table>
-            </div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Recent Logs</p>
-                <h3>Latest Events</h3>
-              </div>
-            </div>
-            <div class="log-list" id="log-list"></div>
-          </article>
-        </div>
-
-        <div class="content-grid two-up">
-          <article class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Reports</p>
-                <h3>Daily / Weekly Snapshot</h3>
-              </div>
-            </div>
-            <div class="summary-grid" id="reports-grid"></div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Subscriptions</p>
-                <h3>Expiring Soon</h3>
-              </div>
-              <button class="ghost-button" type="button" data-nav-target="revenue">Open Revenue</button>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>Plan</th>
-                    <th>Ends At</th>
-                    <th>Days Left</th>
-                  </tr>
-                </thead>
-                <tbody id="subscription-alerts-table"></tbody>
-              </table>
-            </div>
-          </article>
-        </div>
+        <article class="panel"><div class="panel-head"><div><p class="eyebrow">Gumroad</p><h3>Latest purchases</h3></div><button class="ghost-button small" data-nav-target="subscriptions">View subscriptions →</button></div><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Plan</th><th>Purchase price</th><th>Purchased</th><th>Status</th></tr></thead><tbody id="overview-purchases"></tbody></table></div></article>
       </section>
 
       <section class="view" data-view-panel="users">

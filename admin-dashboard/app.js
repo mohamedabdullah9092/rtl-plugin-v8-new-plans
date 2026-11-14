@@ -557,9 +557,36 @@ function renderActiveSubscriptions() {
   }).join('');
 }
 
+function renderOverview() {
+  const data = dashboardData.overview;
+  const revenue = dashboardData.revenue || {};
+  const kpis = document.getElementById('overview-kpis');
+  if (!data) {
+    kpis.innerHTML = '<article class="panel"><p>Refresh live data to load the overview.</p></article>';
+    return;
+  }
+  const metrics = [
+    ['Imported purchases', revenue.importedSales, 'Gumroad transactions, including free purchases'],
+    ['Paid purchases', (revenue.totals || []).reduce((n, item) => n + item.paidSales, 0), 'Excludes fully refunded and charged back sales'],
+    ['Tracked Figma users', data.trackedUsers, 'Unique accounts recorded by the plugin'],
+    ['Active in 7 days', data.active7Days, 'Tracked accounts with recent activity']
+  ];
+  kpis.innerHTML = metrics.map(([label, value, copy]) => `<article class="panel overview-kpi"><p>${escapeHtml(label)}</p><strong>${escapeHtml(value ?? '—')}</strong><span>${escapeHtml(copy)}</span></article>`).join('');
+  const money = (cents, currency) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(cents / 100);
+  document.getElementById('overview-revenue').innerHTML = (revenue.totals || []).map((item) => `<div class="overview-sales"><span>Imported gross sales · ${escapeHtml(item.currency)}</span><strong>${escapeHtml(money(item.grossCents, item.currency))}</strong><p>Last 30 days <b>${escapeHtml(money(item.last30DaysCents, item.currency))}</b></p></div>`).join('') + `<p class="overview-note">Before fees and partial refunds. This is sales revenue, not net profit. Fully refunded and charged back sales excluded.</p><p class="overview-note">${escapeHtml(revenue.missingAmounts || 0)} sales missing amounts · ${escapeHtml(revenue.partialRefunds || 0)} partial refunds · Last import: ${escapeHtml(data.lastImport || 'Never')}</p>`;
+  document.getElementById('overview-attention').innerHTML = [
+    ['Expiring within 30 days', data.expiringSoon, 'Review upcoming subscription expirations.'],
+    ['Missing sale amounts', revenue.missingAmounts || 0, 'Import Gumroad sales to refresh financial data.'],
+    ['Refunds / chargebacks', revenue.refundedSales || 0, 'Excluded from the sales totals shown here.']
+  ].map(([label, count, copy]) => `<div class="overview-action"><div><strong>${escapeHtml(label)}</strong><p>${escapeHtml(copy)}</p></div><span>${escapeHtml(count)}</span></div>`).join('');
+  document.getElementById('overview-purchases').innerHTML = (data.purchases || []).map((sale) => `<tr><td data-label="Customer">${escapeHtml(sale.name)}</td><td data-label="Plan">${escapeHtml(formatSubscriptionPlan(sale.plan))}</td><td data-label="Purchase price">${escapeHtml(sale.price || 'Unavailable')}</td><td data-label="Purchased">${escapeHtml(sale.date || 'Unknown')}</td><td data-label="Status">${escapeHtml(sale.status)}</td></tr>`).join('') || '<tr><td colspan="5">No imported purchases yet.</td></tr>';
+}
+
 function renderMetrics() {
+  renderOverview();
   renderActiveSubscriptions();
   const metricsGrid = document.getElementById('metrics-grid');
+  if (!metricsGrid) return;
   metricsGrid.innerHTML = dashboardData.metrics.map((metric) => `
     <article class="panel metric-card">
       <p class="eyebrow">${escapeHtml(metric.label)}</p>
@@ -652,6 +679,7 @@ function renderErrorHotspots() {
 }
 
 function renderRecentUsersTable(rows = getVisibleUsers().slice(0, 8)) {
+  if (!document.getElementById('recent-users-table')) return;
   if (!rows.length) {
     renderEmptyRow('recent-users-table', 'No users loaded yet.', 5);
     return;
@@ -857,6 +885,7 @@ function renderReports() {
 }
 
 function renderSubscriptionAlertsPreview() {
+  if (!document.getElementById('subscription-alerts-table')) return;
   const rows = (dashboardData.subscriptionAlerts || []).slice(0, 6);
   if (!rows.length) {
     renderEmptyRow('subscription-alerts-table', 'No subscriptions expiring in the next 30 days.', 4);
@@ -882,7 +911,7 @@ function renderRevenue() {
     { label: 'One-time', value: revenue.oneTime || 0, copy: 'Lifetime / one-time buyers' },
     { label: 'Ended', value: revenue.ended || 0, copy: 'Inactive subscriptions' },
     { label: 'Imported Sales', value: revenue.importedSales || 0, copy: 'Gumroad sales stored in D1' },
-    { label: 'Estimated Revenue', value: `${revenue.estimatedRevenue || 0} ${revenue.currency || 'USD'}`, copy: revenue.note || 'Simple estimate' }
+    { label: 'Recorded Gross Sales', value: (revenue.totals || []).map((item) => new Intl.NumberFormat('en-US', {style: 'currency', currency: item.currency}).format(item.grossCents / 100)).join(' + ') || 'Unavailable', copy: revenue.note || 'Import sale amounts first' }
   ];
   target.innerHTML = rows.map((item) => `
     <article class="panel summary-card">
@@ -1994,8 +2023,18 @@ function attachSettings() {
       importGumroadButton.disabled = true;
       importGumroadButton.textContent = 'Importing...';
       try {
-        const payload = await postJson('/api/admin/import-gumroad-sales', { limit: 500 });
-        alert(`Imported ${payload.imported || 0} Gumroad sales.`);
+        let cursor = null;
+        let imported = 0;
+        let batches = 0;
+        do {
+          const payload = await postJson('/api/admin/import-gumroad-sales', { limit: 100, cursor });
+          if (payload.failed || payload.failedProducts?.length) throw new Error(`Import incomplete after ${imported} sales. ${payload.failedProducts?.map((item) => item.message).join('; ') || `${payload.failed} sales could not be saved.`}`);
+          imported += payload.imported || 0;
+          cursor = payload.nextCursor || null;
+          importGumroadButton.textContent = `Imported ${imported}…`;
+          if (++batches >= 100 && cursor) throw new Error('Import paused after 100 batches.');
+        } while (cursor);
+        alert(`Imported ${imported} Gumroad sales.`);
         await loadLiveDashboardData();
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Could not import Gumroad sales.');

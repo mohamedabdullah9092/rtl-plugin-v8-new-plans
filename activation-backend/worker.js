@@ -800,14 +800,16 @@ async function fetchGumroadJson(env, url) {
   return response.json();
 }
 
-async function fetchGumroadSales(env, { limit = 500, allProducts = false } = {}) {
+async function fetchGumroadSales(env, { limit = 100, allProducts = false, cursor = null } = {}) {
   const boundedLimit = Math.max(1, Math.min(toIntegerOrNull(limit) || 500, 5000));
   const productIds = allProducts ? [null] : getConfiguredGumroadProductIds(env);
   const sales = [];
   const failedProducts = [];
+  let resumeUrl = null;
 
   for (const productId of productIds) {
-    let nextUrl = new URL(GUMROAD_SALES_URL);
+    let nextUrl = new URL(cursor || GUMROAD_SALES_URL);
+    if (nextUrl.origin !== new URL(GUMROAD_SALES_URL).origin || nextUrl.pathname !== new URL(GUMROAD_SALES_URL).pathname) throw new Error('Invalid sales cursor');
     if (productId) nextUrl.searchParams.set('product_id', productId);
 
     while (nextUrl && sales.length < boundedLimit) {
@@ -816,6 +818,7 @@ async function fetchGumroadSales(env, { limit = 500, allProducts = false } = {})
         sales.push(...(payload.sales || []));
 
         const nextPageUrl = payload.next_page_url || payload.next_page || null;
+        if (nextPageUrl && sales.length >= boundedLimit) resumeUrl = new URL(nextPageUrl, GUMROAD_SALES_URL).toString();
         nextUrl = nextPageUrl && sales.length < boundedLimit ? new URL(nextPageUrl, GUMROAD_SALES_URL) : null;
       } catch (error) {
         failedProducts.push({
@@ -829,11 +832,12 @@ async function fetchGumroadSales(env, { limit = 500, allProducts = false } = {})
 
   return {
     sales: sales.slice(0, boundedLimit),
+    nextCursor: resumeUrl,
     failedProducts
   };
 }
 
-async function upsertGumroadSale(env, sale) {
+async function upsertGumroadSale(env, sale, knownColumns = null) {
   const saleId = getGumroadSaleId(sale);
   if (!saleId) return { skipped: true };
 
@@ -894,7 +898,13 @@ async function upsertGumroadSale(env, sale) {
     )
     .run();
 
-  const saleColumns = await getTableColumns(env, 'gumroad_sales');
+  const saleColumns = knownColumns || await getTableColumns(env, 'gumroad_sales');
+  if (saleColumns.includes('price_cents')) {
+    const price = sale.price !== null && sale.price !== undefined && sale.price !== '' ? Number(sale.price) : NaN;
+    await env.DB.prepare('UPDATE gumroad_sales SET price_cents = ?1, sale_currency = ?2, partially_refunded = ?3 WHERE gumroad_sale_id = ?4')
+      .bind(Number.isSafeInteger(price) && price >= 0 ? price : null,
+        compactString(sale.currency || sale.currency_type || 'usd', 10).toUpperCase(), sale.partially_refunded ? 1 : 0, saleId).run();
+  }
   if (saleColumns.includes('formatted_price')) {
     const formattedPrice = compactString(sale.formatted_display_price || sale.formatted_total_price, 120);
     await env.DB.prepare('UPDATE gumroad_sales SET formatted_price = COALESCE(?1, formatted_price) WHERE gumroad_sale_id = ?2')
@@ -926,14 +936,15 @@ async function importGumroadSales(env, options = {}) {
     };
   }
 
-  const { sales, failedProducts } = await fetchGumroadSales(env, options);
+  const { sales, failedProducts, nextCursor } = await fetchGumroadSales(env, { ...options, limit: Math.min(Number(options.limit) || 100, 100) });
+  const saleColumns = await getTableColumns(env, 'gumroad_sales');
   let imported = 0;
   let skipped = 0;
   let failed = 0;
 
   for (const sale of sales) {
     try {
-      const result = await upsertGumroadSale(env, sale);
+      const result = await upsertGumroadSale(env, sale, saleColumns);
       if (result.skipped) skipped += 1;
       else imported += 1;
     } catch (error) {
@@ -948,6 +959,7 @@ async function importGumroadSales(env, options = {}) {
     failed,
     fetched: sales.length,
     failedProducts
+    ,nextCursor
   };
 }
 
@@ -1823,7 +1835,18 @@ function buildRevenueView(users, gumroadSales) {
   const yearly = users.filter((user) => user.subscriptionPlan === 'yearly' && normalizeSubscriptionStatus(user.subscriptionStatus) === 'active').length;
   const oneTime = users.filter((user) => user.subscriptionPlan === 'one_time').length;
   const ended = users.filter((user) => normalizeSubscriptionStatus(user.subscriptionStatus) === 'ended').length;
-  const estimate = monthly * 5 + yearly * 49 + oneTime * 29;
+  const totals = new Map();
+  let missingAmounts = 0;
+  for (const sale of gumroadSales) {
+    if (sale.refunded || sale.chargebacked) continue;
+    if (sale.price_cents === null || sale.price_cents === undefined || !sale.sale_currency) { missingAmounts++; continue; }
+    const currency = sale.sale_currency.toUpperCase();
+    const total = totals.get(currency) || { currency, grossCents: 0, last30DaysCents: 0, paidSales: 0 };
+    total.grossCents += Number(sale.price_cents);
+    if (parseDateValue(sale.purchase_created_at) >= Date.now() - 30 * 86400000) total.last30DaysCents += Number(sale.price_cents);
+    if (Number(sale.price_cents) > 0) total.paidSales++;
+    totals.set(currency, total);
+  }
   const importedSales = gumroadSales.length;
 
   return {
@@ -1832,9 +1855,13 @@ function buildRevenueView(users, gumroadSales) {
     oneTime,
     ended,
     importedSales,
-    estimatedRevenue: estimate,
+    estimatedRevenue: null,
+    totals: Array.from(totals.values()),
+    missingAmounts,
+    refundedSales: gumroadSales.filter((sale) => sale.refunded || sale.chargebacked).length,
+    partialRefunds: gumroadSales.filter((sale) => sale.partially_refunded).length,
     currency: 'USD',
-    note: 'Simple estimate using default plan values: Monthly $5, Yearly $49, One-time $29.'
+    note: 'Recorded sale amounts before fees and partial refunds. Not net profit. Limited to imported sales.'
   };
 }
 
@@ -2311,6 +2338,18 @@ function buildAdminDashboardPayload(
         action: 'Inspect'
       })),
     users,
+    overview: {
+      trackedUsers: pluginUsers.length,
+      active7Days: retention.active7Days,
+      purchases: gumroadSales.slice(0, 6).map((sale) => ({
+        name: sale.buyer_name || sale.email || 'Customer',
+        plan: sale.subscription_plan, price: sale.formatted_price,
+        date: sale.purchase_created_at,
+        status: sale.refunded ? 'Refunded' : sale.chargebacked ? 'Chargeback' : sale.subscription_status || 'Recorded'
+      })),
+      lastImport: systemHealth.lastGumroadImportAt,
+      expiringSoon: subscriptionAlerts.length
+    },
     pluginUsers: pluginUsers.map((user) => ({
       name: user.figma_user_name || user.figma_user_id || 'Unknown user',
       figmaUserId: user.figma_user_id || '',
@@ -2630,6 +2669,7 @@ export default {
         const body = await request.json().catch(() => ({}));
         const result = await importGumroadSales(env, {
           limit: body.limit,
+          cursor: body.cursor,
           allProducts: body.allProducts !== false
         });
         schedule(ctx, recordAdminAudit(env, {
