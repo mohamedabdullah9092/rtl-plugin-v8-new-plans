@@ -7,6 +7,7 @@ This backend links a Gumroad license to a Figma user ID so the same user can use
 - `POST /api/activate-license`
 - `POST /api/license-status`
 - `POST /api/unlink-license`
+- `POST /api/trial/consume`
 - `POST /api/telemetry`
 - `POST /api/admin/dashboard`
 - `POST /api/admin/diagnostics`
@@ -51,6 +52,12 @@ To show whether a user is monthly/yearly and any subscription end date Gumroad r
 
 ```bash
 npx wrangler d1 execute rtl-master-activation-db --remote --file ./migrations/0003_license_subscription_fields.sql
+
+For the server-authoritative free-trial counter, apply the trial-account migration once:
+
+```bash
+npx wrangler d1 execute rtl-master-activation-db --remote --file ./migrations/0006_free_trial_accounts.sql
+```
 ```
 
 To pull buyers and sales directly from Gumroad into D1, run the Gumroad sales migration once and set the Gumroad API access token as a Worker secret:

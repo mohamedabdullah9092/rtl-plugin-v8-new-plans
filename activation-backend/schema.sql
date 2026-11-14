@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS gumroad_sales (
   product_name TEXT,
   product_id TEXT,
   product_permalink TEXT,
+  formatted_price TEXT,
   purchase_created_at TEXT,
   subscription_plan TEXT,
   subscription_status TEXT,

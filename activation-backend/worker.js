@@ -594,6 +594,42 @@ async function handleUnlinkLicense(env, ctx, figmaUserId) {
   return json({ success: true });
 }
 
+async function handleConsumeFreeTrial(env, ctx, figmaUserId, feature) {
+  if (!figmaUserId) return json({ success: false, message: 'Missing figmaUserId' }, 400);
+
+  // A linked license is authoritative. The normal license-status check keeps
+  // stale/refunded bindings removed from this table.
+  const binding = await getBindingByUser(env, figmaUserId);
+  if (binding) return json({ success: true, isPro: true, remaining: null });
+
+  // INSERT OR IGNORE + conditional UPDATE makes the decrement safe when the
+  // same Figma account finishes on two devices at nearly the same time.
+  await env.DB.prepare(`
+    INSERT OR IGNORE INTO free_trial_accounts (figma_user_id, remaining)
+    VALUES (?1, 10)
+  `).bind(figmaUserId).run();
+
+  const update = await env.DB.prepare(`
+    UPDATE free_trial_accounts
+    SET remaining = remaining - 1, updated_at = CURRENT_TIMESTAMP
+    WHERE figma_user_id = ?1 AND remaining > 0
+  `).bind(figmaUserId).run();
+
+  const account = await env.DB.prepare(`
+    SELECT remaining FROM free_trial_accounts WHERE figma_user_id = ?1
+  `).bind(figmaUserId).first();
+  const remaining = Number(account && account.remaining) || 0;
+  if (!update.meta || update.meta.changes !== 1) {
+    schedule(ctx, recordPluginEvent(env, {
+      eventType: 'trial_exhausted', figmaUserId, plan: 'free', feature,
+      trialCount: remaining, success: false, message: 'Server trial limit reached'
+    }));
+    return json({ success: false, isPro: false, exhausted: true, remaining }, 403);
+  }
+
+  return json({ success: true, isPro: false, remaining });
+}
+
 async function getBindingByLicense(env, licenseKey) {
   try {
     return await env.DB
@@ -858,6 +894,13 @@ async function upsertGumroadSale(env, sale) {
     )
     .run();
 
+  const saleColumns = await getTableColumns(env, 'gumroad_sales');
+  if (saleColumns.includes('formatted_price')) {
+    const formattedPrice = compactString(sale.formatted_display_price || sale.formatted_total_price, 120);
+    await env.DB.prepare('UPDATE gumroad_sales SET formatted_price = COALESCE(?1, formatted_price) WHERE gumroad_sale_id = ?2')
+      .bind(formattedPrice || null, saleId).run();
+  }
+
   if (licenseKey) {
     const binding = await getBindingByLicense(env, licenseKey);
     if (binding && binding.figma_user_id) {
@@ -1091,6 +1134,13 @@ async function getRecentPluginEvents(env, limit = 1000) {
 
 async function getPluginUsersForAdmin(env, limit = 500) {
   try {
+    const trialBalances = new Map();
+    try {
+      const trials = await env.DB.prepare('SELECT figma_user_id, remaining FROM free_trial_accounts').all();
+      for (const trial of trials.results || []) trialBalances.set(trial.figma_user_id, trial.remaining);
+    } catch (error) {
+      if (!isMissingTableError(error)) console.warn('Could not read trial balances', error);
+    }
     const result = await env.DB
       .prepare(`
         SELECT
@@ -1110,7 +1160,10 @@ async function getPluginUsersForAdmin(env, limit = 500) {
       .bind(limit)
       .all();
 
-    return result.results || [];
+    return (result.results || []).map((user) => ({
+      ...user,
+      trials_remaining: trialBalances.has(user.figma_user_id) ? trialBalances.get(user.figma_user_id) : null
+    }));
   } catch (error) {
     if (isMissingTableError(error)) return [];
     console.warn('Could not read plugin users', error);
@@ -1155,21 +1208,7 @@ async function getGumroadSalesForAdmin(env) {
   try {
     const result = await env.DB
       .prepare(`
-        SELECT
-          gumroad_sale_id,
-          license_key,
-          email,
-          buyer_name,
-          product_name,
-          product_id,
-          product_permalink,
-          purchase_created_at,
-          subscription_plan,
-          subscription_status,
-          subscription_ends_at,
-          refunded,
-          chargebacked,
-          updated_at
+        SELECT *
         FROM gumroad_sales
         ORDER BY datetime(purchase_created_at) DESC, datetime(updated_at) DESC
       `)
@@ -1561,6 +1600,7 @@ function buildUserRows(bindings, pluginEvents, gumroadSales = [], pluginUsers = 
 
       return {
         ...user,
+        purchasePrice: gumroadSales.find((sale) => sale.license_key && sale.license_key === user.licenseKey)?.formatted_price || null,
         firstSeenAt: trackedUser?.first_seen_at || '',
         lastSeenAt: trackedUser?.last_seen_at || user.active || '',
         source,
@@ -2279,7 +2319,8 @@ function buildAdminDashboardPayload(
       lastSeenAt: user.last_seen_at || '',
       lastEventType: user.last_event_type || '',
       lastFeature: user.last_feature || '',
-      usageCount: Number(user.usage_count) || 0
+      usageCount: Number(user.usage_count) || 0,
+      trialsRemaining: user.trials_remaining ?? null
     })),
     activityEvents,
     errorRows,
@@ -2475,6 +2516,11 @@ export default {
       if (url.pathname === '/api/unlink-license') {
         const { figmaUserId } = await request.json();
         return handleUnlinkLicense(env, ctx, figmaUserId);
+      }
+
+      if (url.pathname === '/api/trial/consume') {
+        const { figmaUserId, feature = 'unknown' } = await request.json();
+        return handleConsumeFreeTrial(env, ctx, figmaUserId, compactString(feature, 80) || 'unknown');
       }
 
       if (url.pathname === '/api/telemetry') {

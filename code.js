@@ -5153,6 +5153,8 @@ const LANGUAGES = [
 // Global state for the asynchronous variant creation flow
 let pendingVariantCreation = null;
 let activeFeatureTelemetry = null;
+let trialChargeInFlight = false;
+let trialOperationInFlight = false;
 // Set this to your deployed backend URL to sync licenses across devices.
 const ACTIVATION_SERVER_BASE_URL = 'https://rtl-master-activation.mohamedabdullah9092.workers.dev';
 const GUMROAD_NEW_PRODUCT_ID = 'xjW3twDEIx4LJQrkpgz4fQ==';
@@ -5239,6 +5241,68 @@ function finishActiveFeatureTelemetry(eventType = 'feature_completed', details =
         metadata: telemetry.metadata,
         ...details
     });
+
+    // Translation, mirroring, and variant creation can complete through a
+    // later UI message. Charge only when their final completion signal is
+    // reached, never when the operation merely starts.
+    if (eventType === 'feature_completed' && telemetry.requiresTrialCharge) {
+        void consumeTrialAfterSuccess(telemetry.feature, telemetry.selectionTelemetry);
+    }
+    if (telemetry.requiresTrialCharge) trialOperationInFlight = false;
+}
+
+async function consumeTrialAfterSuccess(feature, selectionTelemetry = {}) {
+    if (trialChargeInFlight) return;
+    trialChargeInFlight = true;
+    try {
+        const [storedIsPro, licenseRevoked, storedTrialCount] = await Promise.all([
+            figma.clientStorage.getAsync('isPro'),
+            figma.clientStorage.getAsync('licenseRevoked'),
+            figma.clientStorage.getAsync('trialCount')
+        ]);
+        if (storedIsPro && !licenseRevoked) return;
+
+        const currentFigmaUser = getCurrentFigmaUser();
+        if (ACTIVATION_SERVER_BASE_URL && currentFigmaUser) {
+            let serverResult;
+            try {
+                serverResult = await postJson(
+                    getActivationServerEndpoint('/api/trial/consume'),
+                    { figmaUserId: currentFigmaUser.id, feature }
+                );
+            } catch (error) {
+                console.warn('Could not verify free trial with activation server', error);
+                await figma.clientStorage.setAsync('trialCount', 0);
+                sendUIMessage({ type: 'user-status-updated', payload: { trialCount: 0 } });
+                return;
+            }
+            if (!serverResult || !serverResult.success) {
+                const serverRemaining = Number(serverResult && serverResult.remaining);
+                if (Number.isFinite(serverRemaining)) {
+                    await figma.clientStorage.setAsync('trialCount', Math.max(0, Math.min(FREE_TRIAL_LIMIT, Math.floor(serverRemaining))));
+                }
+                sendUIMessage({ type: 'user-status-updated', payload: { trialCount: Number.isFinite(serverRemaining) ? Math.max(0, serverRemaining) : 0 } });
+                return;
+            }
+            const serverRemaining = Number(serverResult.remaining);
+            if (Number.isFinite(serverRemaining)) {
+                await figma.clientStorage.setAsync('trialCount', Math.max(0, Math.min(FREE_TRIAL_LIMIT, Math.floor(serverRemaining))));
+                sendUIMessage({ type: 'user-status-updated', payload: { trialCount: serverRemaining } });
+                void sendTelemetryEvent('trial_used', { feature, trialCount: serverRemaining, ...selectionTelemetry });
+                return;
+            }
+        }
+
+        const current = typeof storedTrialCount === 'number' && Number.isFinite(storedTrialCount)
+            ? Math.max(0, Math.min(FREE_TRIAL_LIMIT, Math.floor(storedTrialCount)))
+            : 0;
+        const next = Math.max(0, current - 1);
+        await figma.clientStorage.setAsync('trialCount', next);
+        sendUIMessage({ type: 'user-status-updated', payload: { trialCount: next } });
+        void sendTelemetryEvent('trial_used', { feature, trialCount: next, ...selectionTelemetry });
+    } finally {
+        trialChargeInFlight = false;
+    }
 }
 
 async function pingActivationServer() {
@@ -5846,6 +5910,10 @@ async function handlePluginMessage(msg) {
                     const startedAt = Date.now();
                     const selectionTelemetry = await getSelectionTelemetry();
                     if (!isPro) {
+                        if (trialOperationInFlight) {
+                            sendUIMessage({ type: 'plugin-error', payload: { message: 'Another free operation is already in progress.' } });
+                            return;
+                        }
                         let trialCount = await figma.clientStorage.getAsync('trialCount');
                         if (typeof trialCount !== 'number') {
                             trialCount = licenseRevoked ? 0 : FREE_TRIAL_LIMIT;
@@ -5858,6 +5926,7 @@ async function handlePluginMessage(msg) {
                             sendUIMessage({ type: 'plugin-error', payload: { message: 'Trial expired. Please upgrade to Pro.' } });
                             return;
                         }
+                        trialOperationInFlight = true;
                     }
                     void sendTelemetryEvent('feature_started', {
                         feature,
@@ -5874,6 +5943,7 @@ async function handlePluginMessage(msg) {
                     activeFeatureTelemetry = {
                         feature,
                         startedAt,
+                        requiresTrialCharge: !isPro,
                         fromLanguage: msg.payload.fromLanguage,
                         toLanguage: msg.payload.toLanguage,
                         selectionTelemetry,
@@ -5890,6 +5960,7 @@ async function handlePluginMessage(msg) {
                             finishActiveFeatureTelemetry();
                         }
                     } catch (error) {
+                        if (!isPro) trialOperationInFlight = false;
                         finishActiveFeatureTelemetry('feature_failed', {
                             success: false,
                             errorCode: 'feature_exception',
@@ -5997,11 +6068,19 @@ async function handlePluginMessage(msg) {
                 }
             case 'change-font':
                 {
-                    const isPro = await figma.clientStorage.getAsync('isPro');
+                    const [storedIsPro, licenseRevoked] = await Promise.all([
+                        figma.clientStorage.getAsync('isPro'),
+                        figma.clientStorage.getAsync('licenseRevoked')
+                    ]);
+                    const isPro = !!storedIsPro && !licenseRevoked;
                     const feature = 'change-font';
                     const startedAt = Date.now();
                     const selectionTelemetry = await getSelectionTelemetry();
                     if (!isPro) {
+                        if (trialOperationInFlight) {
+                            sendUIMessage({ type: 'plugin-error', payload: { message: 'Another free operation is already in progress.' } });
+                            return;
+                        }
                         let trialCount = await figma.clientStorage.getAsync('trialCount');
                         if (typeof trialCount !== 'number') {
                             trialCount = FREE_TRIAL_LIMIT;
@@ -6015,30 +6094,36 @@ async function handlePluginMessage(msg) {
                             sendUIMessage({ type: 'plugin-error', payload: { message: 'Trial expired. Please upgrade to Pro.' } });
                             return;
                         }
+                        trialOperationInFlight = true;
                     }
                     void sendTelemetryEvent('feature_started', {
                         feature,
                         ...selectionTelemetry,
                         metadata: { autoFit: !!msg.payload.autoFit }
                     });
-                    const fontResult = await handleChangeFont(msg.payload);
-                    if (!isPro && fontResult && fontResult.success) {
-                        const storedTrialCount = await figma.clientStorage.getAsync('trialCount');
-                        const nextTrialCount = Math.max(0, Math.min(FREE_TRIAL_LIMIT,
-                            (typeof storedTrialCount === 'number' ? Math.floor(storedTrialCount) : 0) - 1));
-                        await figma.clientStorage.setAsync('trialCount', nextTrialCount);
-                        sendUIMessage({ type: 'user-status-updated', payload: { trialCount: nextTrialCount } });
-                        void sendTelemetryEvent('trial_used', { feature, trialCount: nextTrialCount, ...selectionTelemetry });
+                    try {
+                        const fontResult = await handleChangeFont(msg.payload);
+                        if (!isPro && fontResult && fontResult.success) {
+                            const storedTrialCount = await figma.clientStorage.getAsync('trialCount');
+                            const nextTrialCount = Math.max(0, Math.min(FREE_TRIAL_LIMIT,
+                                (typeof storedTrialCount === 'number' ? Math.floor(storedTrialCount) : 0) - 1));
+                            await figma.clientStorage.setAsync('trialCount', nextTrialCount);
+                            sendUIMessage({ type: 'user-status-updated', payload: { trialCount: nextTrialCount } });
+                            void sendTelemetryEvent('trial_used', { feature, trialCount: nextTrialCount, ...selectionTelemetry });
+                        }
+                        void sendTelemetryEvent(fontResult && fontResult.success ? 'feature_completed' : 'feature_failed', {
+                            feature,
+                            durationMs: Date.now() - startedAt,
+                            ...selectionTelemetry,
+                            success: !!(fontResult && fontResult.success),
+                            errorCode: fontResult && fontResult.errorCode,
+                            message: fontResult && fontResult.message,
+                            metadata: { autoFit: !!msg.payload.autoFit }
+                        });
+                        return;
+                    } finally {
+                        if (!isPro) trialOperationInFlight = false;
                     }
-                    void sendTelemetryEvent(fontResult && fontResult.success ? 'feature_completed' : 'feature_failed', {
-                        feature,
-                        durationMs: Date.now() - startedAt,
-                        ...selectionTelemetry,
-                        success: !!(fontResult && fontResult.success),
-                        errorCode: fontResult && fontResult.errorCode,
-                        message: fontResult && fontResult.message,
-                        metadata: { autoFit: !!msg.payload.autoFit }
-                    });
                     break;
                 }
             case 'get-recent-fonts':

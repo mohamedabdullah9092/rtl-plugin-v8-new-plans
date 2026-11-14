@@ -246,10 +246,11 @@ function getVisiblePluginUsers() {
   const rows = [...(dashboardData.pluginUsers || [])].sort((first, second) =>
     parseUserDate(second.lastSeenAt) - parseUserDate(first.lastSeenAt)
   );
-  const term = currentUserSearchTerm.trim().toLowerCase();
+  const term = (document.getElementById('plugin-usage-search')?.value || '').trim().toLowerCase();
+  const plan = document.getElementById('plugin-usage-plan')?.value || 'all';
   return rows.filter((user) => {
     if (term && !pluginUserSearchText(user).includes(term)) return false;
-    if (currentPlanFilter !== 'all' && normalizeFilterValue(user.plan) !== currentPlanFilter) return false;
+    if (plan !== 'all' && normalizeFilterValue(user.plan) !== plan) return false;
     return true;
   });
 }
@@ -526,7 +527,38 @@ function renderAuthView() {
   if (adminUsernameInput) adminUsernameInput.value = currentAdminUsername || '';
 }
 
+function renderActiveSubscriptions() {
+  const now = Date.now();
+  const rows = (dashboardData.users || []).filter((user) => {
+    const status = String(user.subscriptionStatus || user.statusKey || '').toLowerCase();
+    const end = Date.parse(user.subscriptionEndsAt || '');
+    return String(user.plan).toLowerCase() === 'pro'
+      && ['active', 'one_time'].includes(status)
+      && (!Number.isFinite(end) || end > now);
+  }).sort((a, b) => (Date.parse(a.subscriptionEndsAt) || Infinity) - (Date.parse(b.subscriptionEndsAt) || Infinity));
+  document.getElementById('active-subscriptions-count').textContent = `${rows.length} active`;
+  if (!rows.length) {
+    renderEmptyRow('active-subscriptions-table', 'No confirmed active subscriptions.', 6);
+    return;
+  }
+  document.getElementById('active-subscriptions-table').innerHTML = rows.map((user) => {
+    const end = Date.parse(user.subscriptionEndsAt || '');
+    const lifetime = user.subscriptionPlan === 'one_time';
+    const remaining = lifetime ? 'Lifetime' : Number.isFinite(end)
+      ? `${Math.ceil((end - now) / 86400000)} days` : 'Unknown expiry';
+    return `<tr>
+      <td data-label="User">${escapeHtml(user.name)}</td>
+      <td data-label="Email">${escapeHtml(user.email || '-')}</td>
+      <td data-label="Plan">${escapeHtml(formatSubscriptionPlan(user.subscriptionPlan))}</td>
+      <td data-label="Price">${escapeHtml(user.purchasePrice || 'Not available')}</td>
+      <td data-label="Expires">${escapeHtml(lifetime ? '-' : user.subscriptionEndsAt || 'Unknown')}</td>
+      <td data-label="Time Remaining">${escapeHtml(remaining)}</td>
+    </tr>`;
+  }).join('');
+}
+
 function renderMetrics() {
+  renderActiveSubscriptions();
   const metricsGrid = document.getElementById('metrics-grid');
   metricsGrid.innerHTML = dashboardData.metrics.map((metric) => `
     <article class="panel metric-card">
@@ -679,7 +711,7 @@ function renderPluginUsersTable(rows = getVisiblePluginUsers()) {
   if (resultCount) resultCount.textContent = `${rows.length} tracked user${rows.length === 1 ? '' : 's'}`;
 
   if (!rows.length) {
-    renderEmptyRow('plugin-users-table', 'No plugin users tracked yet.', 8);
+    renderEmptyRow('plugin-users-table', 'No plugin users tracked yet.', 9);
     return;
   }
 
@@ -690,6 +722,7 @@ function renderPluginUsersTable(rows = getVisiblePluginUsers()) {
       <td data-label="First Used">${escapeHtml(user.firstSeenAt || '-')}</td>
       <td data-label="Last Used">${escapeHtml(user.lastSeenAt || '-')}</td>
       <td data-label="Usage Count">${escapeHtml(user.usageCount || 0)}</td>
+      <td data-label="Trials Remaining">${String(user.plan || '').toLowerCase() === 'pro' ? 'Unlimited' : escapeHtml(user.trialsRemaining ?? 'Unknown')}</td>
       <td data-label="Last Event">${escapeHtml(user.lastEventType || '-')}</td>
       <td data-label="Last Feature">${escapeHtml(user.lastFeature || '-')}</td>
       <td data-label="Figma User ID">${escapeHtml(user.figmaUserId || '-')}</td>
@@ -1191,13 +1224,14 @@ function downloadCsv(filename, headers, rows) {
 }
 
 function exportPluginUsersCsv() {
-  const headers = ['Name', 'Plan', 'First Used', 'Last Used', 'Usage Count', 'Last Event', 'Last Feature', 'Figma User ID'];
+  const headers = ['Name', 'Plan', 'First Used', 'Last Used', 'Usage Count', 'Trials Remaining', 'Last Event', 'Last Feature', 'Figma User ID'];
   const rows = getVisiblePluginUsers().map((user) => [
     user.name,
     user.plan,
     user.firstSeenAt,
     user.lastSeenAt,
     user.usageCount,
+    String(user.plan || '').toLowerCase() === 'pro' ? 'Unlimited' : (user.trialsRemaining ?? 'Unknown'),
     user.lastEventType,
     user.lastFeature,
     user.figmaUserId
@@ -1431,6 +1465,8 @@ function attachViewSwitching() {
 }
 
 function attachSearch() {
+  document.getElementById('plugin-usage-search')?.addEventListener('input', () => renderPluginUsersTable());
+  document.getElementById('plugin-usage-plan')?.addEventListener('change', () => renderPluginUsersTable());
   const globalInput = document.getElementById('global-search');
   const usersInput = document.getElementById('users-search');
 

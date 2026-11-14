@@ -79,6 +79,8 @@
         <nav id="dashboard-nav" class="sidebar-nav" aria-label="Dashboard sections">
           <button class="nav-item is-active" data-view="overview">Overview</button>
           <button class="nav-item" data-view="users">Users</button>
+          <button class="nav-item" data-view="subscriptions">Active Subscriptions</button>
+          <button class="nav-item" data-view="plugin-usage">Plugin Usage Log</button>
           <button class="nav-item" data-view="activity">Activity</button>
           <button class="nav-item" data-view="revenue">Revenue</button>
           <button class="nav-item" data-view="timeline">Timeline</button>
@@ -369,6 +371,9 @@
           </div>
         </article>
 
+      </section>
+
+      <section class="view" data-view-panel="plugin-usage">
         <article class="panel">
           <div class="panel-head">
             <div>
@@ -382,8 +387,10 @@
           <div class="table-toolbar compact">
             <div class="table-meta">
               <span id="plugin-users-result-count">0 tracked users</span>
-              <span>Filtered with users search and plan</span>
+              <span>Search and filter tracked users</span>
             </div>
+            <label class="table-search"><span>Search</span><input id="plugin-usage-search" type="search" placeholder="Name, Figma User ID, event"></label>
+            <label class="table-filter"><span>Plan</span><select id="plugin-usage-plan"><option value="all">All plans</option><option value="free">Free</option><option value="pro">Pro</option></select></label>
           </div>
           <div class="table-wrap">
             <table>
@@ -394,6 +401,7 @@
                   <th>First Used</th>
                   <th>Last Used ↓</th>
                   <th>Usage Count</th>
+                  <th>Trials Remaining</th>
                   <th>Last Event</th>
                   <th>Last Feature</th>
                   <th>Figma User ID</th>
@@ -402,6 +410,14 @@
               <tbody id="plugin-users-table"></tbody>
             </table>
           </div>
+        </article>
+      </section>
+
+      <section class="view" data-view-panel="subscriptions">
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">Subscriptions</p><h3>Active Subscriptions</h3></div><span id="active-subscriptions-count" class="pill"></span></div>
+          <p class="status-copy">Remaining time uses the recorded expiry date. Purchase prices are shown only when available; discounts and historical prices may vary.</p>
+          <div class="table-wrap"><table><thead><tr><th>User</th><th>Email</th><th>Plan</th><th>Price</th><th>Expires</th><th>Time Remaining</th></tr></thead><tbody id="active-subscriptions-table"></tbody></table></div>
         </article>
       </section>
 
