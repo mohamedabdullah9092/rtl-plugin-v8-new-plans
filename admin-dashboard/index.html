@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=20260808-dashboard-expansion">
+  <link rel="stylesheet" href="./styles.css?v=20261114-customer-filters">
 </head>
 <body>
   <section id="login-screen" class="login-screen">
@@ -59,7 +59,7 @@
     </div>
   </section>
 
-  <div id="dashboard-app" class="app-shell" hidden>
+  <div id="dashboard-app" class="app-shell overview-mode" hidden>
     <aside class="sidebar">
       <div class="sidebar-main">
         <div class="brand-block">
@@ -112,17 +112,16 @@
       </header>
 
       <section class="view is-visible" data-view-panel="overview">
-        <div class="overview-intro"><div><p class="eyebrow">Your business at a glance</p><h2>Overview</h2><p>Recorded sales, customer activity and the next actions that matter.</p></div><button class="ghost-button" type="button" data-nav-target="users">Manage customers →</button></div>
         <div class="overview-kpis" id="overview-kpis"></div>
         <div class="overview-columns">
           <article class="panel"><div class="panel-head"><div><p class="eyebrow">Sales</p><h3>Recorded revenue</h3></div><button class="ghost-button small" data-nav-target="revenue">View revenue →</button></div><div id="overview-revenue"></div></article>
           <article class="panel"><div class="panel-head"><div><p class="eyebrow">Next steps</p><h3>Needs attention</h3></div></div><div id="overview-attention"></div></article>
         </div>
-        <article class="panel"><div class="panel-head"><div><p class="eyebrow">Gumroad</p><h3>Latest purchases</h3></div><button class="ghost-button small" data-nav-target="subscriptions">View subscriptions →</button></div><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Plan</th><th>Purchase price</th><th>Purchased</th><th>Status</th></tr></thead><tbody id="overview-purchases"></tbody></table></div></article>
+        <article class="panel overview-purchases-panel"><div class="panel-head"><div><p class="eyebrow">Gumroad</p><h3>Latest purchases</h3></div><button class="ghost-button small" data-nav-target="users">All customers ↗</button></div><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Plan</th><th>Purchase price</th><th>Purchased</th><th>Status</th></tr></thead><tbody id="overview-purchases"></tbody></table></div></article>
       </section>
 
       <section class="view" data-view-panel="users">
-        <article class="panel">
+        <article class="panel" hidden>
           <div class="panel-head">
             <div>
               <p class="eyebrow">User ID</p>
@@ -145,21 +144,22 @@
           </div>
         </article>
 
-        <article class="panel">
+        <article class="panel users-main-panel">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Users</p>
-              <h3>All Customers</h3>
+              <h3>Customers</h3>
+              <p class="users-description">Find a customer, check their access, or open their profile.</p>
             </div>
             <div class="panel-actions">
               <button id="import-gumroad-sales" type="button" class="ghost-button accent">Import Gumroad Sales</button>
-              <button id="export-users-csv" class="ghost-button" type="button">Export CSV</button>
             </div>
           </div>
           <div class="table-toolbar">
             <label class="table-search">
-              <span>Search</span>
-              <input id="users-search" type="search" placeholder="Name, email, license, plan">
+              <span class="sr-only">Search customers</span>
+              <svg class="filter-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
+              <input id="users-search" type="search" aria-label="Search customers" placeholder="Search name, email or Figma ID…">
             </label>
             <label class="table-filter">
               <span>Date</span>
@@ -186,6 +186,7 @@
               <select id="users-status-filter">
                 <option value="all">All statuses</option>
                 <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
                 <option value="linked">Linked</option>
                 <option value="ended">Ended</option>
                 <option value="one_time">One-time</option>
@@ -202,13 +203,13 @@
                 <option value="plugin">Plugin</option>
               </select>
             </label>
-            <button id="clear-user-filters" class="ghost-button" type="button">Clear Filters</button>
+            <button id="export-users-csv" class="ghost-button filter-export" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/></svg>Export</button>
+            <button id="clear-user-filters" class="ghost-button" type="button">Reset</button>
             <div class="table-meta">
               <span id="users-result-count">0 users</span>
-              <span>Newest first</span>
             </div>
           </div>
-          <div class="table-toolbar compact">
+          <div class="table-toolbar compact" hidden>
             <div class="saved-views-bar">
               <button class="ghost-button small" type="button" data-user-preset="expired_users">Expired Users</button>
               <button class="ghost-button small" type="button" data-user-preset="active_pro">Active Pro</button>
@@ -233,23 +234,20 @@
               <thead>
                 <tr>
                   <th><input id="select-all-users" type="checkbox" aria-label="Select all users"></th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Plan</th>
+                  <th>Customer</th>
+                  <th>Access</th>
                   <th>Billing</th>
-                  <th>Figma User ID</th>
-                  <th>Activation Code</th>
-                  <th>Purchase Date</th>
-                  <th>Expiry Date</th>
+                  <th>Usage</th>
+                  <th>Joined</th>
                   <th>Last Active ↓</th>
                   <th>Status</th>
-                  <th>Risk</th>
-                  <th>Actions</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody id="users-table"></tbody>
             </table>
           </div>
+          <div class="users-pagination" id="users-pagination"></div>
         </article>
 
       </section>
@@ -634,6 +632,6 @@
     </section>
   </div>
 
-  <script src="./app.js?v=20260808-dashboard-expansion"></script>
+  <script src="./app.js?v=20261114-customer-filters"></script>
 </body>
 </html>

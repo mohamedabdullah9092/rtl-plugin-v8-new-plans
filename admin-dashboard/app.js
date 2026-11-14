@@ -103,6 +103,7 @@ function escapeHtml(value) {
 
 function toStatusClass(value) {
   const normalized = String(value || '').toLowerCase();
+  if (normalized === 'inactive' || normalized.includes('inactive') || normalized.includes('ended') || normalized.includes('refund') || normalized.includes('chargeback') || normalized.includes('failed')) return 'risk';
   if (normalized.includes('healthy') || normalized.includes('linked')) return 'ok';
   if (normalized.includes('active')) return 'ok';
   if (normalized.includes('trial') || normalized.includes('free') || normalized.includes('available')) return 'free';
@@ -123,6 +124,7 @@ function formatSubscriptionStatus(value) {
   const normalized = String(value || '').toLowerCase();
   const labels = {
     active: 'Active',
+    inactive: 'Inactive',
     ended: 'Ended',
     payment_failed: 'Payment failed',
     refunded: 'Refunded',
@@ -155,10 +157,9 @@ function parseUserDate(value) {
 }
 
 function getUserSortTime(user) {
-  return Math.max(
-    parseUserDate(user.active),
-    parseUserDate(user.purchaseDate)
-  );
+  // Sort by the same value displayed in Last Active. Purchase date is only
+  // a fallback for records that have never reported plugin activity.
+  return parseUserDate(user.lastSeenAt || user.active || user.purchaseDate);
 }
 
 function sortUsersNewest(users = []) {
@@ -195,12 +196,18 @@ function getUserPlanTokens(user) {
 }
 
 function getUserStatusTokens(user) {
-  return [
+  const tokens = [
     normalizeFilterValue(user.status),
     normalizeFilterValue(user.subscriptionStatus),
     normalizeFilterValue(formatSubscriptionStatus(user.subscriptionStatus)),
     toStatusClass(user.subscriptionStatus || user.status)
   ].filter(Boolean);
+  // Gumroad may call a cancelled subscription "ended" while the dashboard
+  // exposes the customer-facing filter as "inactive".
+  if (tokens.includes('ended') || tokens.includes('cancelled') || tokens.includes('canceled') || tokens.includes('inactive')) {
+    tokens.push('inactive');
+  }
+  return tokens;
 }
 
 function matchesPlanFilter(user) {
@@ -571,14 +578,14 @@ function renderOverview() {
     ['Tracked Figma users', data.trackedUsers, 'Unique accounts recorded by the plugin'],
     ['Active in 7 days', data.active7Days, 'Tracked accounts with recent activity']
   ];
-  kpis.innerHTML = metrics.map(([label, value, copy]) => `<article class="panel overview-kpi"><p>${escapeHtml(label)}</p><strong>${escapeHtml(value ?? '—')}</strong><span>${escapeHtml(copy)}</span></article>`).join('');
+  kpis.innerHTML = metrics.map(([label, value, copy], index) => `<article class="panel overview-kpi"><strong>${escapeHtml(typeof value === 'number' ? value.toLocaleString('en-US') : value ?? '—')}</strong><p><span class="metric-symbol" aria-hidden="true">${['↗', '◈', '◎', '◷'][index]}</span>${escapeHtml(label)}</p><span class="metric-help">${escapeHtml(copy)}</span></article>`).join('');
   const money = (cents, currency) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(cents / 100);
   document.getElementById('overview-revenue').innerHTML = (revenue.totals || []).map((item) => `<div class="overview-sales"><span>Imported gross sales · ${escapeHtml(item.currency)}</span><strong>${escapeHtml(money(item.grossCents, item.currency))}</strong><p>Last 30 days <b>${escapeHtml(money(item.last30DaysCents, item.currency))}</b></p></div>`).join('') + `<p class="overview-note">Before fees and partial refunds. This is sales revenue, not net profit. Fully refunded and charged back sales excluded.</p><p class="overview-note">${escapeHtml(revenue.missingAmounts || 0)} sales missing amounts · ${escapeHtml(revenue.partialRefunds || 0)} partial refunds · Last import: ${escapeHtml(data.lastImport || 'Never')}</p>`;
   document.getElementById('overview-attention').innerHTML = [
     ['Expiring within 30 days', data.expiringSoon, 'Review upcoming subscription expirations.'],
     ['Missing sale amounts', revenue.missingAmounts || 0, 'Import Gumroad sales to refresh financial data.'],
     ['Refunds / chargebacks', revenue.refundedSales || 0, 'Excluded from the sales totals shown here.']
-  ].map(([label, count, copy]) => `<div class="overview-action"><div><strong>${escapeHtml(label)}</strong><p>${escapeHtml(copy)}</p></div><span>${escapeHtml(count)}</span></div>`).join('');
+  ].filter(([, count]) => count > 0).map(([label, count, copy]) => `<div class="overview-action"><div><strong>${escapeHtml(label)}</strong><p>${escapeHtml(copy)}</p></div><span>${escapeHtml(count)}</span></div>`).join('') || '<div class="overview-clear"><span aria-hidden="true">✓</span><strong>All caught up</strong><p>No items need your attention.</p></div>';
   document.getElementById('overview-purchases').innerHTML = (data.purchases || []).map((sale) => `<tr><td data-label="Customer">${escapeHtml(sale.name)}</td><td data-label="Plan">${escapeHtml(formatSubscriptionPlan(sale.plan))}</td><td data-label="Purchase price">${escapeHtml(sale.price || 'Unavailable')}</td><td data-label="Purchased">${escapeHtml(sale.date || 'Unknown')}</td><td data-label="Status">${escapeHtml(sale.status)}</td></tr>`).join('') || '<tr><td colspan="5">No imported purchases yet.</td></tr>';
 }
 
@@ -696,37 +703,46 @@ function renderRecentUsersTable(rows = getVisibleUsers().slice(0, 8)) {
   `).join('');
 }
 
+let customerPage = 0;
+let customerFilterKey = '';
 function renderUsersTable(rows = getVisibleUsers()) {
+  const filterKey = [currentUserSearchTerm, currentPlanFilter, currentStatusFilter, currentUserDateFilter, currentUserSourceFilter].join('|');
+  if (filterKey !== customerFilterKey) { customerPage = 0; customerFilterKey = filterKey; }
+  customerPage = Math.min(customerPage, Math.max(0, Math.ceil(rows.length / 50) - 1));
+  const pagination = document.getElementById('users-pagination');
+  if (pagination) {
+    pagination.innerHTML = `<span>${rows.length ? customerPage * 50 + 1 : 0}–${Math.min((customerPage + 1) * 50, rows.length)} of ${rows.length} customers</span><div><button class="ghost-button" id="customers-prev" ${customerPage === 0 ? 'disabled' : ''}>← Previous</button><button class="ghost-button" id="customers-next" ${(customerPage + 1) * 50 >= rows.length ? 'disabled' : ''}>Next →</button></div>`;
+    document.getElementById('customers-prev').onclick = () => { customerPage--; renderUsersTable(); };
+    document.getElementById('customers-next').onclick = () => { customerPage++; renderUsersTable(); };
+  }
   const resultCount = document.getElementById('users-result-count');
   if (resultCount) resultCount.textContent = `${rows.length} user${rows.length === 1 ? '' : 's'}`;
 
   if (!rows.length) {
-    renderEmptyRow('users-table', 'No users match this view.', 13);
+    renderEmptyRow('users-table', 'No customers match your filters. Try a different search or clear the filters.', 9);
     updateSelectedUsersMeta();
     return;
   }
 
-  document.getElementById('users-table').innerHTML = rows.map((user) => `
+  document.getElementById('users-table').innerHTML = rows.slice(customerPage * 50, (customerPage + 1) * 50).map((user) => `
     <tr class="searchable-row" data-search="${escapeHtml(userSearchText(user))}">
       <td data-label="Select">${user.figmaUserId ? `<input type="checkbox" class="user-select-checkbox" data-user-select="${escapeHtml(user.figmaUserId)}" ${selectedUserIds.has(user.figmaUserId) ? 'checked' : ''}>` : ''}</td>
-      <td data-label="Name">${escapeHtml(user.name)}</td>
-      <td data-label="Email">${escapeHtml(user.email || '-')}</td>
-      <td data-label="Plan"><span class="tag ${escapeHtml(String(user.plan || '').toLowerCase())}">${escapeHtml(user.plan)}</span></td>
-      <td data-label="Billing">${escapeHtml(formatSubscriptionPlan(user.subscriptionPlan))}</td>
-      <td data-label="Figma User ID">${escapeHtml(user.figmaUserId)}</td>
-      <td data-label="Activation Code" class="mono-cell">${escapeHtml(user.licenseKey || '-')}</td>
-      <td data-label="Purchase Date">${escapeHtml(user.purchaseDate || '-')}</td>
-      <td data-label="Expiry Date">${escapeHtml(user.subscriptionEndsAt || '-')}</td>
-      <td data-label="Last Active">${escapeHtml(user.active)}</td>
+      <td data-label="Customer"><div class="customer-identity"><span class="customer-avatar" aria-hidden="true">${escapeHtml((user.name || '?').trim().slice(0, 1).toUpperCase())}</span><div><strong>${escapeHtml(user.name)}</strong><span>${escapeHtml(user.email || (user.figmaUserId ? `Figma · ${user.figmaUserId}` : 'Gumroad customer'))}</span></div></div></td>
+      <td data-label="Access"><span class="tag ${escapeHtml(String(user.plan || '').toLowerCase())}">${escapeHtml(user.plan)}</span></td>
+      <td data-label="Billing"><div class="cell-stack"><strong>${escapeHtml(formatSubscriptionPlan(user.subscriptionPlan) || 'No billing')}</strong><span>${escapeHtml(user.purchasePrice || 'Price unavailable')}</span></div></td>
+      <td data-label="Usage"><div class="cell-stack"><strong>${String(user.plan || '').toLowerCase() === 'pro' ? 'Unlimited' : (user.trialsRemaining ?? 'Unknown')}</strong><span>${escapeHtml(user.activityCount || 0)} events</span></div></td>
+      <td data-label="Joined">${escapeHtml(user.firstSeenAt ? user.firstSeenAt.slice(0, 10) : user.purchaseDate ? user.purchaseDate.slice(0, 10) : 'Not tracked')}</td>
+      <td data-label="Last Active">${escapeHtml(user.lastSeenAt ? user.lastSeenAt.slice(0, 10) : user.source === 'plugin' ? (user.active || '').slice(0, 10) : 'Not tracked')}</td>
       <td data-label="Status"><span class="tag ${toStatusClass(user.subscriptionStatus || user.status)}">${escapeHtml(formatSubscriptionStatus(user.subscriptionStatus) || user.status)}</span></td>
-      <td data-label="Risk"><span class="tag ${Number(user.churnRiskScore) >= 70 ? 'error' : Number(user.churnRiskScore) >= 40 ? 'risk' : 'ok'}">${escapeHtml(`${riskLabel(user.churnRiskScore)} ${Number(user.churnRiskScore) || 0}`)}</span></td>
       <td data-label="Actions">
-        <div class="action-stack">
-          <button class="table-action" data-user-profile="${escapeHtml(user.figmaUserId || user.licenseKey || user.email || user.name)}">Profile</button>
-          ${user.figmaUserId ? `<button class="table-action" data-user-lookup="${escapeHtml(user.figmaUserId)}">Lookup</button>` : ''}
-          ${user.email ? `<button class="table-action" data-copy-email="${escapeHtml(user.email)}">Copy Email</button>` : ''}
-          ${user.figmaUserId ? `<button class="table-action" data-user-refresh="${escapeHtml(user.figmaUserId)}">Refresh License</button>` : ''}
-          ${user.figmaUserId ? `<button class="table-action danger" data-user-unlink="${escapeHtml(user.figmaUserId)}">Unlink</button>` : ''}
+        <div class="row-actions">
+          <button class="row-actions-trigger" type="button" aria-label="Actions for ${escapeHtml(user.name)}" aria-expanded="false" data-actions-toggle><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button>
+          <div class="row-actions-menu" hidden>
+            <button type="button" data-user-profile="${escapeHtml(user.figmaUserId || user.licenseKey || user.email || user.name)}">Open profile</button>
+            ${user.email ? `<button type="button" data-copy-email="${escapeHtml(user.email)}">Copy email</button>` : ''}
+            ${user.figmaUserId ? `<button type="button" data-user-refresh="${escapeHtml(user.figmaUserId)}">Refresh license</button>` : ''}
+            ${user.figmaUserId ? `<button type="button" class="danger" data-user-unlink="${escapeHtml(user.figmaUserId)}">Unlink license</button>` : ''}
+          </div>
         </div>
       </td>
     </tr>
@@ -1213,12 +1229,15 @@ function csvEscape(value) {
 }
 
 function exportUsersCsv() {
-  const headers = ['Name', 'Email', 'Plan', 'Billing', 'Figma User ID', 'Activation Code', 'Purchase Date', 'Expiry Date', 'Last Active', 'Subscription Status', 'Status'];
+  const headers = ['Name', 'Email', 'Plan', 'Billing', 'Trials Remaining', 'Price', 'Usage Events', 'Figma User ID', 'Activation Code', 'Purchase Date', 'Expiry Date', 'Last Active', 'Subscription Status', 'Status'];
   const rows = getVisibleUsers().map((user) => [
     user.name,
     user.email,
     user.plan,
     formatSubscriptionPlan(user.subscriptionPlan),
+    String(user.plan || '').toLowerCase() === 'pro' ? 'Unlimited' : (user.trialsRemaining ?? 'Unknown'),
+    user.purchasePrice,
+    user.activityCount,
     user.figmaUserId,
     user.licenseKey,
     user.purchaseDate,
@@ -1456,8 +1475,24 @@ function attachViewSwitching() {
   const views = Array.from(document.querySelectorAll('.view'));
   const sidebar = document.querySelector('.sidebar');
   const menuToggle = document.getElementById('mobile-menu-toggle');
+  const icons = {
+    overview: 'overview', users: 'users', subscriptions: 'subscriptions',
+    'plugin-usage': 'plugin-usage', activity: 'activity', revenue: 'revenue',
+    timeline: 'timeline', errors: 'errors', retention: 'retention',
+    health: 'health', exports: 'exports', settings: 'settings'
+  };
+  navItems.forEach((button) => {
+    const label = button.textContent.trim();
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    const iconName = icons[button.dataset.view] || icons.overview;
+    button.innerHTML = `<img class="nav-icon" src="./assets/icons/${iconName}.svg" alt="" aria-hidden="true"><span class="nav-label">${escapeHtml(label)}</span>`;
+  });
 
   function openView(view) {
+    document.getElementById('dashboard-app').classList.toggle('overview-mode', view === 'overview' || view === 'users');
+    document.getElementById('dashboard-app').classList.toggle('users-mode', view === 'users');
+    document.querySelector('.topbar h2').textContent = navItems.find((item) => item.dataset.view === view)?.getAttribute('aria-label') || 'Dashboard';
     navItems.forEach((item) => item.classList.toggle('is-active', item.dataset.view === view));
     views.forEach((panel) => panel.classList.toggle('is-visible', panel.dataset.viewPanel === view));
     closeMobileMenu();
@@ -1814,6 +1849,26 @@ function attachUserProfile() {
   }
 
   document.addEventListener('click', (event) => {
+    const actionsToggle = event.target.closest('[data-actions-toggle]');
+    if (actionsToggle) {
+      const menu = actionsToggle.parentElement.querySelector('.row-actions-menu');
+      const shouldOpen = menu?.hasAttribute('hidden');
+      document.querySelectorAll('.row-actions-menu:not([hidden])').forEach((openMenu) => {
+        openMenu.hidden = true;
+        openMenu.parentElement.querySelector('[data-actions-toggle]')?.setAttribute('aria-expanded', 'false');
+      });
+      if (menu && shouldOpen) {
+        menu.hidden = false;
+        actionsToggle.setAttribute('aria-expanded', 'true');
+      }
+      return;
+    }
+    if (!event.target.closest('.row-actions')) {
+      document.querySelectorAll('.row-actions-menu:not([hidden])').forEach((openMenu) => {
+        openMenu.hidden = true;
+        openMenu.parentElement.querySelector('[data-actions-toggle]')?.setAttribute('aria-expanded', 'false');
+      });
+    }
     const profileButton = event.target.closest('[data-user-profile]');
     if (profileButton) {
       renderUserProfile(profileButton.dataset.userProfile);

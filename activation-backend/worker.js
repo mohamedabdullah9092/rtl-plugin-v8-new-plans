@@ -217,14 +217,27 @@ function inferSubscriptionStatus(purchase) {
   if (purchase.refunded) return 'refunded';
   if (purchase.subscription_failed_at) return 'payment_failed';
   if (purchase.subscription_ended_at || purchase.subscription_cancelled_at || purchase.subscription_canceled_at) return 'ended';
+  const explicitStatus = compactString(purchase.subscription_status || purchase.subscription_state || purchase.status, 80);
+  if (explicitStatus) {
+    const normalized = explicitStatus.toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+    if (normalized.includes('inactive') || normalized.includes('cancel') || normalized.includes('end')) return 'ended';
+    if (normalized.includes('fail')) return 'payment_failed';
+    if (normalized.includes('refund')) return 'refunded';
+    if (normalized.includes('chargeback')) return 'chargebacked';
+    if (normalized.includes('one_time') || normalized.includes('onetime')) return 'one_time';
+    if (normalized.includes('active')) return 'active';
+  }
   return inferSubscriptionPlan(purchase) === 'one_time' ? 'one_time' : 'active';
 }
 
 function extractGumroadPurchaseDetails(gumroadData) {
   const purchase = gumroadData && gumroadData.purchase ? gumroadData.purchase : (gumroadData || {});
-  const buyerName = purchase.full_name || purchase.name || purchase.purchaser_name || purchase.customer_name || null;
-  const purchaseDate = purchase.created_at || purchase.sale_timestamp || purchase.purchase_date || purchase.created || null;
-  const subscriptionEndsAt = getFirstPurchaseValue(purchase, [
+  // Gumroad has returned subscription fields both on the sale and inside
+  // purchase in different API responses. Keep both layers when importing.
+  const detailsSource = { ...(gumroadData || {}), ...purchase };
+  const buyerName = detailsSource.full_name || detailsSource.name || detailsSource.purchaser_name || detailsSource.customer_name || null;
+  const purchaseDate = detailsSource.created_at || detailsSource.sale_timestamp || detailsSource.purchase_date || detailsSource.created || null;
+  const subscriptionEndsAt = getFirstPurchaseValue(detailsSource, [
     'subscription_ended_at',
     'subscription_cancelled_at',
     'subscription_canceled_at',
@@ -238,13 +251,13 @@ function extractGumroadPurchaseDetails(gumroadData) {
   ]);
 
   return {
-    gumroadSaleId: purchase.sale_id || purchase.id ? String(purchase.sale_id || purchase.id) : null,
-    gumroadEmail: compactString(purchase.email, 160),
+    gumroadSaleId: detailsSource.sale_id || detailsSource.id ? String(detailsSource.sale_id || detailsSource.id) : null,
+    gumroadEmail: compactString(detailsSource.email, 160),
     gumroadBuyerName: compactString(buyerName, 160),
     gumroadPurchaseCreatedAt: compactString(purchaseDate, 80),
-    gumroadProductName: compactString(purchase.product_name, 180),
-    gumroadSubscriptionPlan: inferSubscriptionPlan(purchase),
-    gumroadSubscriptionStatus: inferSubscriptionStatus(purchase),
+    gumroadProductName: compactString(detailsSource.product_name, 180),
+    gumroadSubscriptionPlan: inferSubscriptionPlan(detailsSource),
+    gumroadSubscriptionStatus: inferSubscriptionStatus(detailsSource),
     gumroadSubscriptionEndsAt: compactString(subscriptionEndsAt, 80)
   };
 }
@@ -1580,8 +1593,10 @@ function buildUserRows(bindings, pluginEvents, gumroadSales = [], pluginUsers = 
 
   gumroadSales.forEach((sale) => {
     if (sale.license_key && linkedLicenseKeys.has(sale.license_key)) return;
-
-    usersById.set(`gumroad:${sale.gumroad_sale_id}`, {
+    // Recurring charges share a license; show its latest purchase once.
+    const customerKey = `gumroad:${sale.license_key || sale.email || sale.gumroad_sale_id}`;
+    if (usersById.has(customerKey)) return;
+    usersById.set(customerKey, {
       name: sale.buyer_name || sale.email || 'Gumroad buyer',
       figmaName: '',
       email: sale.email || '',
@@ -1621,7 +1636,9 @@ function buildUserRows(bindings, pluginEvents, gumroadSales = [], pluginUsers = 
         noteUpdatedBy: note?.updated_by || '',
         churnRiskScore: scoreChurnRisk(user, userEvents, userErrors),
         statusKey: subscriptionStatus || normalizeSubscriptionStatus(user.status || ''),
-        activityCount: userEvents.length
+        activityCount: userEvents.length,
+        trialsRemaining: trackedUser?.trials_remaining ?? null,
+        usageCount: Number(trackedUser?.usage_count) || 0
       };
     })
     .sort((left, right) => {
@@ -1868,6 +1885,8 @@ function buildRevenueView(users, gumroadSales) {
 function normalizeSubscriptionStatus(value) {
   const normalized = String(value || '').toLowerCase();
   if (!normalized) return '';
+  // "inactive" contains the word "active"; check it before the active match.
+  if (normalized === 'inactive' || normalized.includes('inactive')) return 'inactive';
   if (normalized === 'payment_failed') return 'payment_failed';
   if (normalized === 'one_time') return 'one_time';
   if (normalized.includes('end')) return 'ended';
